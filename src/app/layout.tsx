@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WhatsFlow AI — AI-Powered WhatsApp Automation Platform",
+  title: "Neura Chat — AI-Powered WhatsApp Automation Platform",
   description: "Automate customer support, lead generation, sales, follow-ups, and engagement with AI-powered WhatsApp workflows.",
   keywords: "WhatsApp automation, AI chatbot, WhatsApp marketing, CRM, lead generation",
 };
