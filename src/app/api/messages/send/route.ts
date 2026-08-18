@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured, SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/env";
 import { decryptToken } from "@/lib/crypto";
 import {
   sendTemplateMessage,
@@ -18,6 +19,10 @@ interface SendRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ error: SUPABASE_NOT_CONFIGURED_MESSAGE }, { status: 503 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

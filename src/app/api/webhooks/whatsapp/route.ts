@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
 
@@ -51,6 +52,12 @@ export async function GET(request: NextRequest) {
 
   if (mode !== "subscribe" || !token || !challenge) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  // No database to check the verify token against — fail closed, but
+  // distinguish "not set up" from "wrong token" for whoever is debugging.
+  if (!isSupabaseConfigured()) {
+    return new NextResponse("Webhook not configured", { status: 503 });
   }
 
   const supabase = createAdminClient();

@@ -31,21 +31,29 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
 
-    const supabase = createClient();
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        data: {
-          full_name: `${firstName} ${lastName}`.trim(),
-          org_name: companyName || undefined,
+    let data;
+    try {
+      const supabase = createClient();
+      const result = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          data: {
+            full_name: `${firstName} ${lastName}`.trim(),
+            org_name: companyName || undefined,
+          },
         },
-      },
-    });
+      });
 
-    if (signUpError) {
-      setError(signUpError.message);
+      if (result.error) {
+        setError(result.error.message);
+        setLoading(false);
+        return;
+      }
+      data = result.data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign up failed");
       setLoading(false);
       return;
     }
@@ -66,12 +74,16 @@ export default function RegisterPage() {
 
   const handleGoogleSignIn = async () => {
     setError(null);
-    const supabase = createClient();
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (oauthError) setError(oauthError.message);
+    try {
+      const supabase = createClient();
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (oauthError) setError(oauthError.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign in failed");
+    }
   };
 
   return (

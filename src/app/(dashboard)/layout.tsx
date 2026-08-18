@@ -1,9 +1,17 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import Sidebar from "./_components/Sidebar";
 import TopBar from "./_components/TopBar";
+import SetupNotice from "./_components/SetupNotice";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Without Supabase credentials there is no way to authenticate anyone.
+  // Say so plainly instead of throwing an unhandled error into a 500.
+  if (!isSupabaseConfigured()) {
+    return <SetupNotice />;
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

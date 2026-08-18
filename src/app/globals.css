@@ -1,8 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind v4 entrypoint. The v3 directives (@tailwind base/components/
+   utilities) still emit utilities under v4 but silently skip preflight and
+   the theme layer, which leaves form controls, tables and headings with
+   default browser styling. */
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
 
 :root {
   --brand-green: #00FF87;
