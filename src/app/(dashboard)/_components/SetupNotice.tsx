@@ -1,9 +1,12 @@
+// Only what the code actually reads. META_ACCESS_TOKEN is declared in
+// .env.local.example but no code path consumes it — per-org tokens come
+// from waba_connections.access_token_encrypted instead — so listing it
+// here would send people hunting for a value they don't need yet.
 const REQUIRED_VARS = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "META_APP_SECRET",
-  "META_ACCESS_TOKEN",
   "TOKEN_ENCRYPTION_KEY",
 ];
 
