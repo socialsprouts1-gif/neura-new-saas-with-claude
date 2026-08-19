@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Zap, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -14,6 +14,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The auth callback redirects here with ?error=... when a confirmation or
+  // magic link fails (expired, already used, wrong token). Read it from the
+  // URL directly rather than useSearchParams, which would force this
+  // otherwise-static page into dynamic rendering.
+  useEffect(() => {
+    const fromCallback = new URLSearchParams(window.location.search).get("error");
+    if (fromCallback) setError(fromCallback);
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
