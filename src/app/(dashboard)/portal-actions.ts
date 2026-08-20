@@ -265,10 +265,12 @@ export async function connectIntegration(formData: FormData): Promise<ActionResu
   if (Object.keys(credentials).length > 0) {
     try {
       encrypted = encryptToken(JSON.stringify(credentials));
-    } catch {
+    } catch (err) {
       return {
         ok: false,
-        error: "TOKEN_ENCRYPTION_KEY is missing or invalid, so credentials cannot be stored securely.",
+        error: `Can't store credentials securely — ${
+          err instanceof Error ? err.message : "encryption failed"
+        } Add it in Vercel → Settings → Environment Variables, then redeploy.`,
       };
     }
   }

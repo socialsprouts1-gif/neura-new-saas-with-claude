@@ -34,10 +34,15 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
   let encrypted: string;
   try {
     encrypted = encryptToken(accessToken);
-  } catch {
+  } catch (err) {
+    // Surface the real reason. Swallowing it made a missing variable and a
+    // mis-pasted one look identical, which is the difference between "add
+    // it" and "fix it".
     return {
       ok: false,
-      error: "TOKEN_ENCRYPTION_KEY is missing or invalid, so the access token cannot be stored securely.",
+      error: `Can't store the access token securely — ${
+        err instanceof Error ? err.message : "encryption failed"
+      } Add it in Vercel → Settings → Environment Variables, then redeploy.`,
     };
   }
 

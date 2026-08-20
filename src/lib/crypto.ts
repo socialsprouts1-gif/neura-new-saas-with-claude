@@ -13,9 +13,16 @@ function getKey(): Buffer {
   if (!key) {
     throw new Error("TOKEN_ENCRYPTION_KEY is not set");
   }
+  // Buffer.from(…, "base64") silently drops invalid characters rather than
+  // throwing, so a truncated or wrapped key arrives here as a short buffer.
+  // Report the actual length — "invalid" alone gives no way to tell a
+  // missing key from a mangled paste.
   const buf = Buffer.from(key, "base64");
   if (buf.length !== 32) {
-    throw new Error("TOKEN_ENCRYPTION_KEY must decode to exactly 32 bytes");
+    throw new Error(
+      `TOKEN_ENCRYPTION_KEY decodes to ${buf.length} bytes, but must be exactly 32. ` +
+        "Generate one with: openssl rand -base64 32"
+    );
   }
   return buf;
 }
