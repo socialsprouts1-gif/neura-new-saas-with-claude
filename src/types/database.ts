@@ -18,6 +18,18 @@ import type {
   SupportTicket,
   WebhookLog,
 } from "./admin";
+import type {
+  AiAssistant,
+  ApiKey,
+  ChatbotFlow,
+  FaqEntry,
+  MediaAsset,
+  OrgIntegration,
+  OutgoingWebhook,
+  Product,
+  Reminder,
+  WebhookDelivery,
+} from "./portal";
 
 export type OrgRole = "owner" | "admin" | "member";
 export type WabaStatus = "pending" | "active" | "disabled" | "error";
@@ -397,6 +409,86 @@ export interface Database {
         Row: PlatformSetting;
         Insert: Partial<PlatformSetting> & { key: string };
         Update: Partial<PlatformSetting>;
+        Relationships: [];
+      };
+
+      // --- portal modules -------------------------------------------------
+      ai_assistants: {
+        Row: AiAssistant;
+        Insert: Partial<AiAssistant> & { org_id: string; name: string };
+        Update: Partial<AiAssistant>;
+        Relationships: [];
+      };
+      chatbot_flows: {
+        Row: ChatbotFlow;
+        Insert: Partial<ChatbotFlow> & { org_id: string; name: string };
+        Update: Partial<ChatbotFlow>;
+        Relationships: [];
+      };
+      faq_entries: {
+        Row: FaqEntry;
+        Insert: Partial<FaqEntry> & { org_id: string; question: string; answer: string };
+        Update: Partial<FaqEntry>;
+        Relationships: [];
+      };
+      reminders: {
+        Row: Reminder;
+        Insert: Partial<Reminder> & { org_id: string; title: string; remind_at: string };
+        Update: Partial<Reminder>;
+        Relationships: [
+          {
+            foreignKeyName: "reminders_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      org_integrations: {
+        Row: OrgIntegration;
+        Insert: Partial<OrgIntegration> & { org_id: string; provider: string };
+        Update: Partial<OrgIntegration>;
+        Relationships: [];
+      };
+      api_keys: {
+        Row: ApiKey;
+        Insert: Partial<ApiKey> & {
+          org_id: string;
+          name: string;
+          key_prefix: string;
+          key_hash: string;
+        };
+        Update: Partial<ApiKey>;
+        Relationships: [];
+      };
+      outgoing_webhooks: {
+        Row: OutgoingWebhook;
+        Insert: Partial<OutgoingWebhook> & {
+          org_id: string;
+          name: string;
+          target_url: string;
+          secret: string;
+        };
+        Update: Partial<OutgoingWebhook>;
+        Relationships: [];
+      };
+      webhook_deliveries: {
+        Row: WebhookDelivery;
+        Insert: Partial<WebhookDelivery> & { webhook_id: string; org_id: string; event: string };
+        Update: Partial<WebhookDelivery>;
+        Relationships: [];
+      };
+      media_assets: {
+        Row: MediaAsset;
+        Insert: Partial<MediaAsset> & { org_id: string; name: string; url: string };
+        Update: Partial<MediaAsset>;
+        Relationships: [];
+      };
+      products: {
+        Row: Product;
+        Insert: Partial<Product> & { org_id: string; name: string };
+        Update: Partial<Product>;
         Relationships: [];
       };
     };
