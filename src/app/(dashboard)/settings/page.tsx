@@ -67,15 +67,49 @@ export default async function SettingsPage() {
                 </div>
               ))}
 
-              <div className="bg-white/3 border border-white/8 rounded-xl p-4 mt-4">
-                <div className="text-xs font-semibold text-white/70 mb-2">
-                  Callback URL for Meta → WhatsApp → Configuration
+              {/* Registering the webhook is a separate step in the Meta
+                  dashboard — storing credentials here does not tell Meta
+                  where to deliver messages. Both values it asks for are
+                  shown so nobody has to query the database for them. */}
+              <div className="bg-[#0A0A0F] border border-[#00FF87]/20 rounded-xl p-5 mt-4">
+                <div className="text-sm font-semibold text-[#00FF87] mb-1">
+                  Final step: register this webhook with Meta
                 </div>
-                <code className="block text-xs text-[#00D4FF] break-all">{webhookUrl}</code>
-                <p className="text-[11px] text-white/40 mt-2">
-                  The verify token was generated when you connected the number. Find it in
-                  the <code className="text-white/60">waba_connections</code> table, or
-                  reconnect to issue a new one.
+                <p className="text-xs text-white/50 mb-4">
+                  Inbound messages will not reach your inbox until you paste both values into
+                  Meta → your app → WhatsApp → Configuration, and subscribe to the{" "}
+                  <code className="text-white/70">messages</code> field.
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
+                      Callback URL
+                    </div>
+                    <code className="block text-xs text-[#00D4FF] break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
+                      {webhookUrl}
+                    </code>
+                  </div>
+
+                  {connections.map((c) => (
+                    <div key={`vt-${c.id}`}>
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
+                        Verify token
+                        <span className="text-white/25 normal-case tracking-normal font-normal">
+                          {" "}· for {c.phone_number_id}
+                        </span>
+                      </div>
+                      <code className="block text-xs text-[#00FF87] break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
+                        {c.webhook_verify_token}
+                      </code>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[11px] text-white/35 mt-4 leading-relaxed">
+                  After saving in Meta, send a message to your number from any phone. Check
+                  Admin → Webhook logs to confirm the delivery arrived and its signature
+                  verified.
                 </p>
               </div>
             </div>
