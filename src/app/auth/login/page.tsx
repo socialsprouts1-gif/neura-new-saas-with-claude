@@ -4,8 +4,23 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Zap, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+
+// The auth callback redirects here with ?error=… when a confirmation or
+// magic link fails. Read in its own Suspense-wrapped child so the rest of
+// the page stays statically rendered, and so no effect writes state during
+// the first render.
+function CallbackError() {
+  const error = useSearchParams().get("error");
+  if (!error) return null;
+  return (
+    <p className="text-sm text-red-400 mb-4" role="alert">
+      {error}
+    </p>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,15 +29,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // The auth callback redirects here with ?error=... when a confirmation or
-  // magic link fails (expired, already used, wrong token). Read it from the
-  // URL directly rather than useSearchParams, which would force this
-  // otherwise-static page into dynamic rendering.
-  useEffect(() => {
-    const fromCallback = new URLSearchParams(window.location.search).get("error");
-    if (fromCallback) setError(fromCallback);
-  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -92,6 +98,10 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold mb-2">Welcome back</h1>
             <p className="text-white/50 text-sm">Sign in to your Neura Chat account</p>
           </div>
+
+          <Suspense fallback={null}>
+            <CallbackError />
+          </Suspense>
 
           {/* Social login */}
           <button

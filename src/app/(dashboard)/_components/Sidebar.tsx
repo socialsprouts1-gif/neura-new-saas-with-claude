@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap, MessageCircle, Megaphone, Users, GitBranch, Settings } from "lucide-react";
+import { Zap, MessageCircle, Megaphone, Users, GitBranch, Settings, Shield } from "lucide-react";
 
 const navItems = [
   { icon: MessageCircle, label: "Inbox", href: "/inbox" },
@@ -12,7 +12,7 @@ const navItems = [
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -46,6 +46,20 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Only rendered for platform staff. Hiding it is a convenience, not the
+          control — /admin re-checks server-side and RLS enforces the rest. */}
+      {isPlatformAdmin && (
+        <div className="border-t border-white/8 p-3 flex-shrink-0">
+          <Link
+            href="/admin"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#A855F7] hover:bg-[#A855F7]/10 transition-all"
+          >
+            <Shield className="w-4 h-4 flex-shrink-0" />
+            Admin panel
+          </Link>
+        </div>
+      )}
     </aside>
   );
 }

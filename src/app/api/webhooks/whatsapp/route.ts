@@ -81,6 +81,9 @@ export async function POST(request: NextRequest) {
   const signatureHeader = request.headers.get("x-hub-signature-256");
 
   if (!isValidSignature(rawBody, signatureHeader)) {
+    // Logged before rejecting: a burst of rejected deliveries is exactly the
+    // signal worth seeing in the admin log viewer.
+    after(() => logDelivery({ signatureValid: false, error: "Invalid X-Hub-Signature-256" }));
     return new NextResponse("Invalid signature", { status: 401 });
   }
 
@@ -117,6 +120,33 @@ function isValidSignature(rawBody: string, signatureHeader: string | null): bool
   return timingSafeEqual(expected, actual);
 }
 
+// Records one delivery for the admin webhook log. Never throws: a logging
+// failure must not take down webhook processing.
+async function logDelivery(entry: {
+  orgId?: string | null;
+  phoneNumberId?: string | null;
+  eventType?: string | null;
+  signatureValid: boolean;
+  payload?: unknown;
+  error?: string | null;
+}) {
+  if (!isSupabaseConfigured()) return;
+  try {
+    await createAdminClient()
+      .from("webhook_logs")
+      .insert({
+        org_id: entry.orgId ?? null,
+        phone_number_id: entry.phoneNumberId ?? null,
+        event_type: entry.eventType ?? null,
+        signature_valid: entry.signatureValid,
+        payload: entry.payload ?? null,
+        error: entry.error ?? null,
+      });
+  } catch (error) {
+    console.error("Failed to write webhook log", error);
+  }
+}
+
 async function processWebhookPayload(payload: MetaWebhookPayload) {
   const supabase = createAdminClient();
 
@@ -141,10 +171,31 @@ async function processChangeValue(
     .eq("phone_number_id", phoneNumberId)
     .maybeSingle();
 
+  const eventType = value.messages?.length
+    ? "messages"
+    : value.statuses?.length
+      ? "statuses"
+      : "unknown";
+
   if (connectionError || !connection) {
+    await logDelivery({
+      phoneNumberId,
+      eventType,
+      signatureValid: true,
+      payload: value,
+      error: `No waba_connections row for phone_number_id ${phoneNumberId}`,
+    });
     console.error(`No waba_connection found for phone_number_id ${phoneNumberId}`, connectionError);
     return;
   }
+
+  await logDelivery({
+    orgId: connection.org_id,
+    phoneNumberId,
+    eventType,
+    signatureValid: true,
+    payload: value,
+  });
 
   if (value.messages?.length) {
     await handleInboundMessages(supabase, connection.org_id, value);

@@ -8,6 +8,17 @@
 // GenericSchema constraint — omitting these makes every `.from(...)` call
 // silently type as `never` instead of erroring.
 
+import type {
+  AddOn,
+  Coupon,
+  Order,
+  Plan,
+  PlatformSetting,
+  Subscription,
+  SupportTicket,
+  WebhookLog,
+} from "./admin";
+
 export type OrgRole = "owner" | "admin" | "member";
 export type WabaStatus = "pending" | "active" | "disabled" | "error";
 export type ConversationStatus = "open" | "pending" | "resolved" | "closed";
@@ -31,7 +42,18 @@ export interface Database {
         Row: { org_id: string; user_id: string; role: OrgRole; created_at: string };
         Insert: { org_id: string; user_id: string; role?: OrgRole; created_at?: string };
         Update: { org_id?: string; user_id?: string; role?: OrgRole; created_at?: string };
-        Relationships: [];
+        // Relationships are not documentation — postgrest-js reads them to
+        // resolve embedded selects like `organizations(name)`. An empty
+        // array makes any such query resolve to `never`.
+        Relationships: [
+          {
+            foreignKeyName: "org_members_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       waba_connections: {
         Row: {
@@ -101,7 +123,15 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["conversations"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "conversations_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       messages: {
         Row: {
@@ -175,7 +205,15 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["campaigns"]["Insert"]>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_template_id_fkey";
+            columns: ["template_id"];
+            isOneToOne: false;
+            referencedRelation: "message_templates";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       campaign_recipients: {
         Row: {
@@ -223,6 +261,142 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["automation_flows"]["Insert"]>;
+        Relationships: [];
+      };
+
+      // --- platform administration + billing -----------------------------
+      platform_admins: {
+        Row: { user_id: string; created_at: string };
+        Insert: { user_id: string; created_at?: string };
+        Update: { user_id?: string; created_at?: string };
+        Relationships: [];
+      };
+      plans: {
+        Row: Plan;
+        Insert: Partial<Plan> & { name: string; slug: string };
+        Update: Partial<Plan>;
+        Relationships: [];
+      };
+      add_ons: {
+        Row: AddOn;
+        Insert: Partial<AddOn> & { name: string; slug: string };
+        Update: Partial<AddOn>;
+        Relationships: [];
+      };
+      subscriptions: {
+        Row: Subscription;
+        Insert: Partial<Subscription> & { org_id: string };
+        Update: Partial<Subscription>;
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "subscriptions_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: true;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      org_add_ons: {
+        Row: {
+          id: string;
+          org_id: string;
+          add_on_id: string;
+          quantity: number;
+          created_at: string;
+        };
+        Insert: { id?: string; org_id: string; add_on_id: string; quantity?: number; created_at?: string };
+        Update: Partial<{ org_id: string; add_on_id: string; quantity: number }>;
+        Relationships: [];
+      };
+      coupons: {
+        Row: Coupon;
+        Insert: Partial<Coupon> & { code: string; discount_value: number };
+        Update: Partial<Coupon>;
+        Relationships: [];
+      };
+      orders: {
+        Row: Order;
+        Insert: Partial<Order> & { org_id: string };
+        Update: Partial<Order>;
+        Relationships: [
+          {
+            foreignKeyName: "orders_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      support_tickets: {
+        Row: SupportTicket;
+        Insert: Partial<SupportTicket> & { org_id: string; subject: string; body: string };
+        Update: Partial<SupportTicket>;
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      support_ticket_messages: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          org_id: string;
+          author_id: string | null;
+          body: string;
+          is_staff: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          ticket_id: string;
+          org_id?: string;
+          author_id?: string | null;
+          body: string;
+          is_staff?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<{ body: string; is_staff: boolean }>;
+        Relationships: [];
+      };
+      webhook_logs: {
+        Row: WebhookLog;
+        Insert: Partial<WebhookLog>;
+        Update: Partial<WebhookLog>;
+        Relationships: [
+          {
+            foreignKeyName: "webhook_logs_org_id_fkey";
+            columns: ["org_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      platform_settings: {
+        Row: PlatformSetting;
+        Insert: Partial<PlatformSetting> & { key: string };
+        Update: Partial<PlatformSetting>;
         Relationships: [];
       };
     };
