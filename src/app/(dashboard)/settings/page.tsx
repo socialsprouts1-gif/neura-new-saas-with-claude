@@ -1,7 +1,13 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { connectWaba, disconnectWaba, renameOrganization, createSupportTicket } from "../actions";
+import {
+  connectWaba,
+  disconnectWaba,
+  renameOrganization,
+  createSupportTicket,
+  regenerateVerifyToken,
+} from "../actions";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, statusTone } from "@/components/ui/primitives";
 import { formatMoney, formatDate } from "@/types/admin";
@@ -93,15 +99,26 @@ export default async function SettingsPage() {
 
                   {connections.map((c) => (
                     <div key={`vt-${c.id}`}>
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
-                        Verify token
-                        <span className="text-white/25 normal-case tracking-normal font-normal">
-                          {" "}· for {c.phone_number_id}
-                        </span>
+                      <div className="flex items-center justify-between gap-3 mb-1.5">
+                        <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40">
+                          Verify token
+                          <span className="text-white/25 normal-case tracking-normal font-normal">
+                            {" "}· for {c.phone_number_id}
+                          </span>
+                        </div>
+                        {canManage && (
+                          <ActionForm action={regenerateVerifyToken} submitLabel="Regenerate" compact>
+                            <input type="hidden" name="id" value={c.id} />
+                          </ActionForm>
+                        )}
                       </div>
                       <code className="block text-xs text-[#00FF87] break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
                         {c.webhook_verify_token}
                       </code>
+                      <p className="text-[10px] text-white/30 mt-1.5">
+                        {c.webhook_verify_token.length} characters. Meta rejects the handshake
+                        unless this matches exactly — it is not your access token.
+                      </p>
                     </div>
                   ))}
                 </div>

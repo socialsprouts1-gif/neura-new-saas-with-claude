@@ -47,6 +47,19 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
   }
 
   const supabase = await createClient();
+
+  // Reuse the existing verify token when this number is already connected.
+  // Regenerating it on every save silently breaks a webhook already
+  // registered with Meta — reconnecting to rotate an expiring access token
+  // would invalidate the handshake, and Meta's only feedback is a generic
+  // "couldn't be validated". The token is a handshake secret, not a
+  // credential that needs rotating alongside the access token.
+  const { data: existing } = await supabase
+    .from("waba_connections")
+    .select("webhook_verify_token")
+    .eq("phone_number_id", phoneNumberId)
+    .maybeSingle();
+
   const { error } = await supabase.from("waba_connections").upsert(
     {
       org_id: orgId,
@@ -56,7 +69,8 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
       access_token_encrypted: encrypted,
       // Generated here rather than typed by the user: it is a shared secret
       // Meta echoes back during verification, so it should be unguessable.
-      webhook_verify_token: randomBytes(24).toString("base64url"),
+      webhook_verify_token:
+        existing?.webhook_verify_token ?? randomBytes(24).toString("base64url"),
       status: "active",
     },
     { onConflict: "phone_number_id" }
@@ -65,7 +79,35 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/settings");
-  return { ok: true, message: "WhatsApp number connected." };
+  return {
+    ok: true,
+    message: existing
+      ? "WhatsApp number updated. The verify token is unchanged, so your webhook stays registered."
+      : "WhatsApp number connected.",
+  };
+}
+
+export async function regenerateVerifyToken(formData: FormData): Promise<ActionResult> {
+  const { orgId, role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can regenerate the verify token." };
+  }
+
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("waba_connections")
+    .update({ webhook_verify_token: randomBytes(24).toString("base64url") })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    message: "New verify token generated. Re-register the webhook in Meta with the new value.",
+  };
 }
 
 export async function disconnectWaba(formData: FormData): Promise<ActionResult> {
