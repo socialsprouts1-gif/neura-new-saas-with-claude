@@ -1,17 +1,32 @@
 # Neura Chat
 
-Multi-tenant WhatsApp automation SaaS. Next.js 16 (App Router) + Supabase
-(Postgres, Auth, RLS) + the Meta WhatsApp Cloud API used directly — no BSP
-in the middle, each tenant connects their own WhatsApp Business Account.
+Multi-tenant WhatsApp automation SaaS built on the **Meta WhatsApp Cloud API
+directly** — no BSP intermediary. Each tenant connects their own WhatsApp
+Business Account. A Neuraxine product.
 
-## Setup
+## Stack
+
+- **Next.js 16** (App Router, Turbopack) + TypeScript
+- **Tailwind CSS** — dark glassmorphism theme, neon-green / purple-cyan gradient accents
+- **Supabase** — Postgres + Auth + Realtime, with row-level security throughout
+- **Meta Graph API** `v21.0` — pinned as a constant in `src/lib/meta-whatsapp.ts`
+- **Claude** (`@anthropic-ai/sdk`) — powers the AI Assistant replies
+
+## Getting started
+
+```bash
+npm install
+cp .env.local.example .env.local   # then fill in real values
+npm run dev
+```
 
 ### 1. Database
 
 Open the Supabase SQL editor, paste the whole of `supabase/setup.sql`, and
-run it. It is generated from `supabase/migrations/*.sql` and is safe to run
-more than once — re-running it after adding a migration applies only what is
-missing.
+run it. It is generated from `supabase/migrations/*.sql` in filename order
+and is safe to run more than once — tables use `if not exists`, functions use
+`create or replace`, and every policy is dropped before being recreated, so
+re-running it after adding a migration applies only what is missing.
 
 ```bash
 node scripts/build-setup-sql.mjs   # regenerate after editing a migration
@@ -19,20 +34,21 @@ node scripts/build-setup-sql.mjs   # regenerate after editing a migration
 
 ### 2. Environment variables
 
-Copy `.env.local.example` to `.env.local` for local development, and add the
-same values in Vercel → Settings → Environment Variables for production.
-`NEXT_PUBLIC_*` values are baked in at build time, so changing one needs a
-redeploy, not just a restart.
+`.env.local` for local development; Vercel → Settings → Environment Variables
+for production. `NEXT_PUBLIC_*` values are baked in at build time, so changing
+one needs a redeploy, not just a restart.
 
 | Variable | Required | Where it comes from |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | The publishable (or legacy anon) key |
-| `SUPABASE_SERVICE_ROLE_KEY` | yes | The secret (or legacy service_role) key. Bypasses RLS — server only |
-| `META_APP_SECRET` | yes | Meta App → Basic Settings. Verifies the webhook signature |
+| `SUPABASE_SERVICE_ROLE_KEY` | yes | The secret (or legacy service_role) key. Bypasses RLS — server only, never `NEXT_PUBLIC_` |
+| `META_APP_SECRET` | yes | Meta App → Basic Settings. Verifies `X-Hub-Signature-256` |
 | `TOKEN_ENCRYPTION_KEY` | yes | `openssl rand -base64 32`. Encrypts stored WABA tokens |
 | `ANTHROPIC_API_KEY` | only for the AI Assistant | console.anthropic.com |
 
+`META_ACCESS_TOKEN` appears in `.env.local.example` but is not read by any
+code path — sending uses the per-org token from `waba_connections`.
 Everything except the AI Assistant works without `ANTHROPIC_API_KEY`.
 
 ### 3. Connect a WhatsApp number
@@ -44,19 +60,19 @@ Until that is done, no inbound message reaches the app.
 
 ## How an inbound message is handled
 
-`POST /api/webhooks/whatsapp` verifies `X-Hub-Signature-256` against
-`META_APP_SECRET`, answers `200` immediately, then does the work in `after()`:
+`POST /api/webhooks/whatsapp` verifies the signature, answers `200`
+immediately, then does the work in `after()`:
 
 1. upsert the contact and conversation, store the message
 2. fire `contact.created` / `message.received` to the org's outgoing webhooks
 3. run the bot pipeline (`src/lib/message-runner.ts`)
 
-The pipeline picks one reply, in this order — rules the business wrote beat
-generated answers:
+The pipeline picks exactly one reply, in this order — rules the business
+wrote beat generated answers:
 
 | # | Source | Beats |
 |---|---|---|
-| 1 | Handoff keyword → pauses the bot, flags the chat | everything |
+| 1 | Handoff keyword → pauses the bot, flags the chat for a human | everything |
 | 2 | The next step of a flow already in progress | |
 | 3 | Keyword / menu chatbot | FAQ, automations, AI |
 | 4 | Welcome bot (first message only) | |
@@ -66,17 +82,85 @@ generated answers:
 | 8 | Fallback bot | — |
 
 Every evaluation, match or not, writes a row to `bot_runs`, visible at
-**Automations → Bot activity** and in the inbox thread header. A webhook
-redelivery of the same message hits a unique index there and is dropped, so
-Meta's retries cannot double-reply.
+**Automations → Bot activity** and in the inbox thread header. Agents can
+pause and resume the bot per conversation from the inbox.
 
-Agents can pause and resume the bot per conversation from the inbox.
+## Architecture notes
+
+**Tenancy.** Every row is scoped to an `org_id`; users reach data only through
+`org_members`. RLS is enforced in the database via `SECURITY DEFINER` helpers
+— `is_org_member()`, `is_org_admin()`, `is_platform_admin()` — rather than
+trusted at the application layer.
+
+Writes to `org_members` and `waba_connections` are restricted to
+owners/admins — the former to prevent self-granted privilege escalation, the
+latter because it holds encrypted Meta credentials. All other tenant tables
+use the flat any-member rule.
+
+`messages.org_id` and `campaign_recipients.org_id` are denormalized from
+their parents by a `BEFORE INSERT` trigger that overwrites whatever the
+client sends, so RLS can check them without a join and the value cannot be
+spoofed.
+
+**Audit trail.** `bot_runs` has a select policy and nothing else — no insert,
+update or delete for `authenticated`, because an audit trail a tenant can
+rewrite is not an audit trail. Rows are written by the webhook handler
+through the service-role client. A unique index on the inbound message id
+means Meta's webhook retries cannot produce a duplicate reply.
+
+**Webhook security.** The webhook route reads the raw request body, verifies
+the HMAC-SHA256 signature against `META_APP_SECRET` using a constant-time
+comparison, and only then parses the payload. It acks Meta immediately with
+`200` and defers all work via `after()`, so slow processing never triggers
+Meta's retry behaviour. Rejected deliveries are logged before the 401, so a
+burst of them is visible in Admin → Webhook logs.
+
+**Credential storage.** WABA access tokens and third-party integration
+credentials are encrypted at rest with AES-256-GCM (`src/lib/crypto.ts`).
+
+**Outgoing webhooks** are signed `sha256=<hex hmac of the raw body>` — the
+same shape Meta and Stripe use, so an integrator already knows the drill.
+Each delivery attempt is recorded in `webhook_deliveries`.
+
+## Key paths
+
+```
+src/app/(dashboard)/            Neura Chat portal (auth-guarded)
+  inbox | chatbot | ai-assistant | faq-bot | automations | campaigns
+  contacts | integrations | commerce | gallery | reminders | api-endpoints
+  billing | organizations | settings | support
+src/app/admin/                  Platform admin (users, orgs, plans, add-ons,
+                                coupons, orders, tickets, webhook logs, settings)
+src/app/api/
+  webhooks/whatsapp/route.ts    GET verify handshake + POST signature-verified ingest
+  messages/send/route.ts        Authenticated outbound send (text or template)
+src/lib/
+  reply-matcher.ts              Pure matcher — decides what to reply with
+  message-runner.ts             The I/O half — sends, advances state, audits
+  whatsapp-send.ts              Shared outbound path + 24h service window guard
+  ai-assistant.ts               Claude-backed reply generation
+  outgoing-webhooks.ts          Signed event delivery
+  meta-whatsapp.ts              Graph API client (pinned version)
+  crypto.ts                     AES-256-GCM token encryption
+  supabase/                     browser / server / admin / session clients
+src/proxy.ts                    Session refresh (Next.js 16 renamed `middleware` → `proxy`)
+supabase/migrations/            Schema, RLS policies, signup trigger, portal, runner
+tests/                          Matcher unit tests (node:test)
+```
+
+## Behaviour without configuration
+
+The app is designed to survive missing environment variables rather than
+crash. With none set, public pages render normally, the dashboard shows a
+setup notice naming the variables it needs, and the API routes return `503`
+with an actionable message. Only features that genuinely require Supabase,
+Meta or Anthropic are affected.
 
 ## Development
 
 ```bash
 npm run dev     # dev server
-npm test        # matcher unit tests (node:test)
+npm test        # matcher unit tests
 npm run build   # production build
 npx tsc --noEmit
 ```
@@ -84,3 +168,12 @@ npx tsc --noEmit
 `src/lib/reply-matcher.ts` is deliberately pure — no Supabase, fetch or env
 access — so the priority order and keyword-boundary rules can be tested
 directly. `src/lib/message-runner.ts` holds everything that touches I/O.
+
+## Not built yet
+
+- Campaign dispatcher (campaigns are stored and scheduled, but nothing sends them)
+- Reminder scheduler (pending reminders show as overdue rather than firing)
+- Plan limit enforcement
+- Bearer-token auth on `/api/messages/send` (API keys are issued but not yet accepted there)
+- Per-provider integration sync — the catalogue connects and stores credentials;
+  outgoing webhooks are the general-purpose path in the meantime
