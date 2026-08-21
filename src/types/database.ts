@@ -21,6 +21,7 @@ import type {
 import type {
   AiAssistant,
   ApiKey,
+  BotRun,
   ChatbotFlow,
   FaqEntry,
   MediaAsset,
@@ -125,6 +126,10 @@ export interface Database {
           last_message_at: string | null;
           status: ConversationStatus;
           created_at: string;
+          bot_enabled: boolean;
+          bot_flow_id: string | null;
+          bot_node_id: string | null;
+          last_inbound_at: string | null;
         };
         Insert: {
           id?: string;
@@ -133,6 +138,10 @@ export interface Database {
           last_message_at?: string | null;
           status?: ConversationStatus;
           created_at?: string;
+          bot_enabled?: boolean;
+          bot_flow_id?: string | null;
+          bot_node_id?: string | null;
+          last_inbound_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["conversations"]["Insert"]>;
         Relationships: [
@@ -490,6 +499,27 @@ export interface Database {
         Insert: Partial<Product> & { org_id: string; name: string };
         Update: Partial<Product>;
         Relationships: [];
+      };
+      bot_runs: {
+        Row: BotRun;
+        Insert: Partial<BotRun> & { org_id: string };
+        Update: Partial<BotRun>;
+        Relationships: [
+          {
+            foreignKeyName: "bot_runs_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bot_runs_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;

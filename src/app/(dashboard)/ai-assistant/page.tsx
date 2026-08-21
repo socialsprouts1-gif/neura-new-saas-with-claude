@@ -5,6 +5,7 @@ import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/A
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { ASSISTANT_MODELS } from "@/types/portal";
 import { formatDate } from "@/types/admin";
+import { isAssistantConfigured } from "@/lib/ai-assistant";
 
 export default async function AiAssistantPage() {
   const { orgId } = await requireOrg();
@@ -15,6 +16,10 @@ export default async function AiAssistantPage() {
     .select("*")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
+
+  // A configured assistant with no API key behind it looks identical to a
+  // working one until a customer messages and gets silence. Say so here.
+  const hasApiKey = isAssistantConfigured();
 
   return (
     <div className="p-6 md:p-8">
@@ -67,10 +72,24 @@ export default async function AiAssistantPage() {
             />
           )}
 
+          {!hasApiKey && assistants && assistants.length > 0 && (
+            <div className="mt-4 bg-[#F87171]/8 border border-[#F87171]/25 rounded-xl p-4">
+              <div className="text-sm font-semibold text-[#F87171] mb-1">
+                ANTHROPIC_API_KEY is not set
+              </div>
+              <p className="text-xs text-white/50 leading-relaxed">
+                Your assistants are saved, but they cannot generate replies without an API
+                key. Add <code className="text-white/70">ANTHROPIC_API_KEY</code> in Vercel →
+                Settings → Environment Variables and redeploy. Chatbots, the FAQ bot and
+                keyword automations keep working either way.
+              </p>
+            </div>
+          )}
+
           <p className="text-xs text-white/35 mt-4">
-            Assistants are stored and configurable here. Connecting one to live conversations
-            needs the inbound message runner, which is not built yet — so an assistant will not
-            reply on its own until then.
+            An active assistant answers inbound messages that no chatbot, FAQ entry or
+            automation matched. If a customer uses one of its handoff keywords, it stops
+            replying on that chat and flags the conversation for a human.
           </p>
         </div>
 

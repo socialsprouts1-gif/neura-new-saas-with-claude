@@ -128,3 +128,15 @@ export function formatDate(iso: string | null): string {
     year: "numeric",
   });
 }
+
+// Logs need the clock as well as the calendar — "yesterday" is not enough
+// to line a bot run up against the message that triggered it.
+export function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

@@ -133,8 +133,9 @@ export default async function ChatbotPage() {
           )}
 
           <p className="text-xs text-white/35">
-            Bots are stored and can be activated here. The webhook does not yet evaluate them
-            against inbound messages, so an active bot will not reply until that runner is built.
+            Active bots are matched against every inbound message and reply automatically.
+            Keyword and menu bots are checked first, then the FAQ bot, then automations, then
+            your AI assistant — with the fallback bot as the safety net.
           </p>
         </div>
 

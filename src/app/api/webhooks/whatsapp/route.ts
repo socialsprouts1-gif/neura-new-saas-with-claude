@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { notifyInboundMessage, runInboundMessage } from "@/lib/message-runner";
+import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
 
@@ -226,10 +228,20 @@ async function handleInboundMessages(
     // without a contacts[] entry doesn't null out a name we already have.
     if (name) contactPayload.name = name;
 
+    // Whether this contact is new decides both the contact.created event
+    // and, downstream, whether a welcome bot should greet them — so check
+    // before the upsert rather than trying to infer it afterwards.
+    const { data: existingContact } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("wa_id", waId)
+      .maybeSingle();
+
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
       .upsert(contactPayload, { onConflict: "org_id,wa_id" })
-      .select("id")
+      .select("id, name")
       .single();
 
     if (contactError || !contact) {
@@ -238,13 +250,19 @@ async function handleInboundMessages(
     }
 
     const timestampMs = Number(message.timestamp) * 1000;
+    const receivedAt = new Date(timestampMs).toISOString();
+
     const { data: conversation, error: conversationError } = await supabase
       .from("conversations")
       .upsert(
         {
           org_id: orgId,
           contact_id: contact.id,
-          last_message_at: new Date(timestampMs).toISOString(),
+          last_message_at: receivedAt,
+          // Stamped on every inbound message: it is what the send helper
+          // reads to decide whether WhatsApp's 24-hour service window is
+          // still open.
+          last_inbound_at: receivedAt,
           status: "open",
         },
         { onConflict: "org_id,contact_id" }
@@ -257,18 +275,57 @@ async function handleInboundMessages(
       continue;
     }
 
+    const content = extractMessageContent(message);
+
     const { error: messageError } = await supabase.from("messages").insert({
       conversation_id: conversation.id,
       direction: "inbound",
       type: message.type,
-      content: extractMessageContent(message),
+      content,
       wa_message_id: message.id,
       status: "delivered",
     });
 
     if (messageError) {
+      // Stop here rather than running the bot: the runner counts stored
+      // inbound messages to recognise a first message, and replying to a
+      // message that never made it into the thread would leave the inbox
+      // showing an answer to nothing.
       console.error("Failed to insert inbound message", messageError);
+      continue;
     }
+
+    if (!existingContact) {
+      await dispatchWebhookEvent(supabase, orgId, "contact.created", {
+        id: contact.id,
+        wa_id: waId,
+        name: contact.name,
+      });
+    }
+
+    await notifyInboundMessage(supabase, orgId, {
+      conversationId: conversation.id,
+      contactId: contact.id,
+      contactWaId: waId,
+      contactName: contact.name,
+      waMessageId: message.id,
+      messageType: message.type,
+      content,
+    });
+
+    // Last, so a bot failure cannot cost the customer their message or
+    // the org their webhook event.
+    await runInboundMessage({
+      supabase,
+      orgId,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      contactWaId: waId,
+      contactName: contact.name,
+      waMessageId: message.id,
+      messageType: message.type,
+      content,
+    });
   }
 }
 
@@ -279,13 +336,27 @@ async function handleStatusUpdates(
   for (const status of statuses) {
     if (!VALID_MESSAGE_STATUSES.has(status.status)) continue;
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("messages")
       .update({ status: status.status as "sent" | "delivered" | "read" | "failed" })
-      .eq("wa_message_id", status.id);
+      .eq("wa_message_id", status.id)
+      .select("id, org_id")
+      .maybeSingle();
 
     if (error) {
       console.error(`Failed to update status for message ${status.id}`, error);
+      continue;
+    }
+
+    // Statuses also arrive for messages we never stored (sent from the
+    // Meta console, say). Only forward the ones we can attribute to an org.
+    if (updated) {
+      await dispatchWebhookEvent(supabase, updated.org_id, "message.status", {
+        message_id: updated.id,
+        wa_message_id: status.id,
+        status: status.status,
+        recipient_wa_id: status.recipient_id,
+      });
     }
   }
 }

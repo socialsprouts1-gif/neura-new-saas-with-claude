@@ -232,3 +232,33 @@ export async function createSupportTicket(formData: FormData): Promise<ActionRes
   revalidatePath("/settings");
   return { ok: true, message: "Support ticket raised." };
 }
+
+export async function toggleConversationBot(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const id = String(formData.get("id") ?? "");
+  const enable = String(formData.get("bot_enabled") ?? "") !== "true";
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    // Turning the bot back on also clears any half-finished flow, so it
+    // resumes by matching the next message fresh rather than replying from
+    // wherever the customer abandoned it before a human stepped in.
+    .update({
+      bot_enabled: enable,
+      bot_flow_id: null,
+      bot_node_id: null,
+      status: enable ? "open" : "pending",
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/inbox");
+  return {
+    ok: true,
+    message: enable ? "Automated replies resumed." : "Automated replies paused for this chat.",
+  };
+}

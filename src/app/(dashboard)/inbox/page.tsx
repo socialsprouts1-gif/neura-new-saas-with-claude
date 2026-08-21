@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { EmptyState, Badge, statusTone } from "@/components/ui/primitives";
+import ActionForm from "@/components/ui/ActionForm";
+import { toggleConversationBot } from "../actions";
 import Composer from "./Composer";
 
 function initials(name: string | null, waId: string) {
@@ -37,13 +39,24 @@ function renderBody(type: string, content: Record<string, unknown>): string {
     return `[${type}]${caption}`;
   }
   if (type === "interactive" || type === "button") {
-    return String(
-      (content as { button_reply?: { title?: string }; list_reply?: { title?: string } }).button_reply?.title ??
-        (content as { list_reply?: { title?: string } }).list_reply?.title ??
-        "[interactive]"
-    );
+    const c = content as {
+      body?: string;
+      button_reply?: { title?: string };
+      list_reply?: { title?: string };
+    };
+    // Inbound: the customer tapped a button, so the title is the message.
+    // Outbound: we sent the buttons, so the body is.
+    return String(c.button_reply?.title ?? c.list_reply?.title ?? c.body ?? "[interactive]");
   }
   return `[${type}]`;
+}
+
+// Quick-reply buttons the bot attached to an outbound message, stored as
+// the same {id, title} shape that was sent to Meta.
+function renderButtons(content: Record<string, unknown>): string[] {
+  const buttons = (content as { buttons?: Array<{ title?: string }> }).buttons;
+  if (!Array.isArray(buttons)) return [];
+  return buttons.map((button) => button?.title).filter((title): title is string => Boolean(title));
 }
 
 export default async function InboxPage({
@@ -57,7 +70,7 @@ export default async function InboxPage({
 
   const { data: conversations, error } = await supabase
     .from("conversations")
-    .select("id, status, last_message_at, contact_id, contacts(id, wa_id, name)")
+    .select("id, status, last_message_at, contact_id, bot_enabled, contacts(id, wa_id, name)")
     .eq("org_id", orgId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(100);
@@ -83,6 +96,18 @@ export default async function InboxPage({
         .eq("conversation_id", active.id)
         .order("created_at")
         .limit(200)
+    : { data: null };
+
+  // What the bot did — or decided not to do — on the most recent messages.
+  // Without this, an auto-reply that never arrived is indistinguishable
+  // from one that was never attempted.
+  const { data: botRuns } = active
+    ? await supabase
+        .from("bot_runs")
+        .select("id, matched_kind, matched_label, outcome, error, created_at")
+        .eq("conversation_id", active.id)
+        .order("created_at", { ascending: false })
+        .limit(3)
     : { data: null };
 
   if (list.length === 0) {
@@ -148,10 +173,48 @@ export default async function InboxPage({
                 <div className="text-sm font-semibold">{contact.name || contact.wa_id}</div>
                 <div className="text-[11px] text-white/40 font-mono">{contact.wa_id}</div>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                {!active.bot_enabled && <Badge tone="grey">bot paused</Badge>}
                 <Badge tone={statusTone(active.status)}>{active.status}</Badge>
+                <ActionForm
+                  action={toggleConversationBot}
+                  submitLabel={active.bot_enabled ? "Pause bot" : "Resume bot"}
+                  compact
+                >
+                  <input type="hidden" name="id" value={active.id} />
+                  <input type="hidden" name="bot_enabled" value={String(active.bot_enabled)} />
+                </ActionForm>
               </div>
             </header>
+
+            {(botRuns ?? []).length > 0 && (
+              <div className="px-5 py-2 border-b border-white/8 flex-shrink-0 bg-white/2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-white/30 uppercase tracking-widest font-semibold text-[10px]">
+                    Bot
+                  </span>
+                  {(botRuns ?? []).map((run) => (
+                    <span
+                      key={run.id}
+                      className={
+                        run.outcome === "failed"
+                          ? "text-red-400"
+                          : run.outcome === "replied"
+                            ? "text-[#00FF87]/70"
+                            : "text-white/35"
+                      }
+                      title={run.error ?? undefined}
+                    >
+                      {run.outcome === "failed"
+                        ? `failed — ${run.error ?? "unknown error"}`
+                        : run.matched_label
+                          ? `${run.outcome} · ${run.matched_label}`
+                          : run.outcome}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-5 space-y-3">
               {(messages ?? []).length === 0 && (
@@ -171,6 +234,18 @@ export default async function InboxPage({
                       <div className="text-sm whitespace-pre-wrap break-words">
                         {renderBody(m.type, m.content)}
                       </div>
+                      {outbound && renderButtons(m.content).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {renderButtons(m.content).map((label) => (
+                            <span
+                              key={label}
+                              className="px-2.5 py-1 rounded-lg border border-[#00D4FF]/25 bg-[#00D4FF]/8 text-[#00D4FF] text-[11px] font-medium"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-white/35">
                           {new Date(m.created_at).toLocaleTimeString("en-IN", {

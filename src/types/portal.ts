@@ -28,6 +28,12 @@ export type ChatbotNode = {
   body: string;
   buttons?: string[];
   next?: string | null;
+  /**
+   * Branching: maps a quick-reply button's label to the node it leads to.
+   * The simple builder does not author this — a flow without it sends one
+   * node and lets the tapped label fall through to ordinary matching.
+   */
+  button_next?: Record<string, string>;
 };
 
 export type ChatbotFlow = {
@@ -152,3 +158,33 @@ export const ASSISTANT_MODELS = [
   { value: "claude-sonnet-5", label: "Claude Sonnet 5 — balanced" },
   { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 — fastest" },
 ] as const;
+
+// --- message runner -------------------------------------------------------
+
+export type BotMatchKind =
+  | "flow_step"
+  | "chatbot"
+  | "faq"
+  | "automation"
+  | "assistant"
+  | "handoff"
+  | "none";
+
+export type BotRunOutcome = "replied" | "skipped" | "handoff" | "failed";
+
+export type BotRun = {
+  id: string;
+  org_id: string;
+  conversation_id: string | null;
+  contact_id: string | null;
+  inbound_wa_message_id: string | null;
+  inbound_text: string | null;
+  matched_kind: BotMatchKind;
+  matched_id: string | null;
+  matched_label: string | null;
+  reply_text: string | null;
+  outcome: BotRunOutcome;
+  error: string | null;
+  duration_ms: number | null;
+  created_at: string;
+};

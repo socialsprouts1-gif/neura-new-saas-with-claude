@@ -24,6 +24,11 @@ export interface MetaTemplateComponent {
   parameters?: Array<Record<string, unknown>>;
 }
 
+export interface MetaReplyButton {
+  id: string;
+  title: string;
+}
+
 export interface MetaSendMessageResponse {
   messaging_product: "whatsapp";
   contacts: Array<{ input: string; wa_id: string }>;
@@ -87,6 +92,39 @@ export function sendTemplateMessage(
       name: templateName,
       language: { code: language },
       components,
+    },
+  });
+}
+
+// Interactive reply buttons — what a chatbot flow node with choices
+// renders as. Meta caps this at 3 buttons with 20-character titles and
+// rejects the whole message if either is exceeded, so both are enforced
+// here rather than discovered as a 400 at runtime.
+export const MAX_REPLY_BUTTONS = 3;
+export const MAX_BUTTON_TITLE_LENGTH = 20;
+
+export function sendInteractiveButtons(
+  phoneNumberId: string,
+  to: string,
+  body: string,
+  buttons: MetaReplyButton[],
+  accessToken: string
+): Promise<MetaSendMessageResponse> {
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: body },
+      action: {
+        buttons: buttons.slice(0, MAX_REPLY_BUTTONS).map((button) => ({
+          type: "reply",
+          reply: {
+            id: button.id,
+            title: button.title.slice(0, MAX_BUTTON_TITLE_LENGTH),
+          },
+        })),
+      },
     },
   });
 }
