@@ -96,6 +96,16 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Invalid JSON", { status: 400 });
   }
 
+  // One app can subscribe several object types to the same callback URL —
+  // the Meta dashboard's Webhooks page makes it easy to switch the object
+  // picker to User and turn on a dozen profile fields by mistake. Those
+  // deliveries are signature-valid but have nothing to do with WhatsApp, so
+  // ack them and drop them here rather than filling the admin log with
+  // events nobody can act on.
+  if (payload.object && payload.object !== "whatsapp_business_account") {
+    return new NextResponse("EVENT_RECEIVED", { status: 200 });
+  }
+
   // Meta expects a fast 200 and will retry (with backoff, then eventually
   // give up) if the callback is slow or errors — so ack immediately and do
   // the DB writes after the response is flushed.
