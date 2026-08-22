@@ -99,9 +99,10 @@ export async function POST(request: NextRequest) {
   // One app can subscribe several object types to the same callback URL —
   // the Meta dashboard's Webhooks page makes it easy to switch the object
   // picker to User and turn on a dozen profile fields by mistake. Those
-  // deliveries are signature-valid but have nothing to do with WhatsApp, so
-  // ack them and drop them here rather than filling the admin log with
-  // events nobody can act on.
+  // deliveries are signature-valid but have nothing to do with WhatsApp.
+  // processWebhookPayload already ignores them, since it skips any change
+  // whose field is not "messages"; stopping here just avoids opening a
+  // service-role client and walking the payload to reach that conclusion.
   if (payload.object && payload.object !== "whatsapp_business_account") {
     return new NextResponse("EVENT_RECEIVED", { status: 200 });
   }
