@@ -176,7 +176,20 @@ async function processChangeValue(
   value: MetaWebhookValue
 ) {
   const phoneNumberId = value.metadata?.phone_number_id;
-  if (!phoneNumberId) return;
+
+  // Meta's "Test" button on the Webhooks page sends a sample payload whose
+  // metadata may carry no real phone_number_id. Returning silently made
+  // that indistinguishable from no delivery at all — which is exactly the
+  // question the log exists to answer. Record it, then stop.
+  if (!phoneNumberId) {
+    await logDelivery({
+      eventType: "unknown",
+      signatureValid: true,
+      payload: value,
+      error: "Delivery carried no metadata.phone_number_id — likely a test payload from the Meta dashboard.",
+    });
+    return;
+  }
 
   const { data: connection, error: connectionError } = await supabase
     .from("waba_connections")
