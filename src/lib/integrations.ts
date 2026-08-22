@@ -247,6 +247,62 @@ export const INTEGRATIONS: IntegrationDef[] = [
     ],
     brand: "#006BFF",
   },
+  {
+    slug: "facebook-lead-ads",
+    name: "Facebook Lead Ads",
+    category: "CRM",
+    description:
+      "New leads from your Facebook and Instagram lead forms arrive as contacts, ready for an instant WhatsApp follow-up.",
+    capability: "credentials",
+    prerequisite:
+      "Meta Business Settings → System Users → generate a token with leads_retrieval and pages_manage_ads, then note the Page ID.",
+    fields: [
+      { name: "page_id", label: "Page ID", required: true, placeholder: "123456789012345" },
+      { name: "access_token", label: "Page access token", type: "password", required: true, placeholder: "EAAG…" },
+    ],
+    brand: "#1877F2",
+  },
+  {
+    slug: "cashfree",
+    name: "Cashfree",
+    category: "Payments",
+    description: "Send Cashfree payment links over WhatsApp and mark orders paid when they clear.",
+    capability: "credentials",
+    prerequisite: "Cashfree Merchant Dashboard → Developers → API Keys.",
+    fields: [
+      { name: "app_id", label: "App ID", required: true },
+      { name: "secret_key", label: "Secret key", type: "password", required: true },
+    ],
+    brand: "#6933FF",
+  },
+  {
+    slug: "indiamart",
+    name: "IndiaMART",
+    category: "CRM",
+    description: "Pull buyer enquiries from IndiaMART into contacts so no lead waits for a callback.",
+    capability: "credentials",
+    prerequisite: "IndiaMART Seller Panel → Lead Manager → CRM Integration → copy your CRM key.",
+    fields: [
+      { name: "crm_key", label: "CRM key", type: "password", required: true },
+      { name: "mobile", label: "Registered mobile", required: true, placeholder: "9198XXXXXXXX" },
+    ],
+    brand: "#2D3E88",
+  },
+  {
+    slug: "google-calendar",
+    name: "Google Calendar",
+    category: "Productivity",
+    description: "Turn bookings into calendar events and send WhatsApp reminders before each one.",
+    capability: "credentials",
+    prerequisite:
+      "Google Cloud Console → create an OAuth client, enable the Calendar API, then authorise once to get a refresh token.",
+    fields: [
+      { name: "client_id", label: "Client ID", required: true },
+      { name: "client_secret", label: "Client secret", type: "password", required: true },
+      { name: "refresh_token", label: "Refresh token", type: "password", required: true },
+    ],
+    brand: "#4285F4",
+  },
 ];
 
 export function integrationBySlug(slug: string): IntegrationDef | undefined {

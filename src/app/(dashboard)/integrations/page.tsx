@@ -4,6 +4,7 @@ import { requireOrg } from "@/lib/org";
 import { INTEGRATIONS, type IntegrationCategory } from "@/lib/integrations";
 import { createWebhook, deleteWebhook } from "../portal-actions";
 import IntegrationCard from "./IntegrationCard";
+import WhatsAppCard from "./WhatsAppCard";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
 
@@ -22,12 +23,19 @@ export default async function IntegrationsPage() {
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 
-  const [{ data: connections }, { data: webhooks }] = await Promise.all([
-    // credentials_encrypted is deliberately not selected — this page never
-    // needs the secret, and not fetching it keeps it out of the RSC payload.
-    supabase.from("org_integrations").select("provider, status, connected_at").eq("org_id", orgId),
-    supabase.from("outgoing_webhooks").select("*").eq("org_id", orgId).order("created_at"),
-  ]);
+  const [{ data: connections }, { data: webhooks }, { data: wabaConnections }] =
+    await Promise.all([
+      // credentials_encrypted is deliberately not selected — this page never
+      // needs the secret, and not fetching it keeps it out of the RSC payload.
+      supabase.from("org_integrations").select("provider, status, connected_at").eq("org_id", orgId),
+      supabase.from("outgoing_webhooks").select("*").eq("org_id", orgId).order("created_at"),
+      // access_token_encrypted is likewise never selected here.
+      supabase
+        .from("waba_connections")
+        .select("id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status")
+        .eq("org_id", orgId)
+        .order("created_at"),
+    ]);
 
   const connectedSet = new Set(
     (connections ?? []).filter((c) => c.status === "connected").map((c) => c.provider)
@@ -36,6 +44,7 @@ export default async function IntegrationsPage() {
   const host = (await headers()).get("host") ?? "your-domain";
   const proto = host.startsWith("localhost") ? "http" : "https";
   const apiBase = `${proto}://${host}/api`;
+  const webhookUrl = `${apiBase}/webhooks/whatsapp`;
 
   const byCategory = CATEGORY_ORDER.map((cat) => ({
     category: cat,
@@ -51,6 +60,12 @@ export default async function IntegrationsPage() {
       <PageHeader
         title="Integrations"
         subtitle="Connect Neura Chat to the tools you already run your business on."
+      />
+
+      <WhatsAppCard
+        connections={wabaConnections ?? []}
+        webhookUrl={webhookUrl}
+        canManage={canManage}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
