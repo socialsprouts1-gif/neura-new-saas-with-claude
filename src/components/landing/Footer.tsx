@@ -114,11 +114,22 @@ export default function Footer() {
           <p className="text-sm text-white/40">
             © 2024 WhatsFlow AI. All rights reserved.
           </p>
+          {/* Real destinations, not placeholders: Meta will not let an app go
+              live without a working Privacy Policy URL, and a reviewer does
+              click these. */}
           <div className="flex gap-6">
-            {["Privacy Policy", "Terms of Service", "Cookie Policy", "GDPR"].map((item) => (
-              <a key={item} href="#" className="text-xs text-white/40 hover:text-white/60 transition-colors">
-                {item}
-              </a>
+            {[
+              { label: "Privacy Policy", href: "/privacy" },
+              { label: "Terms of Service", href: "/terms" },
+              { label: "Data Deletion", href: "/data-deletion" },
+            ].map(({ label, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="text-xs text-white/40 hover:text-white/60 transition-colors"
+              >
+                {label}
+              </Link>
             ))}
           </div>
           <div className="flex items-center gap-2">
