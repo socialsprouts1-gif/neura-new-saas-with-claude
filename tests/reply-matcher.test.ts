@@ -9,7 +9,7 @@ import {
   type AutomationFlow,
   type RunnerResources,
 } from "../src/lib/reply-matcher.ts";
-import type { AiAssistant, ChatbotFlow, ChatbotNode, FaqEntry } from "../src/types/portal.ts";
+import type { AiAssistant, ChatbotFlow, LegacyChatbotNode, FaqEntry } from "../src/types/portal.ts";
 
 // Run with: npm test
 //
@@ -19,22 +19,33 @@ import type { AiAssistant, ChatbotFlow, ChatbotNode, FaqEntry } from "../src/typ
 
 // --- fixtures -------------------------------------------------------------
 
-function flow(overrides: Partial<ChatbotFlow> & { id: string; name: string }): ChatbotFlow {
+// The matcher only ever sees legacy flat nodes — graph flows are executed
+// by flow-runner — so the fixture casts through the stored jsonb shape
+// rather than pretending a LegacyChatbotNode is a FlowNode.
+function flow(
+  overrides: Partial<Omit<ChatbotFlow, "nodes">> & {
+    id: string;
+    name: string;
+    nodes?: LegacyChatbotNode[];
+  }
+): ChatbotFlow {
   return {
     org_id: "org",
     description: null,
     trigger_type: "keyword",
     trigger_value: null,
-    nodes: [],
+    edges: [],
+    entry_node_id: null,
     is_active: true,
     version: 1,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
+    nodes: (overrides.nodes ?? []) as unknown as ChatbotFlow["nodes"],
   };
 }
 
-function node(overrides: Partial<ChatbotNode> & { id: string; body: string }): ChatbotNode {
+function node(overrides: Partial<LegacyChatbotNode> & { id: string; body: string }): LegacyChatbotNode {
   return { type: "message", ...overrides };
 }
 

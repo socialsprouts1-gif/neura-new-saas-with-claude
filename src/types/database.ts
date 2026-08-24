@@ -130,6 +130,8 @@ export interface Database {
           bot_flow_id: string | null;
           bot_node_id: string | null;
           last_inbound_at: string | null;
+          bot_variables: Record<string, string>;
+          bot_resume_at: string | null;
         };
         Insert: {
           id?: string;
@@ -142,6 +144,8 @@ export interface Database {
           bot_flow_id?: string | null;
           bot_node_id?: string | null;
           last_inbound_at?: string | null;
+          bot_variables?: Record<string, string>;
+          bot_resume_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["conversations"]["Insert"]>;
         Relationships: [

@@ -4,6 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import type { FlowEdge, FlowNode } from "@/types/flow";
 import { encryptToken } from "@/lib/crypto";
 import { integrationBySlug } from "@/lib/integrations";
 import type { ActionResult } from "./actions";
@@ -78,20 +79,45 @@ export async function saveChatbotFlow(formData: FormData): Promise<ActionResult>
     return { ok: false, error: "A keyword is required for keyword triggers." };
   }
 
-  // A minimal but real starting graph: one message node, optionally with
-  // quick-reply buttons. The builder edits this document from here.
+  // The quick form produces a real two-node graph rather than its own
+  // shape, so opening it in the builder afterwards needs no conversion:
+  // a trigger wired to one reply.
   const buttons = buttonsRaw
-    ? buttonsRaw.split(",").map((b) => b.trim()).filter(Boolean).slice(0, 3)
+    ? buttonsRaw
+        .split(",")
+        .map((b) => b.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((title, index) => ({ id: `btn_${index}`, title }))
     : [];
 
-  const nodes = [
+  const stamp = Date.now().toString(36);
+  const triggerId = `on_message_${stamp}`;
+  const replyId = `send_${stamp}`;
+
+  const nodes: FlowNode[] = [
     {
-      id: "start",
-      type: buttons.length ? "buttons" : "message",
-      body: reply || "Hi! How can we help?",
-      ...(buttons.length ? { buttons } : {}),
-      next: null,
+      id: triggerId,
+      kind: "on_message",
+      position: { x: 120, y: 180 },
+      data: {
+        keywords: triggerValue ? [triggerValue] : [],
+        fuzzy: false,
+        sensitivity: 80,
+      },
     },
+    {
+      id: replyId,
+      kind: buttons.length ? "send_buttons" : "send_text",
+      position: { x: 470, y: 180 },
+      data: buttons.length
+        ? { body: reply || "Hi! How can we help?", footer: "", buttons }
+        : { body: reply || "Hi! How can we help?" },
+    },
+  ];
+
+  const edges: FlowEdge[] = [
+    { id: `e_${stamp}`, source: triggerId, target: replyId, sourceHandle: null },
   ];
 
   const supabase = await createClient();
@@ -101,6 +127,8 @@ export async function saveChatbotFlow(formData: FormData): Promise<ActionResult>
     trigger_type: triggerType as "keyword" | "welcome" | "fallback" | "menu" | "business_hours",
     trigger_value: triggerValue,
     nodes,
+    edges,
+    entry_node_id: triggerId,
     is_active: false,
   });
 
@@ -507,4 +535,84 @@ export async function deleteMediaAsset(formData: FormData): Promise<ActionResult
   if (error) return { ok: false, error: error.message };
   revalidatePath("/gallery");
   return { ok: true, message: "Media deleted." };
+}
+
+export async function saveFlowGraph(input: {
+  id: string;
+  name: string;
+  isActive: boolean;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}): Promise<ActionResult> {
+  const ctx = await requireOrg();
+
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Bot name is required." };
+
+  // The entry node is stored rather than inferred: a graph can have several
+  // trigger nodes while the canvas is being reorganised, and the runtime
+  // needs one answer.
+  const entry = input.nodes.find((n) => n.kind === "on_message") ?? input.nodes[0];
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("chatbot_flows")
+    .update({
+      name,
+      is_active: input.isActive,
+      nodes: input.nodes,
+      edges: input.edges,
+      entry_node_id: entry?.id ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .eq("org_id", ctx.orgId);
+
+  if (error) {
+    if (error.code === "23505") {
+      return { ok: false, error: "Another active bot already uses that trigger." };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/chatbot");
+  revalidatePath(`/chatbot/${input.id}`);
+  return {
+    ok: true,
+    message: input.isActive ? "Saved and active." : "Saved as draft.",
+  };
+}
+
+export async function createFlow(): Promise<ActionResult & { id?: string }> {
+  const ctx = await requireOrg();
+  const supabase = await createClient();
+
+  // A new bot opens with a trigger already placed. An empty canvas gives no
+  // hint that a flow must start from one.
+  const triggerId = `on_message_${Date.now().toString(36)}`;
+  const { data, error } = await supabase
+    .from("chatbot_flows")
+    .insert({
+      org_id: ctx.orgId,
+      name: "Untitled bot",
+      trigger_type: "keyword",
+      nodes: [
+        {
+          id: triggerId,
+          kind: "on_message",
+          position: { x: 120, y: 180 },
+          data: { keywords: [], fuzzy: false, sensitivity: 80 },
+        },
+      ],
+      edges: [],
+      entry_node_id: triggerId,
+      is_active: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/chatbot");
+  return { ok: true, id: data.id, message: "Bot created." };
 }

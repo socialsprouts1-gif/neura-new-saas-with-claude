@@ -1,4 +1,4 @@
-import type { AiAssistant, ChatbotFlow, ChatbotNode, FaqEntry } from "@/types/portal";
+import type { AiAssistant, ChatbotFlow, LegacyChatbotNode, FaqEntry } from "@/types/portal";
 import type { Database } from "@/types/database";
 
 // The decision half of the message runner, kept free of Supabase, fetch and
@@ -171,13 +171,23 @@ export function scoreFaq(normalisedText: string, faq: FaqEntry): number {
 
 // --- flow helpers ---------------------------------------------------------
 
-function nodesOf(flow: ChatbotFlow): ChatbotNode[] {
-  return Array.isArray(flow.nodes) ? flow.nodes : [];
+/**
+ * Reads a flow's nodes in the flat pre-builder shape.
+ *
+ * Graph flows are executed by flow-runner, not here, so anything carrying a
+ * `kind` is skipped: this matcher only serves the single-reply flows the old
+ * form produced, and treating a graph node as one would send its raw config.
+ */
+function nodesOf(flow: ChatbotFlow): LegacyChatbotNode[] {
+  if (!Array.isArray(flow.nodes)) return [];
+  return (flow.nodes as unknown[]).filter(
+    (node) => Boolean(node) && typeof node === "object" && !("kind" in (node as object))
+  ) as LegacyChatbotNode[];
 }
 
 function planFromNode(
   flow: ChatbotFlow,
-  node: ChatbotNode,
+  node: LegacyChatbotNode,
   kind: "chatbot" | "flow_step"
 ): ReplyPlan | null {
   if (!node.body?.trim()) return null;
@@ -204,7 +214,7 @@ function planFromNode(
  * simple builder do not set it, in which case a tapped button falls
  * through to ordinary matching so the label can hit a keyword bot.
  */
-function resolveNextNode(flow: ChatbotFlow, currentNodeId: string, reply: string): ChatbotNode | null {
+function resolveNextNode(flow: ChatbotFlow, currentNodeId: string, reply: string): LegacyChatbotNode | null {
   const nodes = nodesOf(flow);
   const current = nodes.find((node) => node.id === currentNodeId);
   if (!current) return null;

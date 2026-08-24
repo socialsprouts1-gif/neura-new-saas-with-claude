@@ -20,9 +20,17 @@ export type AiAssistant = {
   updated_at: string;
 };
 
+import type { FlowEdge, FlowNode } from "./flow";
+
 export type ChatbotTrigger = "keyword" | "welcome" | "fallback" | "menu" | "business_hours";
 
-export type ChatbotNode = {
+/**
+ * The pre-builder node shape: a single reply with optional button labels,
+ * stored flat. Flows created before the visual builder still hold these, and
+ * the builder page migrates them on open rather than in a data migration —
+ * a graph position is a UI concern and cannot be chosen in SQL.
+ */
+export type LegacyChatbotNode = {
   id: string;
   type: string;
   body: string;
@@ -43,7 +51,9 @@ export type ChatbotFlow = {
   description: string | null;
   trigger_type: ChatbotTrigger;
   trigger_value: string | null;
-  nodes: ChatbotNode[];
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  entry_node_id: string | null;
   is_active: boolean;
   version: number;
   created_at: string;
@@ -182,6 +192,8 @@ export type BotRun = {
   matched_kind: BotMatchKind;
   matched_id: string | null;
   matched_label: string | null;
+  node_id: string | null;
+  node_kind: string | null;
   reply_text: string | null;
   outcome: BotRunOutcome;
   error: string | null;

@@ -129,6 +129,107 @@ export function sendInteractiveButtons(
   });
 }
 
+export interface MetaListRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface MetaListSection {
+  title: string;
+  rows: MetaListRow[];
+}
+
+// Interactive list menus. Meta caps a list at 10 rows across all sections,
+// row titles at 24 characters and descriptions at 72; exceeding any of them
+// rejects the whole message, so all three are clamped here.
+export const MAX_LIST_ROWS = 10;
+
+export function sendInteractiveList(
+  phoneNumberId: string,
+  to: string,
+  body: string,
+  buttonText: string,
+  sections: MetaListSection[],
+  accessToken: string,
+  options: { header?: string; footer?: string } = {}
+): Promise<MetaSendMessageResponse> {
+  let remaining = MAX_LIST_ROWS;
+  const clamped = sections
+    .map((section) => {
+      const rows = section.rows.slice(0, Math.max(0, remaining)).map((row) => ({
+        id: row.id,
+        title: row.title.slice(0, 24),
+        ...(row.description ? { description: row.description.slice(0, 72) } : {}),
+      }));
+      remaining -= rows.length;
+      return { title: section.title.slice(0, 24), rows };
+    })
+    .filter((section) => section.rows.length > 0);
+
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      ...(options.header ? { header: { type: "text", text: options.header } } : {}),
+      body: { text: body },
+      ...(options.footer ? { footer: { text: options.footer } } : {}),
+      action: { button: buttonText.slice(0, 20), sections: clamped },
+    },
+  });
+}
+
+export type MetaMediaType = "image" | "video" | "document" | "audio";
+
+export function sendMediaMessage(
+  phoneNumberId: string,
+  to: string,
+  mediaType: MetaMediaType,
+  link: string,
+  accessToken: string,
+  options: { caption?: string; filename?: string } = {}
+): Promise<MetaSendMessageResponse> {
+  // Audio takes no caption and only documents take a filename — sending
+  // either where it is not allowed is a 400 rather than a silent ignore.
+  const media: Record<string, unknown> = { link };
+  if (options.caption && mediaType !== "audio") media.caption = options.caption;
+  if (options.filename && mediaType === "document") media.filename = options.filename;
+
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: mediaType,
+    [mediaType]: media,
+  });
+}
+
+// A single button that opens a URL. Distinct from quick replies: the tap
+// leaves WhatsApp, so there is no reply event and no path to branch on.
+export function sendCtaUrl(
+  phoneNumberId: string,
+  to: string,
+  body: string,
+  buttonText: string,
+  url: string,
+  accessToken: string,
+  options: { header?: string; footer?: string } = {}
+): Promise<MetaSendMessageResponse> {
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      ...(options.header ? { header: { type: "text", text: options.header } } : {}),
+      body: { text: body },
+      ...(options.footer ? { footer: { text: options.footer } } : {}),
+      action: {
+        name: "cta_url",
+        parameters: { display_text: buttonText.slice(0, 20), url },
+      },
+    },
+  });
+}
+
 // Resolves a media ID to its short-lived download URL. The URL itself
 // still requires the same `Authorization: Bearer` header to fetch.
 export async function getMediaUrl(mediaId: string, accessToken: string): Promise<string> {

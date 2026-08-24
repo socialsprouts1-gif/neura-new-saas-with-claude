@@ -14,6 +14,9 @@ import {
   type ReplyPlan,
   type RunnerResources,
 } from "@/lib/reply-matcher";
+import { graphOf, findNode } from "@/lib/flow-engine";
+import { flowEntryFor, resumeFrom, runFlow, type FlowContext } from "@/lib/flow-runner";
+import { sendTextMessage } from "@/lib/meta-whatsapp";
 
 // The execution half of the message runner. `reply-matcher.ts` decides what
 // to say; this decides whether to say it at all, sends it, moves the
@@ -74,6 +77,8 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
     matched_kind?: ReplyPlan["kind"];
     matched_id?: string | null;
     matched_label?: string | null;
+    node_id?: string | null;
+    node_kind?: string | null;
     reply_text?: string | null;
     outcome: "replied" | "skipped" | "handoff" | "failed";
     error?: string | null;
@@ -101,6 +106,38 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
     }
 
     const resources = await loadResources(supabase, event, conversation);
+
+    // Graph flows come first. A conversation parked mid-flow must continue
+    // from where it stopped rather than being re-matched from scratch, and a
+    // flow with a trigger node owns its own matching — planReply knows
+    // nothing about either.
+    const connectionForFlow = await loadOrgConnection(supabase, orgId);
+    if (connectionForFlow) {
+      const flowResult = await tryGraphFlow({
+        supabase,
+        event,
+        conversation,
+        resources,
+        connection: connectionForFlow,
+        text,
+        buttonId,
+      });
+
+      if (flowResult) {
+        await finish({
+          matched_kind: "chatbot",
+          matched_id: flowResult.flowId,
+          matched_label: flowResult.label,
+          node_id: flowResult.nodeId,
+          node_kind: flowResult.nodeKind,
+          reply_text: flowResult.reply,
+          outcome: flowResult.outcome,
+          error: flowResult.error,
+        });
+        return;
+      }
+    }
+
     const plan = planReply({ text, buttonId }, resources);
 
     if (plan.kind === "none") {
@@ -194,12 +231,160 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
   }
 }
 
+
+// --- graph flows -----------------------------------------------------------
+
+interface GraphFlowResult {
+  flowId: string;
+  label: string;
+  nodeId: string | null;
+  nodeKind: string | null;
+  reply: string | null;
+  outcome: "replied" | "skipped" | "handoff" | "failed";
+  error: string | null;
+}
+
+/**
+ * Runs a visual flow if one applies. Returns null when none does, leaving
+ * the message to the ordinary matcher.
+ */
+async function tryGraphFlow(args: {
+  supabase: RunnerClient;
+  event: InboundEvent;
+  conversation: ConversationState;
+  resources: RunnerResources & { orgName: string };
+  connection: Awaited<ReturnType<typeof loadOrgConnection>>;
+  text: string;
+  buttonId: string | null;
+}): Promise<GraphFlowResult | null> {
+  const { supabase, event, conversation, resources, connection, text, buttonId } = args;
+  if (!connection) return null;
+
+  const context: FlowContext = {
+    supabase,
+    connection,
+    orgId: event.orgId,
+    conversationId: event.conversationId,
+    contactId: event.contactId,
+    contactWaId: event.contactWaId,
+    contactName: event.contactName,
+    orgName: resources.orgName,
+    inboundText: text,
+    buttonId,
+  };
+
+  const variables = conversation.bot_variables ?? {};
+
+  // 1. Already inside a flow? Continue it.
+  if (conversation.bot_flow_id && conversation.bot_node_id) {
+    const flow = resources.flows.find((f) => f.id === conversation.bot_flow_id);
+    const graph = flow ? graphOf(flow) : null;
+    const parked = graph ? findNode(graph, conversation.bot_node_id) : null;
+
+    if (flow && graph && parked) {
+      const resumed = await resumeFrom(graph, parked, context, variables);
+
+      if (resumed.reask) {
+        // The answer did not fit the question — ask again and stay parked.
+        await sendTextMessage(
+          connection.phoneNumberId,
+          event.contactWaId,
+          resumed.reask,
+          connection.accessToken
+        );
+        return {
+          flowId: flow.id,
+          label: `${flow.name} · re-asked`,
+          nodeId: parked.id,
+          nodeKind: parked.kind,
+          reply: resumed.reask,
+          outcome: "replied",
+          error: null,
+        };
+      }
+
+      if (resumed.next) {
+        const outcome = await runFlow(graph, resumed.next, context, resumed.variables);
+        await applyFlowState(supabase, event.conversationId, flow.id, outcome);
+        return summarise(flow.id, flow.name, outcome);
+      }
+
+      // Nothing matched at the parked node: leave the flow rather than
+      // trapping the customer, and fall through to ordinary matching.
+      await supabase
+        .from("conversations")
+        .update({ bot_flow_id: null, bot_node_id: null })
+        .eq("id", event.conversationId);
+    }
+  }
+
+  // 2. Not in a flow — does any active graph flow's trigger match?
+  for (const flow of resources.flows) {
+    const graph = graphOf(flow);
+    if (graph.nodes.length === 0) continue;
+    // A flow with no trigger node is an old-style single reply; leave those
+    // to planReply so their trigger_type semantics keep working.
+    if (!graph.nodes.some((n) => n.kind === "on_message")) continue;
+
+    const start = flowEntryFor(flow, text);
+    if (!start) continue;
+
+    const outcome = await runFlow(graph, start, context, {});
+    await applyFlowState(supabase, event.conversationId, flow.id, outcome);
+    return summarise(flow.id, flow.name, outcome);
+  }
+
+  return null;
+}
+
+function summarise(flowId: string, name: string, outcome: FlowOutcomeLike): GraphFlowResult {
+  const last = outcome.executed[outcome.executed.length - 1];
+  return {
+    flowId,
+    label: `${name} · ${outcome.executed.length} node${outcome.executed.length === 1 ? "" : "s"}`,
+    nodeId: last?.id ?? null,
+    nodeKind: last?.kind ?? null,
+    reply: outcome.lastReply,
+    outcome: outcome.error
+      ? "failed"
+      : outcome.handedOff
+        ? "handoff"
+        : outcome.lastReply
+          ? "replied"
+          : "skipped",
+    error: outcome.error,
+  };
+}
+
+type FlowOutcomeLike = Awaited<ReturnType<typeof runFlow>>;
+
+async function applyFlowState(
+  supabase: RunnerClient,
+  conversationId: string,
+  flowId: string,
+  outcome: FlowOutcomeLike
+): Promise<void> {
+  if (outcome.handedOff) return; // the handoff node already wrote its state
+
+  const { error } = await supabase
+    .from("conversations")
+    .update({
+      bot_flow_id: outcome.parkedAt ? flowId : null,
+      bot_node_id: outcome.parkedAt,
+      bot_resume_at: outcome.resumeAt,
+    })
+    .eq("id", conversationId);
+
+  if (error) console.error("Failed to store flow position", error);
+}
+
 // --- loading --------------------------------------------------------------
 
 type ConversationState = {
   bot_enabled: boolean;
   bot_flow_id: string | null;
   bot_node_id: string | null;
+  bot_variables: Record<string, string>;
 };
 
 async function loadConversation(
@@ -208,7 +393,7 @@ async function loadConversation(
 ): Promise<ConversationState | null> {
   const { data, error } = await supabase
     .from("conversations")
-    .select("bot_enabled, bot_flow_id, bot_node_id")
+    .select("bot_enabled, bot_flow_id, bot_node_id, bot_variables")
     .eq("id", conversationId)
     .maybeSingle();
 
