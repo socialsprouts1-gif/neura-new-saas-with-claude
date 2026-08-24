@@ -115,11 +115,16 @@ export default async function InboxPage({
       <div className="p-6 md:p-8">
         <EmptyState
           title="No conversations yet"
-          description="Conversations appear here as soon as someone messages your connected WhatsApp number. Connect a number in Settings to start receiving them."
+          description="Conversations appear here as soon as Meta delivers an inbound message. If you have connected a number and nothing arrives, the webhook registration is the usual cause — Admin → Webhook logs shows whether Meta has ever called."
           action={
-            <Link href="/settings" className="btn-primary text-sm">
-              Go to Settings
-            </Link>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Link href="/integrations" className="btn-primary text-sm">
+                WhatsApp connection
+              </Link>
+              <Link href="/admin/webhook-logs" className="btn-secondary text-sm">
+                Check webhook logs
+              </Link>
+            </div>
           }
         />
       </div>
