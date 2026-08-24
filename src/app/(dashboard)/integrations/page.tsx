@@ -23,7 +23,7 @@ export default async function IntegrationsPage() {
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 
-  const [{ data: connections }, { data: webhooks }, { data: wabaConnections }] =
+  const [{ data: connections }, { data: webhooks }, { data: wabaConnections, error: wabaError }] =
     await Promise.all([
       // credentials_encrypted is deliberately not selected — this page never
       // needs the secret, and not fetching it keeps it out of the RSC payload.
@@ -68,6 +68,11 @@ export default async function IntegrationsPage() {
         connections={wabaConnections ?? []}
         webhookUrl={webhookUrl}
         canManage={canManage}
+        // A failed query returns no rows, which renders identically to having
+        // no connection. Saying "Not connected" about a number that is
+        // connected sends people back to Meta to fix nothing, so pass the
+        // error through and let the card say what actually happened.
+        loadError={wabaError?.message ?? null}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

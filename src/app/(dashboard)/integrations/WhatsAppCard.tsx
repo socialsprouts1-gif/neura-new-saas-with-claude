@@ -22,10 +22,13 @@ export default function WhatsAppCard({
   connections,
   webhookUrl,
   canManage,
+  loadError,
 }: {
   connections: Connection[];
   webhookUrl: string;
   canManage: boolean;
+  /** Set when the connection query itself failed — usually a pending migration. */
+  loadError?: string | null;
 }) {
   const connected = connections.length > 0;
 
@@ -44,8 +47,8 @@ export default function WhatsAppCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5 flex-wrap mb-1">
               <h2 className="text-lg font-semibold">WhatsApp Business</h2>
-              <Badge tone={connected ? "green" : "grey"}>
-                {connected ? "Connected" : "Not connected"}
+              <Badge tone={loadError ? "red" : connected ? "green" : "grey"}>
+                {loadError ? "Unknown" : connected ? "Connected" : "Not connected"}
               </Badge>
               <Badge tone="blue">Core</Badge>
             </div>
@@ -57,7 +60,23 @@ export default function WhatsAppCard({
           </div>
         </div>
 
-        {connected ? (
+        {loadError ? (
+          <div className="flex items-start gap-2.5 rounded-xl border border-[#FF5C5C]/30 bg-[#FF5C5C]/8 p-4">
+            <AlertTriangle className="w-4 h-4 text-[#FF5C5C] flex-shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-[#FF8A8A] mb-1">
+                Couldn&apos;t read the WhatsApp connection
+              </div>
+              <p className="text-xs text-white/60 leading-relaxed mb-2">
+                Your number may well be connected — this is the lookup failing, not the
+                connection. If the message below mentions a missing column, run{" "}
+                <span className="font-mono text-white/75">supabase/setup.sql</span> again;
+                connection health tracking added two columns.
+              </p>
+              <p className="text-xs text-white/40 font-mono break-words">{loadError}</p>
+            </div>
+          </div>
+        ) : connected ? (
           <div className="space-y-3">
             {connections.map((c) => (
               <div
