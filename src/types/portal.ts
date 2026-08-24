@@ -200,3 +200,51 @@ export type BotRun = {
   duration_ms: number | null;
   created_at: string;
 };
+
+// --- manage workspace -----------------------------------------------------
+
+export type CannedMessage = {
+  id: string;
+  org_id: string;
+  shortcut: string;
+  title: string;
+  body: string;
+  use_count: number;
+  created_at: string;
+};
+
+export type ContactGroup = {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  colour: string;
+  created_at: string;
+};
+
+export type ContactGroupMember = {
+  group_id: string;
+  contact_id: string;
+  org_id: string;
+  added_at: string;
+};
+
+export type ContactColumnType = "text" | "number" | "date" | "select" | "boolean";
+
+export type ContactColumn = {
+  id: string;
+  org_id: string;
+  key: string;
+  label: string;
+  field_type: ContactColumnType;
+  options: string[];
+  created_at: string;
+};
+
+export const COLUMN_TYPES: { value: ContactColumnType; label: string }[] = [
+  { value: "text", label: "Text" },
+  { value: "number", label: "Number" },
+  { value: "date", label: "Date" },
+  { value: "select", label: "Choice" },
+  { value: "boolean", label: "Yes / No" },
+];

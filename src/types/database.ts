@@ -22,6 +22,10 @@ import type {
   AiAssistant,
   ApiKey,
   BotRun,
+  CannedMessage,
+  ContactColumn,
+  ContactGroup,
+  ContactGroupMember,
   ChatbotFlow,
   FaqEntry,
   MediaAsset,
@@ -103,6 +107,10 @@ export interface Database {
           wa_id: string;
           name: string | null;
           tags: string[];
+          custom_fields: Record<string, string>;
+          opted_out: boolean;
+          opted_out_at: string | null;
+          opt_out_reason: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -112,6 +120,10 @@ export interface Database {
           wa_id: string;
           name?: string | null;
           tags?: string[];
+          custom_fields?: Record<string, string>;
+          opted_out?: boolean;
+          opted_out_at?: string | null;
+          opt_out_reason?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -502,6 +514,38 @@ export interface Database {
         Row: Product;
         Insert: Partial<Product> & { org_id: string; name: string };
         Update: Partial<Product>;
+        Relationships: [];
+      };
+      canned_messages: {
+        Row: CannedMessage;
+        Insert: Partial<CannedMessage> & { org_id: string; shortcut: string; title: string; body: string };
+        Update: Partial<CannedMessage>;
+        Relationships: [];
+      };
+      contact_groups: {
+        Row: ContactGroup;
+        Insert: Partial<ContactGroup> & { org_id: string; name: string };
+        Update: Partial<ContactGroup>;
+        Relationships: [];
+      };
+      contact_group_members: {
+        Row: ContactGroupMember;
+        Insert: Partial<ContactGroupMember> & { group_id: string; contact_id: string; org_id: string };
+        Update: Partial<ContactGroupMember>;
+        Relationships: [
+          {
+            foreignKeyName: "contact_group_members_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      contact_columns: {
+        Row: ContactColumn;
+        Insert: Partial<ContactColumn> & { org_id: string; key: string; label: string };
+        Update: Partial<ContactColumn>;
         Relationships: [];
       };
       bot_runs: {

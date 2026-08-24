@@ -24,6 +24,12 @@ import {
   Settings,
   Shield,
   ChevronDown,
+  UsersRound,
+  Tag,
+  Columns3,
+  FileText,
+  MessageSquareText,
+  BellOff,
 } from "lucide-react";
 
 // Grouped to match how the product is actually used: what you do all day,
@@ -43,8 +49,14 @@ const SECTIONS = [
     collapsible: true,
     items: [
       { icon: Users, label: "Contacts", href: "/contacts" },
+      { icon: UsersRound, label: "Groups", href: "/groups" },
+      { icon: Tag, label: "Tags", href: "/tags" },
+      { icon: Columns3, label: "Columns", href: "/columns" },
+      { icon: FileText, label: "WhatsApp templates", href: "/templates" },
+      { icon: MessageSquareText, label: "Canned messages", href: "/canned-messages" },
       { icon: Megaphone, label: "Campaigns", href: "/campaigns" },
       { icon: GitBranch, label: "Automations", href: "/automations" },
+      { icon: BellOff, label: "Opts management", href: "/opts" },
     ],
   },
   {
