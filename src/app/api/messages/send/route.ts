@@ -6,6 +6,7 @@ import {
   sendTemplateMessage,
   sendTextMessage,
   MetaApiError,
+  describeMetaError,
   type MetaTemplateComponent,
 } from "@/lib/meta-whatsapp";
 
@@ -143,7 +144,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message });
   } catch (error) {
     if (error instanceof MetaApiError) {
-      return NextResponse.json({ error: "Meta API error", details: error.body }, { status: 502 });
+      // The composer renders `error` verbatim, so it has to be the sentence
+      // that names the fix — not the label "Meta API error" over raw JSON.
+      console.error("Meta rejected an operator send", error.body);
+      return NextResponse.json({ error: describeMetaError(error.status, error.body) }, { status: 502 });
     }
     console.error("Failed to send WhatsApp message", error);
     return NextResponse.json({ error: "Failed to send message" }, { status: 500 });

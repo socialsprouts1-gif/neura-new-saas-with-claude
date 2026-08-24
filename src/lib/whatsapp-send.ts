@@ -4,6 +4,8 @@ import type { Database } from "@/types/database";
 import { decryptToken } from "@/lib/crypto";
 import {
   MetaApiError,
+  describeMetaError,
+  isMetaAuthError,
   sendInteractiveButtons,
   sendTextMessage,
   type MetaReplyButton,
@@ -23,8 +25,12 @@ export type RunnerClient = SupabaseClient<Database>;
 export const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export interface OrgConnection {
+  /** waba_connections.id — needed to record credential failures against it. */
+  id: string;
   phoneNumberId: string;
   accessToken: string;
+  /** Whatever we last recorded, so a success knows whether to clear it. */
+  lastError: string | null;
 }
 
 export type SendOutcome =
@@ -44,7 +50,7 @@ export async function loadOrgConnection(
 ): Promise<OrgConnection | null> {
   const { data, error } = await supabase
     .from("waba_connections")
-    .select("phone_number_id, access_token_encrypted")
+    .select("id, phone_number_id, access_token_encrypted, last_error")
     .eq("org_id", orgId)
     .eq("status", "active")
     .limit(1)
@@ -54,8 +60,10 @@ export async function loadOrgConnection(
 
   try {
     return {
+      id: data.id,
       phoneNumberId: data.phone_number_id,
       accessToken: decryptToken(data.access_token_encrypted),
+      lastError: data.last_error,
     };
   } catch (err) {
     // A key rotation without re-encrypting stored tokens lands here. Say so
@@ -133,14 +141,27 @@ export async function sendAndLogText({
 
     waMessageId = result.messages[0]?.id ?? null;
   } catch (error) {
-    const message =
-      error instanceof MetaApiError
-        ? `Meta rejected the send (${error.status}): ${JSON.stringify(error.body)}`
-        : error instanceof Error
-          ? error.message
-          : "Unknown send failure";
+    if (error instanceof MetaApiError) {
+      const message = describeMetaError(error.status, error.body);
+      console.error(`Failed to send to ${toWaId}: ${message}`, error.body);
+
+      // A credential rejection is not about this message — every send will
+      // fail identically until someone reconnects. Park it on the connection
+      // so Integrations can say so without waiting for the next customer.
+      if (isMetaAuthError(error.status, error.body)) {
+        await recordConnectionError(supabase, connection.id, message);
+      }
+      return { ok: false, error: message };
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown send failure";
     console.error(`Failed to send to ${toWaId}`, error);
     return { ok: false, error: message };
+  }
+
+  // The credentials just worked, so any recorded failure is stale.
+  if (connection.lastError) {
+    await recordConnectionError(supabase, connection.id, null);
   }
 
   // The message went out. From here on failures are logging failures — do
@@ -170,4 +191,25 @@ export async function sendAndLogText({
   }
 
   return { ok: true, waMessageId };
+}
+
+/**
+ * Stamps (or clears) the last credential-level rejection on a connection.
+ *
+ * Never throws and never blocks the send result: this is a hint for the
+ * Integrations page, not part of delivering the message.
+ */
+async function recordConnectionError(
+  supabase: RunnerClient,
+  connectionId: string,
+  message: string | null
+): Promise<void> {
+  const { error } = await supabase
+    .from("waba_connections")
+    .update({ last_error: message, last_error_at: message ? new Date().toISOString() : null })
+    .eq("id", connectionId);
+
+  if (error) {
+    console.error("Failed to record connection health", error);
+  }
 }

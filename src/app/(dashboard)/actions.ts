@@ -72,6 +72,10 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
       webhook_verify_token:
         existing?.webhook_verify_token ?? randomBytes(24).toString("base64url"),
       status: "active",
+      // Pasting a token is the fix for a credential rejection, so clear the
+      // recorded failure rather than leaving a stale warning on the card.
+      last_error: null,
+      last_error_at: null,
     },
     { onConflict: "phone_number_id" }
   );
@@ -79,6 +83,7 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/settings");
+  revalidatePath("/integrations");
   return {
     ok: true,
     message: existing

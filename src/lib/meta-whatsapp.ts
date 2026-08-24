@@ -243,3 +243,13 @@ export async function getMediaUrl(mediaId: string, accessToken: string): Promise
   }
   return (data as MetaMediaResponse).url;
 }
+
+// Error classification lives in its own module because it is pure — no fetch,
+// no env, no server-only — which is what makes it testable. Re-exported here
+// so call sites keep a single Meta import.
+export {
+  describeMetaError,
+  isMetaAuthError,
+  metaErrorDetail,
+  type MetaErrorDetail,
+} from "@/lib/meta-errors";

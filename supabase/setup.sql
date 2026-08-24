@@ -56,6 +56,11 @@ create table if not exists public.waba_connections (
   access_token_encrypted text not null,
   webhook_verify_token text not null,
   status text not null default 'pending' check (status in ('pending', 'active', 'disabled', 'error')),
+  -- Set when Meta rejects a send because of the credentials rather than the
+  -- message, so Integrations can say the number is broken before a customer
+  -- finds out. Cleared on the next successful send or on reconnect.
+  last_error text,
+  last_error_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -1623,3 +1628,15 @@ alter table public.contacts
 
 create index if not exists contacts_opted_out_idx on public.contacts(org_id)
   where opted_out;
+
+-- =========================================================================
+-- Connection health — added after the first real token expiry surfaced as
+-- raw Meta JSON in a customer's chat thread. Existing databases pick the
+-- columns up here; new ones already have them from the create above.
+-- =========================================================================
+
+alter table public.waba_connections
+  add column if not exists last_error text;
+
+alter table public.waba_connections
+  add column if not exists last_error_at timestamptz;

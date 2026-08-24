@@ -32,7 +32,9 @@ export default async function IntegrationsPage() {
       // access_token_encrypted is likewise never selected here.
       supabase
         .from("waba_connections")
-        .select("id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status")
+        .select(
+          "id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status, last_error, last_error_at"
+        )
         .eq("org_id", orgId)
         .order("created_at"),
     ]);

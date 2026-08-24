@@ -1,3 +1,4 @@
+import { AlertTriangle } from "lucide-react";
 import { connectWaba, disconnectWaba, regenerateVerifyToken } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, statusTone } from "@/components/ui/primitives";
@@ -13,6 +14,8 @@ type Connection = {
   meta_app_id: string;
   webhook_verify_token: string;
   status: string;
+  last_error: string | null;
+  last_error_at: string | null;
 };
 
 export default function WhatsAppCard({
@@ -74,6 +77,27 @@ export default function WhatsAppCard({
                   <ActionForm action={disconnectWaba} submitLabel="Disconnect" compact>
                     <input type="hidden" name="id" value={c.id} />
                   </ActionForm>
+                )}
+
+                {/* A credential rejection breaks every send, not one message,
+                    so it belongs here rather than only in whichever chat
+                    thread happened to hit it first. */}
+                {c.last_error && (
+                  <div className="w-full flex items-start gap-2.5 rounded-lg border border-[#FF5C5C]/30 bg-[#FF5C5C]/8 p-3">
+                    <AlertTriangle className="w-4 h-4 text-[#FF5C5C] flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-[#FF8A8A] mb-0.5">
+                        Meta refused the last send
+                        {c.last_error_at && (
+                          <span className="text-white/35 font-normal">
+                            {" · "}
+                            {new Date(c.last_error_at).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-white/60 leading-relaxed">{c.last_error}</p>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}

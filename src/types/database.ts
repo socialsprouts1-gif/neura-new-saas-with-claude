@@ -82,6 +82,8 @@ export interface Database {
           access_token_encrypted: string;
           webhook_verify_token: string;
           status: WabaStatus;
+          last_error: string | null;
+          last_error_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -94,6 +96,8 @@ export interface Database {
           access_token_encrypted: string;
           webhook_verify_token: string;
           status?: WabaStatus;
+          last_error?: string | null;
+          last_error_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
