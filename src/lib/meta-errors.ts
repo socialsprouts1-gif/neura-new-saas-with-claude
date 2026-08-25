@@ -92,11 +92,27 @@ const META_ERROR_HELP: Record<number, string> = {
   133010: "This phone number is not registered for the Cloud API. Register it under Meta → WhatsApp → API Setup before sending.",
 };
 
+// Some codes only mean something with their subcode. Meta reuses code 100
+// for "you sent a bad field" and for "that object does not exist or you
+// cannot see it", which need completely different fixes — the generic text
+// for 100 actively misleads on subcode 33.
+const META_SUBCODE_HELP: Record<string, string> = {
+  "100:33":
+    "Meta cannot see that phone number ID with this access token. Either the ID is wrong, or the token's System User has not been given the WhatsApp Account as an asset. Note that assigning assets does not update an existing token — assign the WhatsApp Account in Business settings → Users → System users → Add assets, then generate a new token and paste that one.",
+  "100:44":
+    "That WhatsApp template does not exist in this account under the name and language requested.",
+};
+
 /**
  * A sentence an operator can act on. Never returns the raw JSON envelope.
  */
 export function describeMetaError(status: number, body: unknown): string {
-  const { code, detail } = metaErrorDetail(body);
+  const { code, subcode, detail } = metaErrorDetail(body);
+
+  const subcodeHelp =
+    code !== null && subcode !== null ? META_SUBCODE_HELP[`${code}:${subcode}`] : undefined;
+  if (subcodeHelp) return `${subcodeHelp} (Meta error ${code}/${subcode})`;
+
   const help = code !== null ? META_ERROR_HELP[code] : undefined;
 
   if (help) {

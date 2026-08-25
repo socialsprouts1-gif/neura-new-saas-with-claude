@@ -110,3 +110,27 @@ test("no branch ever returns the raw JSON envelope", () => {
     assert.doesNotMatch(message, /fbtrace_id/, "leaked Meta's trace id into operator-facing text");
   }
 });
+
+// Meta reuses code 100 for "bad field" and for "that object does not exist
+// or you cannot see it". The generic text for 100 sends people looking at
+// their message when the problem is asset assignment on the token.
+test("code 100 subcode 33 is about permissions, not the message body", () => {
+  const message = describeMetaError(400, {
+    error: {
+      message: "Unsupported post request. Object with ID '1203608382834277' does not exist…",
+      code: 100,
+      type: "GraphMethodException",
+      error_subcode: 33,
+    },
+  });
+  assert.match(message, /System User/);
+  assert.match(message, /does not update an existing token/);
+  assert.doesNotMatch(message, /rejected one of the message's fields/);
+});
+
+test("code 100 without that subcode keeps the generic field wording", () => {
+  const message = describeMetaError(400, {
+    error: { message: "Invalid parameter", code: 100 },
+  });
+  assert.match(message, /rejected one of the message's fields/);
+});
