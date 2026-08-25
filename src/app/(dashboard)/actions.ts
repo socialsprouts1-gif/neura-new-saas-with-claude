@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { encryptToken } from "@/lib/crypto";
+import { checkAccessToken } from "@/lib/access-token";
 
 export interface ActionResult {
   ok: boolean;
@@ -25,11 +26,19 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
   const wabaId = String(formData.get("waba_id") ?? "").trim();
   const phoneNumberId = String(formData.get("phone_number_id") ?? "").trim();
   const metaAppId = String(formData.get("meta_app_id") ?? "").trim();
-  const accessToken = String(formData.get("access_token") ?? "").trim();
+  const accessTokenRaw = String(formData.get("access_token") ?? "");
 
-  if (!wabaId || !phoneNumberId || !metaAppId || !accessToken) {
+  if (!wabaId || !phoneNumberId || !metaAppId || !accessTokenRaw.trim()) {
     return { ok: false, error: "All fields are required." };
   }
+
+  // A token carrying a smart quote or an em dash cannot go in an HTTP header,
+  // so it would be stored happily and then fail every send with a TypeError
+  // naming a character index. Refuse it here, where the paste just happened
+  // and the fix is obvious.
+  const check = checkAccessToken(accessTokenRaw);
+  if (!check.ok) return { ok: false, error: check.error! };
+  const accessToken = check.token!;
 
   let encrypted: string;
   try {
@@ -91,12 +100,10 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
 
   revalidatePath("/settings");
   revalidatePath("/integrations");
-  return {
-    ok: true,
-    message: existing
-      ? "WhatsApp number updated. The verify token is unchanged, so your webhook stays registered."
-      : "WhatsApp number connected.",
-  };
+  const message = existing
+    ? "WhatsApp number updated. The verify token is unchanged, so your webhook stays registered."
+    : "WhatsApp number connected.";
+  return { ok: true, message: check.warning ?? message };
 }
 
 export async function regenerateVerifyToken(formData: FormData): Promise<ActionResult> {

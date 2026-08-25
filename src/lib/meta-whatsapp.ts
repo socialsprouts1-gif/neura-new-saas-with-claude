@@ -1,5 +1,7 @@
 import "server-only";
 
+import { assertUsableAccessToken } from "@/lib/access-token";
+
 // Pin the Graph API version in one place — every call goes through
 // META_GRAPH_BASE_URL rather than hardcoding "v21.0" per call site.
 export const META_API_VERSION = "v21.0";
@@ -48,6 +50,11 @@ async function postToMessagesEndpoint(
   accessToken: string,
   payload: Record<string, unknown>
 ): Promise<MetaSendMessageResponse> {
+  // A token with a smart quote or an em dash makes fetch throw a ByteString
+  // TypeError that names a character index and nothing else. Fail with a
+  // sentence instead, before the request is built.
+  assertUsableAccessToken(accessToken);
+
   const response = await fetch(`${META_GRAPH_BASE_URL}/${phoneNumberId}/messages`, {
     method: "POST",
     headers: {
@@ -247,6 +254,11 @@ export async function getMediaUrl(mediaId: string, accessToken: string): Promise
 // Error classification lives in its own module because it is pure — no fetch,
 // no env, no server-only — which is what makes it testable. Re-exported here
 // so call sites keep a single Meta import.
+export {
+  InvalidAccessTokenError,
+  assertUsableAccessToken,
+} from "@/lib/access-token";
+
 export {
   describeMetaError,
   isMetaAuthError,

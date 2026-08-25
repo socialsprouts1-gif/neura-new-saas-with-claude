@@ -4,6 +4,7 @@ import type { Database } from "@/types/database";
 import { decryptToken } from "@/lib/crypto";
 import {
   MetaApiError,
+  InvalidAccessTokenError,
   describeMetaError,
   isMetaAuthError,
   sendInteractiveButtons,
@@ -152,6 +153,13 @@ export async function sendAndLogText({
         await recordConnectionError(supabase, connection.id, message);
       }
       return { ok: false, error: message };
+    }
+
+    if (error instanceof InvalidAccessTokenError) {
+      // Same class of problem as a rejected token: every send fails until
+      // someone pastes a good one, so it belongs on the connection.
+      await recordConnectionError(supabase, connection.id, error.message);
+      return { ok: false, error: error.message };
     }
 
     const message = error instanceof Error ? error.message : "Unknown send failure";

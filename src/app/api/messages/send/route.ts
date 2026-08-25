@@ -6,6 +6,7 @@ import {
   sendTemplateMessage,
   sendTextMessage,
   MetaApiError,
+  InvalidAccessTokenError,
   describeMetaError,
   type MetaTemplateComponent,
 } from "@/lib/meta-whatsapp";
@@ -148,6 +149,11 @@ export async function POST(request: NextRequest) {
       // that names the fix — not the label "Meta API error" over raw JSON.
       console.error("Meta rejected an operator send", error.body);
       return NextResponse.json({ error: describeMetaError(error.status, error.body) }, { status: 502 });
+    }
+    if (error instanceof InvalidAccessTokenError) {
+      // Stored before the paste-time check existed, or edited since. Either
+      // way the operator needs the sentence, not "Failed to send message".
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     console.error("Failed to send WhatsApp message", error);
     return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
