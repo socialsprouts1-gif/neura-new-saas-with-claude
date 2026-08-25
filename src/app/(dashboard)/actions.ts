@@ -4,8 +4,14 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { encryptToken } from "@/lib/crypto";
+import { encryptToken, decryptToken } from "@/lib/crypto";
 import { checkAccessToken } from "@/lib/access-token";
+import {
+  MetaApiError,
+  InvalidAccessTokenError,
+  describeMetaError,
+  getPhoneNumber,
+} from "@/lib/meta-whatsapp";
 
 export interface ActionResult {
   ok: boolean;
@@ -322,4 +328,80 @@ export async function toggleConversationBot(formData: FormData): Promise<ActionR
     ok: true,
     message: enable ? "Automated replies resumed." : "Automated replies paused for this chat.",
   };
+}
+
+/**
+ * Asks Meta whether the stored credentials can actually act on this number.
+ *
+ * Every credential fault so far — an expired token, a token mangled by
+ * autocorrect, a System User without the WhatsApp Account assigned — could
+ * only be discovered by sending a real message to a real phone and then
+ * reading the server logs. This does the same permission check against the
+ * same object without sending anything, and reports what Meta said.
+ */
+export async function verifyWabaConnection(formData: FormData): Promise<ActionResult> {
+  const { orgId, role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can test the connection." };
+  }
+
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+
+  const { data: connection, error } = await supabase
+    .from("waba_connections")
+    .select("id, phone_number_id, access_token_encrypted")
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  if (error || !connection) {
+    return { ok: false, error: error?.message ?? "That connection no longer exists." };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = decryptToken(connection.access_token_encrypted);
+  } catch (err) {
+    return {
+      ok: false,
+      error: `The stored token could not be decrypted — ${
+        err instanceof Error ? err.message : "unknown error"
+      }. Paste it again with Update access token.`,
+    };
+  }
+
+  try {
+    const number = await getPhoneNumber(connection.phone_number_id, accessToken);
+
+    // Proof the credentials work, so any recorded failure is stale.
+    await supabase
+      .from("waba_connections")
+      .update({ last_error: null, last_error_at: null })
+      .eq("id", connection.id);
+    revalidatePath("/integrations");
+
+    const name = number.verified_name ? ` as "${number.verified_name}"` : "";
+    const shown = number.display_phone_number ? ` (${number.display_phone_number})` : "";
+    const quality = number.quality_rating ? ` Quality rating: ${number.quality_rating}.` : "";
+    return {
+      ok: true,
+      message: `Meta accepted the token and returned this number${shown}${name}.${quality} Sending should work.`,
+    };
+  } catch (err) {
+    const message =
+      err instanceof MetaApiError
+        ? describeMetaError(err.status, err.body)
+        : err instanceof InvalidAccessTokenError
+          ? err.message
+          : `Could not reach Meta — ${err instanceof Error ? err.message : "unknown error"}.`;
+
+    await supabase
+      .from("waba_connections")
+      .update({ last_error: message, last_error_at: new Date().toISOString() })
+      .eq("id", connection.id);
+    revalidatePath("/integrations");
+
+    return { ok: false, error: message };
+  }
 }

@@ -239,6 +239,42 @@ export function sendCtaUrl(
 
 // Resolves a media ID to its short-lived download URL. The URL itself
 // still requires the same `Authorization: Bearer` header to fetch.
+export interface MetaPhoneNumber {
+  id: string;
+  display_phone_number?: string;
+  verified_name?: string;
+  quality_rating?: string;
+  code_verification_status?: string;
+  platform_type?: string;
+}
+
+/**
+ * Reads the connected phone number back from Meta.
+ *
+ * This is the cheapest possible proof that a stored token can actually act on
+ * a number: it touches the same object a send touches and needs the same
+ * asset assignment, but changes nothing. Without it the only way to test
+ * credentials is to send a real message to a real person and read the logs.
+ */
+export async function getPhoneNumber(
+  phoneNumberId: string,
+  accessToken: string
+): Promise<MetaPhoneNumber> {
+  assertUsableAccessToken(accessToken);
+
+  const fields = "id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type";
+  const response = await fetch(
+    `${META_GRAPH_BASE_URL}/${phoneNumberId}?fields=${fields}`,
+    { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" }
+  );
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new MetaApiError(response.status, data);
+  }
+  return data as MetaPhoneNumber;
+}
+
 export async function getMediaUrl(mediaId: string, accessToken: string): Promise<string> {
   const response = await fetch(`${META_GRAPH_BASE_URL}/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },

@@ -1,5 +1,5 @@
 import { AlertTriangle, KeyRound } from "lucide-react";
-import { connectWaba, disconnectWaba, regenerateVerifyToken } from "../actions";
+import { connectWaba, disconnectWaba, regenerateVerifyToken, verifyWabaConnection } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, statusTone } from "@/components/ui/primitives";
 
@@ -95,6 +95,15 @@ export default function WhatsAppCard({
                     WABA {c.waba_id} · App {c.meta_app_id}
                   </div>
                 </div>
+
+                {/* Asks Meta the same permission question a send asks, without
+                    sending. Every credential fault so far could only be found
+                    by messaging a real person and reading server logs. */}
+                {canManage && (
+                  <ActionForm action={verifyWabaConnection} submitLabel="Test connection" compact>
+                    <input type="hidden" name="id" value={c.id} />
+                  </ActionForm>
+                )}
 
                 {/* Rotating an access token is routine — Meta's API Setup
                     token dies every 24 hours — and it must not go through
