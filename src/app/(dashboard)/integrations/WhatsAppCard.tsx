@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, KeyRound } from "lucide-react";
 import { connectWaba, disconnectWaba, regenerateVerifyToken } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, statusTone } from "@/components/ui/primitives";
@@ -23,12 +23,15 @@ export default function WhatsAppCard({
   webhookUrl,
   canManage,
   loadError,
+  healthUnavailable,
 }: {
   connections: Connection[];
   webhookUrl: string;
   canManage: boolean;
   /** Set when the connection query itself failed — usually a pending migration. */
   loadError?: string | null;
+  /** Connections loaded, but the health columns are not there yet. */
+  healthUnavailable?: boolean;
 }) {
   const connected = connections.length > 0;
 
@@ -92,10 +95,36 @@ export default function WhatsAppCard({
                     WABA {c.waba_id} · App {c.meta_app_id}
                   </div>
                 </div>
+
+                {/* Rotating an access token is routine — Meta's API Setup
+                    token dies every 24 hours — and it must not go through
+                    Disconnect, which deletes the row and with it the verify
+                    token Meta was registered against. connectWaba upserts on
+                    phone_number_id and keeps that token, so the fix stays a
+                    single paste. */}
                 {canManage && (
-                  <ActionForm action={disconnectWaba} submitLabel="Disconnect" compact>
-                    <input type="hidden" name="id" value={c.id} />
-                  </ActionForm>
+                  <details className="w-full group">
+                    <summary className="cursor-pointer text-xs text-[#00D4FF] hover:text-[#00FF87] transition-colors list-none flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5" />
+                      Update access token
+                      <span className="text-white/30">— keeps your verify token</span>
+                    </summary>
+                    <div className="mt-3 pt-3 border-t border-white/8">
+                      <ActionForm action={connectWaba} submitLabel="Save token">
+                        <input type="hidden" name="waba_id" value={c.waba_id} />
+                        <input type="hidden" name="phone_number_id" value={c.phone_number_id} />
+                        <input type="hidden" name="meta_app_id" value={c.meta_app_id} />
+                        <Field
+                          name="access_token"
+                          label="New access token"
+                          type="password"
+                          required
+                          placeholder="EAAO…"
+                          hint="A System User token never expires. The one on Meta's API Setup page lasts 24 hours."
+                        />
+                      </ActionForm>
+                    </div>
+                  </details>
                 )}
 
                 {/* A credential rejection breaks every send, not one message,
@@ -118,8 +147,35 @@ export default function WhatsAppCard({
                     </div>
                   </div>
                 )}
+
+                {canManage && (
+                  <details className="w-full">
+                    <summary className="cursor-pointer text-xs text-white/35 hover:text-white/60 transition-colors list-none">
+                      Disconnect this number
+                    </summary>
+                    <div className="mt-3 pt-3 border-t border-white/8 flex flex-wrap items-center gap-3">
+                      <p className="text-xs text-white/45 leading-relaxed flex-1 min-w-[16rem]">
+                        This deletes the connection, including its verify token. Reconnecting
+                        generates a new one, so you would have to re-register the webhook with
+                        Meta. To change the access token, use{" "}
+                        <span className="text-white/70">Update access token</span> above instead.
+                      </p>
+                      <ActionForm action={disconnectWaba} submitLabel="Disconnect" compact>
+                        <input type="hidden" name="id" value={c.id} />
+                      </ActionForm>
+                    </div>
+                  </details>
+                )}
               </div>
             ))}
+
+            {healthUnavailable && (
+              <p className="text-[11px] text-white/35 leading-relaxed">
+                Connection health tracking is off — run{" "}
+                <span className="font-mono text-white/55">supabase/setup.sql</span> to add the
+                two columns it needs. Everything else on this page works without it.
+              </p>
+            )}
 
             {/* Storing credentials does not tell Meta where to deliver
                 messages — that is a separate step in their dashboard, and

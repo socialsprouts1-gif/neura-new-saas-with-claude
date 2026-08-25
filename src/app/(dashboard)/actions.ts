@@ -72,15 +72,22 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
       webhook_verify_token:
         existing?.webhook_verify_token ?? randomBytes(24).toString("base64url"),
       status: "active",
-      // Pasting a token is the fix for a credential rejection, so clear the
-      // recorded failure rather than leaving a stale warning on the card.
-      last_error: null,
-      last_error_at: null,
     },
     { onConflict: "phone_number_id" }
   );
 
   if (error) return { ok: false, error: error.message };
+
+  // Pasting a token is the fix for a credential rejection, so clear the
+  // recorded failure. Kept out of the upsert above deliberately: these
+  // columns are newer than the table, and a database that has not run the
+  // latest migration must still be able to store a token — that is the one
+  // operation someone needs when their number has stopped sending.
+  await supabase
+    .from("waba_connections")
+    .update({ last_error: null, last_error_at: null })
+    .eq("org_id", orgId)
+    .eq("phone_number_id", phoneNumberId);
 
   revalidatePath("/settings");
   revalidatePath("/integrations");

@@ -23,21 +23,18 @@ export default async function IntegrationsPage() {
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 
-  const [{ data: connections }, { data: webhooks }, { data: wabaConnections, error: wabaError }] =
+  const [{ data: connections }, { data: webhooks }, waba] =
     await Promise.all([
       // credentials_encrypted is deliberately not selected — this page never
       // needs the secret, and not fetching it keeps it out of the RSC payload.
       supabase.from("org_integrations").select("provider, status, connected_at").eq("org_id", orgId),
       supabase.from("outgoing_webhooks").select("*").eq("org_id", orgId).order("created_at"),
       // access_token_encrypted is likewise never selected here.
-      supabase
-        .from("waba_connections")
-        .select(
-          "id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status, last_error, last_error_at"
-        )
-        .eq("org_id", orgId)
-        .order("created_at"),
+      loadWabaConnections(supabase, orgId),
     ]);
+
+  const wabaConnections = waba.data;
+  const wabaError = waba.error;
 
   const connectedSet = new Set(
     (connections ?? []).filter((c) => c.status === "connected").map((c) => c.provider)
@@ -73,6 +70,9 @@ export default async function IntegrationsPage() {
         // connected sends people back to Meta to fix nothing, so pass the
         // error through and let the card say what actually happened.
         loadError={wabaError?.message ?? null}
+        // Connections loaded, but without health tracking. Say so quietly
+        // rather than letting the banner's absence read as "all fine".
+        healthUnavailable={waba.degraded}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -213,4 +213,44 @@ export default async function IntegrationsPage() {
       </Card>
     </div>
   );
+}
+
+/**
+ * Connections, tolerating a database that has not run the latest migration.
+ *
+ * The health columns are a nicety; the connection itself is what the operator
+ * needs to see and act on. Selecting both in one shot meant a pending
+ * migration took the whole card down — including the controls for fixing it —
+ * so fall back to the columns that have always existed and lose only the
+ * health banner.
+ */
+async function loadWabaConnections(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string
+) {
+  const BASE = "id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status";
+
+  const full = await supabase
+    .from("waba_connections")
+    .select(`${BASE}, last_error, last_error_at`)
+    .eq("org_id", orgId)
+    .order("created_at");
+
+  if (!full.error) return { data: full.data, error: null, degraded: false };
+
+  const base = await supabase
+    .from("waba_connections")
+    .select(BASE)
+    .eq("org_id", orgId)
+    .order("created_at");
+
+  if (base.error) return { data: null, error: base.error, degraded: false };
+
+  return {
+    data: base.data.map((row) => ({ ...row, last_error: null, last_error_at: null })),
+    // Not an error the operator has to act on before using the page, but
+    // worth naming so the missing banner is explained rather than mysterious.
+    error: null,
+    degraded: true,
+  };
 }
