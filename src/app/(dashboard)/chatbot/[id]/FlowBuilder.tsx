@@ -20,7 +20,33 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Copy, Trash2, Save, Search } from "lucide-react";
+import {
+  Copy,
+  Trash2,
+  Save,
+  Search,
+  X,
+  Zap,
+  MessageSquare,
+  MousePointerClick,
+  List,
+  Image as ImageIcon,
+  FileText,
+  Link2,
+  ShoppingCart,
+  HelpCircle,
+  MapPin,
+  GitBranch,
+  Clock,
+  Tag,
+  UserCog,
+  Database,
+  Globe,
+  Headset,
+  StopCircle,
+  Bot,
+  type LucideIcon,
+} from "lucide-react";
 import {
   NODE_DEFS,
   NODE_GROUPS,
@@ -29,6 +55,7 @@ import {
   type FlowEdge,
   type FlowNode,
   type FlowNodeKind,
+  type NodeDef,
   type NodeField,
 } from "@/types/flow";
 import { saveFlowGraph } from "../../portal-actions";
@@ -36,6 +63,35 @@ import { saveFlowGraph } from "../../portal-actions";
 // The visual builder. Nodes carry their own configuration form rather than
 // opening a side panel: a flow is read by scanning left to right, and having
 // to click each node to see what it says defeats that.
+
+// Every component in the palette gets a glyph. Kept out of flow.ts on
+// purpose — that module is plain data imported by server components, and
+// icons are a rendering concern.
+// Every component in the palette gets a glyph. Kept out of flow.ts on
+// purpose — that module is plain data imported by server components, and
+// icons are a rendering concern. Total rather than Partial so adding a node
+// kind without an icon fails to compile instead of silently falling back.
+const NODE_ICONS: Record<FlowNodeKind, LucideIcon> = {
+  on_message: Zap,
+  send_text: MessageSquare,
+  send_buttons: MousePointerClick,
+  send_list: List,
+  send_media: ImageIcon,
+  send_template: FileText,
+  send_cta: Link2,
+  send_product: ShoppingCart,
+  ask_question: HelpCircle,
+  ask_location: MapPin,
+  condition: GitBranch,
+  delay: Clock,
+  update_tag: Tag,
+  update_field: UserCog,
+  fetch_contact: Database,
+  http: Globe,
+  ai_agent: Bot,
+  handoff: Headset,
+  stop_bot: StopCircle,
+};
 
 type NodeData = { kind: FlowNodeKind; values: Record<string, unknown> };
 type BuilderNode = Node<NodeData, "flowNode">;
@@ -117,21 +173,7 @@ function FieldEditor({
       );
 
     case "keywords":
-      return (
-        <input
-          className={inputClass}
-          placeholder={field.placeholder ?? "price, cost, pricing"}
-          value={(Array.isArray(value) ? value : []).join(", ")}
-          onChange={(e) =>
-            onChange(
-              e.target.value
-                .split(",")
-                .map((v) => v.trim())
-                .filter(Boolean)
-            )
-          }
-        />
-      );
+      return <KeywordsEditor value={value} onChange={onChange} placeholder={field.placeholder} />;
 
     case "variable":
       return (
@@ -164,6 +206,111 @@ function FieldEditor({
         />
       );
   }
+}
+
+/**
+ * Keywords as removable chips.
+ *
+ * The previous version round-tripped the whole list through one text input
+ * joined on ", ". That reads fine but edits badly: deleting one keyword from
+ * the middle means retyping the separators, and it is never obvious whether
+ * a trailing comma has created an empty entry. Chips make each keyword a
+ * thing you can remove, while still accepting a comma-separated paste.
+ */
+function KeywordsEditor({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: unknown;
+  onChange: (next: unknown) => void;
+  placeholder?: string;
+}) {
+  const keywords: string[] = Array.isArray(value) ? (value as string[]) : [];
+  const [draft, setDraft] = useState("");
+
+  // One place decides what a keyword is, so a paste of "hi, hey,, HEY" and a
+  // typed entry behave identically: trimmed, non-empty, no case-insensitive
+  // duplicates (the matcher lowercases anyway, so "Hi" and "hi" are one rule).
+  const commit = useCallback(
+    (raw: string) => {
+      const additions = raw
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (additions.length === 0) return;
+
+      const seen = new Set(keywords.map((k) => k.toLowerCase()));
+      const next = [...keywords];
+      for (const addition of additions) {
+        if (seen.has(addition.toLowerCase())) continue;
+        seen.add(addition.toLowerCase());
+        next.push(addition);
+      }
+      if (next.length !== keywords.length) onChange(next);
+    },
+    [keywords, onChange]
+  );
+
+  return (
+    <div className="nodrag">
+      {keywords.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {keywords.map((keyword, index) => (
+            <span
+              key={`${keyword}-${index}`}
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-[#00FF87]/10 border border-[#00FF87]/25 text-[10px] text-[#00FF87]"
+            >
+              <span className="max-w-[9rem] truncate">{keyword}</span>
+              <button
+                type="button"
+                className="text-[#00FF87]/50 hover:text-white transition-colors"
+                onClick={() => onChange(keywords.filter((_, i) => i !== index))}
+                aria-label={`Remove ${keyword}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <input
+        className={inputClass}
+        placeholder={keywords.length ? "Add keyword…" : (placeholder ?? "hi, hey, hello")}
+        value={draft}
+        onChange={(e) => {
+          // Typing or pasting a comma commits everything before it, so a
+          // pasted list lands as chips without needing Enter.
+          if (e.target.value.includes(",")) {
+            const parts = e.target.value.split(",");
+            commit(parts.slice(0, -1).join(","));
+            setDraft(parts[parts.length - 1]);
+            return;
+          }
+          setDraft(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit(draft);
+            setDraft("");
+          } else if (e.key === "Backspace" && !draft && keywords.length) {
+            // Matches how every other chip input behaves.
+            onChange(keywords.slice(0, -1));
+          }
+        }}
+        // Leaving the field should not silently discard what was typed.
+        onBlur={() => {
+          commit(draft);
+          setDraft("");
+        }}
+      />
+      <p className="text-[9px] text-white/25 mt-1">
+        Separate keywords with commas. Leave empty to match any message.
+      </p>
+    </div>
+  );
 }
 
 type ButtonEntry = { id: string; title: string };
@@ -313,6 +460,20 @@ function SectionsEditor({ value, onChange }: { value: unknown; onChange: (next: 
 
 // --- the node --------------------------------------------------------------
 
+function PaletteIcon({ def, size = "sm" }: { def: NodeDef; size?: "sm" | "xs" }) {
+  const Icon = NODE_ICONS[def.kind];
+  const box = size === "sm" ? "w-6 h-6" : "w-5 h-5";
+  const glyph = size === "sm" ? "w-3.5 h-3.5" : "w-3 h-3";
+  return (
+    <span
+      className={`${box} rounded-md flex items-center justify-center flex-shrink-0`}
+      style={{ background: `${def.accent}1A`, color: def.accent }}
+    >
+      <Icon className={glyph} />
+    </span>
+  );
+}
+
 function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
   const { setNodes, setEdges } = useReactFlow<BuilderNode, Edge>();
   const def = nodeDef(data.kind);
@@ -386,7 +547,7 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
         className="flex items-center gap-2 px-3 py-2 rounded-t-xl border-b border-white/8"
         style={{ background: `${def.accent}14` }}
       >
-        <span className="w-1.5 h-1.5 rounded-full" style={{ background: def.accent }} />
+        <PaletteIcon def={def} size="xs" />
         <span className="text-[11px] font-semibold flex-1 truncate">{def.label}</span>
         <button type="button" onClick={duplicate} className="nodrag text-white/30 hover:text-white/70" aria-label="Duplicate">
           <Copy className="w-3 h-3" />
@@ -605,13 +766,15 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
                     className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-white/8 bg-white/3 hover:border-white/20 hover:bg-white/6 transition-colors text-left cursor-grab active:cursor-grabbing"
                     title={def.description}
                   >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                      style={{ background: def.accent }}
-                    />
+                    <PaletteIcon def={def} />
                     <span className="text-[11px] font-medium truncate">{def.label}</span>
                     {def.runtime !== "ready" && (
-                      <span className="ml-auto text-[9px] text-amber-400/70 flex-shrink-0">!</span>
+                      <span
+                        className="ml-auto text-[9px] text-amber-400/70 flex-shrink-0"
+                        title={def.runtimeNote}
+                      >
+                        !
+                      </span>
                     )}
                   </button>
                 ))}
@@ -631,26 +794,48 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
             placeholder="Bot name"
           />
 
-          <button
-            type="button"
-            onClick={() => setActive((v) => !v)}
-            className="flex items-center gap-2 text-xs"
-          >
-            <span
-              className={`relative w-9 h-5 rounded-full transition-colors ${
-                active ? "bg-[#00FF87]" : "bg-white/15"
-              }`}
+          {/* Two readings of one switch: what it is set to, and what that
+              means for live messages. "Published / Draft" alone leaves people
+              asking whether the bot is actually answering anyone. */}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setActive((v) => !v)}
+              role="switch"
+              aria-checked={active}
+              aria-label="Published"
+              className="flex items-center gap-2 text-xs"
             >
               <span
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-[#050508] transition-all ${
-                  active ? "left-4.5" : "left-0.5"
+                className={`relative w-9 h-5 rounded-full transition-colors ${
+                  active ? "bg-[#00FF87]" : "bg-white/15"
                 }`}
-              />
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-[#050508] transition-all ${
+                    active ? "left-4.5" : "left-0.5"
+                  }`}
+                />
+              </span>
+              <span className={active ? "text-white/80" : "text-white/45"}>
+                {active ? "Published" : "Draft"}
+              </span>
+            </button>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-md border ${
+                active
+                  ? "text-[#00FF87] border-[#00FF87]/30 bg-[#00FF87]/10"
+                  : "text-white/40 border-white/12 bg-white/4"
+              }`}
+              title={
+                active
+                  ? "Matched against every inbound message."
+                  : "Saved, but never matched against inbound messages."
+              }
+            >
+              {active ? "Active" : "Not answering"}
             </span>
-            <span className={active ? "text-[#00FF87]" : "text-white/45"}>
-              {active ? "Active" : "Draft"}
-            </span>
-          </button>
+          </div>
 
           <div className="text-[11px] text-white/35">
             {nodes.length} node{nodes.length === 1 ? "" : "s"} · {edges.length} connection

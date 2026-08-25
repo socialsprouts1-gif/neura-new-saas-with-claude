@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import type { FlowEdge, FlowNode } from "@/types/flow";
+import { NODE_DEFS, type FlowEdge, type FlowNode } from "@/types/flow";
 import { encryptToken } from "@/lib/crypto";
 import { integrationBySlug } from "@/lib/integrations";
 import type { ActionResult } from "./actions";
@@ -615,4 +615,159 @@ export async function createFlow(): Promise<ActionResult & { id?: string }> {
 
   revalidatePath("/chatbot");
   return { ok: true, id: data.id, message: "Bot created." };
+}
+
+/**
+ * A working example flow, not an empty canvas.
+ *
+ * The fastest way to understand what the builder can do is to open something
+ * that already runs: a keyword trigger, a button message, and a branch per
+ * button — including a handoff, which is the outlet people most often forget
+ * to wire and then wonder why "talk to a human" does nothing.
+ */
+export async function createStarterFlow(): Promise<ActionResult & { id?: string }> {
+  const ctx = await requireOrg();
+  const supabase = await createClient();
+
+  const stamp = Date.now().toString(36);
+  const trigger = `on_message_${stamp}`;
+  const greet = `send_buttons_${stamp}`;
+  const services = `send_text_${stamp}`;
+  const human = `handoff_${stamp}`;
+  const bye = `send_text_bye_${stamp}`;
+
+  const buttons = [
+    { id: `btn_more_${stamp}`, title: "Tell me more" },
+    { id: `btn_human_${stamp}`, title: "Talk to a human" },
+    { id: `btn_no_${stamp}`, title: "Not now" },
+  ];
+
+  const nodes: FlowNode[] = [
+    {
+      id: trigger,
+      kind: "on_message",
+      position: { x: 80, y: 220 },
+      data: { keywords: ["hi", "hey", "hello"], fuzzy: true, sensitivity: 80 },
+    },
+    {
+      id: greet,
+      kind: "send_buttons",
+      position: { x: 420, y: 180 },
+      data: {
+        body: "Hi! Thanks for getting in touch. What can I help you with?",
+        footer: "",
+        buttons,
+      },
+    },
+    {
+      id: services,
+      kind: "send_text",
+      position: { x: 820, y: 60 },
+      data: { body: "Here is what we do — tell me which part interests you and I'll go deeper." },
+    },
+    {
+      id: human,
+      kind: "handoff",
+      position: { x: 820, y: 240 },
+      data: { body: "Of course — putting you through to the team now." },
+    },
+    {
+      id: bye,
+      kind: "send_text",
+      position: { x: 820, y: 400 },
+      data: { body: "No problem. Message us any time." },
+    },
+  ];
+
+  const edges: FlowEdge[] = [
+    { id: `e_trigger_${stamp}`, source: trigger, target: greet, sourceHandle: null },
+    { id: `e_more_${stamp}`, source: greet, target: services, sourceHandle: buttons[0].id },
+    { id: `e_human_${stamp}`, source: greet, target: human, sourceHandle: buttons[1].id },
+    { id: `e_no_${stamp}`, source: greet, target: bye, sourceHandle: buttons[2].id },
+  ];
+
+  const { data, error } = await supabase
+    .from("chatbot_flows")
+    .insert({
+      org_id: ctx.orgId,
+      name: "Example bot",
+      trigger_type: "keyword",
+      nodes,
+      edges,
+      entry_node_id: trigger,
+      // Draft on purpose: dropping an example bot into live traffic without
+      // the owner reading it first is not a favour.
+      is_active: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/chatbot");
+  return { ok: true, id: data.id, message: "Example bot created as a draft. Open it and read it before publishing." };
+}
+
+/**
+ * Recreates a flow from the JSON that the row menu exports.
+ *
+ * Deliberately strict about shape but forgiving about extras: a file from a
+ * later version of the builder should still import, minus anything this
+ * version does not understand.
+ */
+export async function importFlow(raw: string): Promise<ActionResult & { id?: string }> {
+  const ctx = await requireOrg();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "That is not valid JSON. Export a bot first to see the expected shape." };
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return { ok: false, error: "That file does not describe a bot." };
+  }
+
+  const source = parsed as { name?: unknown; nodes?: unknown; edges?: unknown };
+  const nodes = Array.isArray(source.nodes) ? (source.nodes as FlowNode[]) : null;
+  if (!nodes || nodes.length === 0) {
+    return { ok: false, error: "That file has no nodes, so there is nothing to import." };
+  }
+
+  const known = new Set(NODE_DEFS.map((d) => d.kind));
+  const unknown = nodes.find((n) => !n || typeof n !== "object" || !known.has(n.kind));
+  if (unknown) {
+    return {
+      ok: false,
+      error: `This file contains a node type this version does not know${
+        unknown.kind ? ` ("${unknown.kind}")` : ""
+      }.`,
+    };
+  }
+
+  const edges = Array.isArray(source.edges) ? (source.edges as FlowEdge[]) : [];
+  const entry = nodes.find((n) => n.kind === "on_message") ?? nodes[0];
+  const name = typeof source.name === "string" && source.name.trim() ? source.name.trim() : "Imported bot";
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("chatbot_flows")
+    .insert({
+      org_id: ctx.orgId,
+      name,
+      trigger_type: "keyword",
+      nodes,
+      edges,
+      entry_node_id: entry?.id ?? null,
+      // Never import straight into live traffic.
+      is_active: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/chatbot");
+  return { ok: true, id: data.id, message: `Imported "${name}" as a draft.` };
 }
