@@ -68,13 +68,13 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`relative flex flex-col bg-[#0A0A0F] border-r border-white/8 h-screen sticky top-0 transition-all duration-300 ${
+      className={`relative flex flex-col bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 transition-all duration-300 ${
         collapsed ? "w-16" : "w-60"
       }`}
     >
       {/* Logo */}
       <div className={`flex items-center gap-2.5 px-4 h-16 border-b border-white/8 flex-shrink-0 ${collapsed ? "justify-center" : ""}`}>
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00FF87] to-[#00D4FF] flex items-center justify-center shadow-[0_0_16px_rgba(0,255,135,0.4)] flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_16px_rgba(0,255,135,0.4)] flex-shrink-0">
           <Zap className="w-4 h-4 text-[#050508]" />
         </div>
         {!collapsed && (
@@ -104,15 +104,15 @@ export default function Sidebar() {
                       collapsed ? "justify-center" : ""
                     } ${
                       isActive
-                        ? "bg-[#00FF87]/10 text-[#00FF87] border border-[#00FF87]/20"
+                        ? "bg-accent/10 text-accent-ink border border-accent/20"
                         : "text-white/60 hover:text-white hover:bg-white/5"
                     }`}
                     title={collapsed ? item.label : undefined}
                   >
-                    <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-[#00FF87]" : ""}`} />
+                    <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-accent-ink" : ""}`} />
                     {!collapsed && item.label}
                     {!collapsed && isActive && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#00FF87]" />
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-accent" />
                     )}
                   </Link>
                 );
@@ -136,7 +136,7 @@ export default function Sidebar() {
 
         {/* User avatar */}
         <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/3 border border-white/8 ${collapsed ? "justify-center" : ""}`}>
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#00FF87]/30 to-[#00D4FF]/30 flex items-center justify-center text-xs font-bold flex-shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent/30 to-accent2/30 flex items-center justify-center text-xs font-bold flex-shrink-0">
             A
           </div>
           {!collapsed && (
@@ -151,7 +151,7 @@ export default function Sidebar() {
       {/* Collapse button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-[#141420] border border-white/15 flex items-center justify-center hover:border-[#00FF87]/30 transition-colors"
+        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-[var(--surface-3)] border border-white/15 flex items-center justify-center hover:border-accent/30 transition-colors"
       >
         <ChevronLeft className={`w-3 h-3 text-white/60 transition-transform duration-300 ${collapsed ? "rotate-180" : ""}`} />
       </button>

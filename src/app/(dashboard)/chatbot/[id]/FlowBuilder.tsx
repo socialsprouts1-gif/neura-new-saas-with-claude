@@ -59,6 +59,7 @@ import {
   type NodeField,
 } from "@/types/flow";
 import { saveFlowGraph } from "../../portal-actions";
+import { useTheme } from "@/components/ThemeToggle";
 
 // The visual builder. Nodes carry their own configuration form rather than
 // opening a side panel: a flow is read by scanning left to right, and having
@@ -105,7 +106,7 @@ function newId(kind: string): string {
 // --- field editors ---------------------------------------------------------
 
 const inputClass =
-  "w-full bg-white/4 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-white/25 focus:outline-none focus:border-[#00FF87]/40 nodrag";
+  "w-full bg-white/4 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-white/25 focus:outline-none focus:border-accent/40 nodrag";
 
 function FieldEditor({
   field,
@@ -147,7 +148,7 @@ function FieldEditor({
           onChange={(e) => onChange(e.target.value)}
         >
           {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value} className="bg-[#0A0A0F]">
+            <option key={o.value} value={o.value} className="bg-[var(--surface-1)]">
               {o.label}
             </option>
           ))}
@@ -160,12 +161,12 @@ function FieldEditor({
           type="button"
           onClick={() => onChange(!value)}
           className={`nodrag relative w-9 h-5 rounded-full transition-colors ${
-            value ? "bg-[#00FF87]" : "bg-white/15"
+            value ? "bg-accent" : "bg-white/15"
           }`}
           aria-pressed={Boolean(value)}
         >
           <span
-            className={`absolute top-0.5 w-4 h-4 rounded-full bg-[#050508] transition-all ${
+            className={`absolute top-0.5 w-4 h-4 rounded-full bg-[var(--app-bg)] transition-all ${
               value ? "left-4.5" : "left-0.5"
             }`}
           />
@@ -259,12 +260,12 @@ function KeywordsEditor({
           {keywords.map((keyword, index) => (
             <span
               key={`${keyword}-${index}`}
-              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-[#00FF87]/10 border border-[#00FF87]/25 text-[10px] text-[#00FF87]"
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-accent/10 border border-accent/25 text-[10px] text-accent-ink"
             >
               <span className="max-w-[9rem] truncate">{keyword}</span>
               <button
                 type="button"
-                className="text-[#00FF87]/50 hover:text-white transition-colors"
+                className="text-accent-ink/50 hover:text-white transition-colors"
                 onClick={() => onChange(keywords.filter((_, i) => i !== index))}
                 aria-label={`Remove ${keyword}`}
               >
@@ -355,7 +356,7 @@ function ButtonsEditor({
       {buttons.length < max && (
         <button
           type="button"
-          className="nodrag w-full text-[11px] text-[#00D4FF] border border-dashed border-[#00D4FF]/30 rounded-lg py-1.5 hover:bg-[#00D4FF]/5"
+          className="nodrag w-full text-[11px] text-accent2-ink border border-dashed border-accent2/30 rounded-lg py-1.5 hover:bg-accent2/5"
           onClick={() => onChange([...buttons, { id: newId("btn"), title: "" }])}
         >
           + Add button
@@ -431,7 +432,7 @@ function SectionsEditor({ value, onChange }: { value: unknown; onChange: (next: 
           {rowCount < 10 && (
             <button
               type="button"
-              className="nodrag w-full text-[11px] text-[#00D4FF] py-1 hover:underline"
+              className="nodrag w-full text-[11px] text-accent2-ink py-1 hover:underline"
               onClick={() =>
                 patch(sIndex, { rows: [...section.rows, { id: newId("row"), title: "" }] })
               }
@@ -444,7 +445,7 @@ function SectionsEditor({ value, onChange }: { value: unknown; onChange: (next: 
 
       <button
         type="button"
-        className="nodrag w-full text-[11px] text-[#00D4FF] border border-dashed border-[#00D4FF]/30 rounded-lg py-1.5 hover:bg-[#00D4FF]/5"
+        className="nodrag w-full text-[11px] text-accent2-ink border border-dashed border-accent2/30 rounded-lg py-1.5 hover:bg-accent2/5"
         onClick={() => onChange([...sections, { title: "", rows: [{ id: newId("row"), title: "" }] }])}
       >
         + Add section
@@ -530,8 +531,8 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
 
   return (
     <div
-      className={`w-[280px] rounded-xl border bg-[#0A0A0F] shadow-xl transition-colors ${
-        selected ? "border-[#00FF87]/60" : "border-white/12"
+      className={`w-[280px] rounded-xl border bg-[var(--surface-1)] shadow-xl transition-colors ${
+        selected ? "border-accent/60" : "border-white/12"
       }`}
       style={{ boxShadow: selected ? `0 0 0 1px ${def.accent}55` : undefined }}
     >
@@ -539,7 +540,7 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
         <Handle
           type="target"
           position={Position.Left}
-          className="!w-2.5 !h-2.5 !bg-[#00FF87] !border-2 !border-[#0A0A0F]"
+          className="!w-2.5 !h-2.5 !bg-accent !border-2 !border-[var(--surface-1)]"
         />
       )}
 
@@ -595,7 +596,7 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
                 id={outlet.id}
                 position={Position.Right}
                 style={{ top: "50%" }}
-                className="!w-2.5 !h-2.5 !bg-[#00D4FF] !border-2 !border-[#0A0A0F]"
+                className="!w-2.5 !h-2.5 !bg-accent2 !border-2 !border-[var(--surface-1)]"
                 data-index={index}
               />
             </div>
@@ -605,7 +606,7 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
         <Handle
           type="source"
           position={Position.Right}
-          className="!w-2.5 !h-2.5 !bg-[#00D4FF] !border-2 !border-[#0A0A0F]"
+          className="!w-2.5 !h-2.5 !bg-accent2 !border-2 !border-[var(--surface-1)]"
         />
       )}
     </div>
@@ -651,6 +652,7 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
   const [saving, setSaving] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition } = useReactFlow();
+  const theme = useTheme();
 
   const onConnect = useCallback(
     (connection: Connection) =>
@@ -731,12 +733,12 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
   return (
     <div className="flex h-full min-h-0">
       {/* Palette */}
-      <aside className="w-64 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0 bg-[#08080C]">
+      <aside className="w-64 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0 bg-[var(--surface-2)]">
         <div className="p-3 border-b border-white/8">
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-white/30 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
-              className="w-full bg-white/4 border border-white/10 rounded-lg pl-8 pr-2.5 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/40"
+              className="w-full bg-white/4 border border-white/10 rounded-lg pl-8 pr-2.5 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-accent/40"
               placeholder="Search components…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -788,7 +790,7 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <header className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/8 flex-shrink-0">
           <input
-            className="bg-white/4 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:outline-none focus:border-[#00FF87]/40 min-w-0"
+            className="bg-white/4 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:outline-none focus:border-accent/40 min-w-0"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Bot name"
@@ -808,11 +810,11 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
             >
               <span
                 className={`relative w-9 h-5 rounded-full transition-colors ${
-                  active ? "bg-[#00FF87]" : "bg-white/15"
+                  active ? "bg-accent" : "bg-white/15"
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-[#050508] transition-all ${
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-[var(--app-bg)] transition-all ${
                     active ? "left-4.5" : "left-0.5"
                   }`}
                 />
@@ -824,7 +826,7 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
             <span
               className={`text-[10px] px-2 py-0.5 rounded-md border ${
                 active
-                  ? "text-[#00FF87] border-[#00FF87]/30 bg-[#00FF87]/10"
+                  ? "text-accent-ink border-accent/30 bg-accent/10"
                   : "text-white/40 border-white/12 bg-white/4"
               }`}
               title={
@@ -853,7 +855,7 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
           </button>
 
           {status && (
-            <span className={`text-xs ${status.ok ? "text-[#00FF87]" : "text-red-400"}`}>
+            <span className={`text-xs ${status.ok ? "text-accent-ink" : "text-red-400"}`}>
               {status.text}
             </span>
           )}
@@ -875,16 +877,16 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
             fitView
             proOptions={{ hideAttribution: false }}
             defaultEdgeOptions={{ animated: true }}
-            colorMode="dark"
+            colorMode={theme}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#ffffff14" />
-            <Controls className="!bg-[#0A0A0F] !border !border-white/10 [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!fill-white/60" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="color-mix(in oklab, var(--color-white) 16%, transparent)" />
+            <Controls className="!bg-[var(--surface-1)] !border !border-white/10 [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!fill-white/60" />
             <MiniMap
               pannable
               zoomable
-              className="!bg-[#0A0A0F] !border !border-white/10"
+              className="!bg-[var(--surface-1)] !border !border-white/10"
               nodeColor={(n) => nodeDef((n.data as NodeData).kind)?.accent ?? "#ffffff30"}
-              maskColor="#05050899"
+              maskColor="color-mix(in oklab, var(--app-bg) 60%, transparent)"
             />
           </ReactFlow>
         </div>

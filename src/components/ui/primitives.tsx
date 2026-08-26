@@ -72,8 +72,8 @@ export function StatCard({
 }
 
 const TONES = {
-  green: "bg-[#00FF87]/10 text-[#00FF87] border-[#00FF87]/20",
-  blue: "bg-[#00D4FF]/10 text-[#00D4FF] border-[#00D4FF]/20",
+  green: "bg-accent/10 text-accent-ink border-accent/20",
+  blue: "bg-accent2/10 text-accent2-ink border-accent2/20",
   purple: "bg-[#A855F7]/10 text-[#A855F7] border-[#A855F7]/20",
   amber: "bg-[#FACC15]/10 text-[#FACC15] border-[#FACC15]/20",
   red: "bg-[#F87171]/10 text-[#F87171] border-[#F87171]/20",

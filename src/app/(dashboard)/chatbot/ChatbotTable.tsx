@@ -56,7 +56,7 @@ export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
       <div className="relative max-w-sm mb-4">
         <Search className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
         <input
-          className="w-full bg-white/4 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/40"
+          className="w-full bg-white/4 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/40"
           placeholder="Search bots by name, keyword, or ID…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -117,7 +117,7 @@ function BotTableRow({ bot }: { bot: BotRow }) {
       <td className="px-5 py-3.5">
         <Link
           href={`/chatbot/${bot.id}`}
-          className="font-medium hover:text-[#00FF87] transition-colors"
+          className="font-medium hover:text-accent-ink transition-colors"
         >
           {bot.name}
         </Link>
@@ -170,16 +170,16 @@ function BotTableRow({ bot }: { bot: BotRow }) {
         >
           <span
             className={`relative w-9 h-5 rounded-full transition-colors ${
-              bot.is_active ? "bg-[#00FF87]" : "bg-white/15"
+              bot.is_active ? "bg-accent" : "bg-white/15"
             }`}
           >
             <span
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-[#050508] transition-all ${
+              className={`absolute top-0.5 w-4 h-4 rounded-full bg-[var(--app-bg)] transition-all ${
                 bot.is_active ? "left-4.5" : "left-0.5"
               }`}
             />
           </span>
-          <span className={`text-xs ${bot.is_active ? "text-[#00FF87]" : "text-white/40"}`}>
+          <span className={`text-xs ${bot.is_active ? "text-accent-ink" : "text-white/40"}`}>
             {bot.is_active ? "Active" : "Draft"}
           </span>
         </button>
@@ -222,7 +222,7 @@ function CopyableId({ id }: { id: string }) {
     >
       <span className="truncate max-w-[13rem]">{id}</span>
       {copied ? (
-        <Check className="w-3 h-3 text-[#00FF87] flex-shrink-0" />
+        <Check className="w-3 h-3 text-accent-ink flex-shrink-0" />
       ) : (
         <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
       )}
@@ -275,7 +275,7 @@ function RowMenu({ bot }: { bot: BotRow }) {
         <MoreVertical className="w-4 h-4" />
       </summary>
 
-      <div className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/12 bg-[#0A0A0F] shadow-2xl p-1">
+      <div className="absolute right-0 top-full mt-1 z-20 w-52 rounded-xl border border-white/12 bg-[var(--surface-1)] shadow-2xl p-1">
         <Link
           href={`/chatbot/${bot.id}`}
           className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/6 transition-colors"

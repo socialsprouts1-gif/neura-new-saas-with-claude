@@ -125,7 +125,7 @@ export default async function ApiEndpointsPage() {
                   </div>
                   <p className="text-sm text-white/50 mb-3">{e.summary}</p>
                   {e.body && (
-                    <pre className="bg-[#0A0A0F] border border-white/10 rounded-xl p-3.5 overflow-x-auto">
+                    <pre className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-3.5 overflow-x-auto">
                       <code className="text-[11px] text-white/70">{e.body}</code>
                     </pre>
                   )}
@@ -137,7 +137,7 @@ export default async function ApiEndpointsPage() {
           {/* -------- Example -------- */}
           <Card>
             <h2 className="font-semibold mb-3">Example request</h2>
-            <pre className="bg-[#0A0A0F] border border-white/10 rounded-xl p-4 overflow-x-auto">
+            <pre className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-4 overflow-x-auto">
               <code className="text-[11px] text-white/75">{`curl -X POST ${base}/api/messages/send \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer nc_live_…" \\

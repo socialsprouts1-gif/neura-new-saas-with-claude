@@ -30,7 +30,7 @@ export default function BotToolbar() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {message && (
-        <span className={`text-xs mr-1 ${message.ok ? "text-[#00FF87]" : "text-red-400"}`}>
+        <span className={`text-xs mr-1 ${message.ok ? "text-accent-ink" : "text-red-400"}`}>
           {message.text}
         </span>
       )}

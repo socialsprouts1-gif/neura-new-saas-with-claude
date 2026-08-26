@@ -74,8 +74,11 @@ function mediaTypeOf(file: File): MediaType {
 export default function GalleryBrowser({
   assets,
   orgId,
+  stats,
 }: {
   assets: MediaAsset[];
+  /** Counted server-side, rendered here so they sit under the hero. */
+  stats: { label: string; value: string }[];
   /**
    * Resolved server-side by requireOrg. Guessing it from a membership row
    * would pick an arbitrary one for anyone who belongs to two workspaces,
@@ -252,27 +255,49 @@ export default function GalleryBrowser({
         }}
       />
 
+      {/* Hero */}
+      <div className="rounded-2xl bg-gradient-to-r from-accent/18 via-accent/10 to-transparent border border-accent/15 px-6 py-7 mb-4">
+        <h1 className="text-2xl font-bold mb-1">Gallery</h1>
+        <p className="text-sm text-white/55">
+          Media library for templates, campaigns, and quick replies.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="glass-card px-4 py-3">
+            <div className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
+              {stat.label}
+            </div>
+            <div className="text-xl font-semibold">{stat.value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Upload */}
       <div
-        className={`relative rounded-2xl border border-dashed p-6 mb-6 text-center transition-colors ${
+        className={`rounded-2xl px-6 py-5 mb-6 border transition-colors ${
           dragging
-            ? "border-[#00FF87] bg-[#00FF87]/8"
-            : "border-white/15 bg-gradient-to-br from-[#00FF87]/5 to-[#00D4FF]/5"
+            ? "border-accent border-dashed bg-accent/12"
+            : "border-accent/15 bg-gradient-to-r from-accent/12 to-transparent"
         }`}
       >
-        <button
-          type="button"
-          onClick={() => fileInput.current?.click()}
-          disabled={uploading.length > 0}
-          className="btn-primary text-sm disabled:opacity-50"
-        >
-          <Upload className="w-4 h-4" />
-          {uploading.length > 0 ? `Uploading ${uploading.length}…` : "Upload media"}
-        </button>
-        <p className="text-xs text-white/45 mt-3">
-          Or drop files anywhere on this page. Images up to 5 MB, video and audio 16 MB, documents
-          100 MB — WhatsApp&apos;s own limits.
-        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading.length > 0}
+            className="btn-primary text-sm disabled:opacity-50"
+          >
+            <Upload className="w-4 h-4" />
+            {uploading.length > 0 ? `Uploading ${uploading.length}\u2026` : "Upload media"}
+          </button>
+          <p className="text-xs text-white/45 flex-1 min-w-[16rem]">
+            {dragging
+              ? "Drop to upload."
+              : "Or drop files anywhere on this page. Images up to 5\u00A0MB, video and audio 16\u00A0MB, documents 100\u00A0MB \u2014 WhatsApp\u2019s own limits."}
+          </p>
+        </div>
         {uploading.length > 0 && (
           <p className="text-[11px] text-white/35 mt-2 truncate">{uploading.join(", ")}</p>
         )}
@@ -283,7 +308,7 @@ export default function GalleryBrowser({
         <div className="relative flex-1 min-w-[14rem]">
           <Search className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
-            className="w-full bg-white/4 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/40"
+            className="w-full bg-white/4 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/40"
             placeholder="Search media…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -315,7 +340,7 @@ export default function GalleryBrowser({
       </div>
 
       {/* Type tabs */}
-      <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-white/3 border border-white/8 mb-5 w-fit">
+      <div className="flex flex-wrap gap-1 p-1.5 rounded-xl bg-white/3 border border-white/8 mb-5">
         {TABS.map((entry) => (
           <button
             key={entry.id}
@@ -323,7 +348,7 @@ export default function GalleryBrowser({
             onClick={() => setTab(entry.id)}
             className={`text-xs px-3.5 py-1.5 rounded-lg transition-colors ${
               tab === entry.id
-                ? "bg-[#00FF87]/15 text-[#00FF87] border border-[#00FF87]/25"
+                ? "bg-accent/15 text-accent-ink border border-accent/25"
                 : "text-white/50 hover:text-white/80 border border-transparent"
             }`}
           >
@@ -367,7 +392,7 @@ export default function GalleryBrowser({
         <div
           className={`fixed bottom-6 right-6 z-50 max-w-sm rounded-xl border px-4 py-3 shadow-2xl text-sm ${
             toast.ok
-              ? "bg-[#0A1A12] border-[#00FF87]/30 text-[#00FF87]"
+              ? "bg-[#0A1A12] border-accent/30 text-accent-ink"
               : "bg-[#1A0A0A] border-red-500/30 text-red-300"
           }`}
           role="status"
@@ -398,11 +423,11 @@ function MediaCard({
 
   return (
     <div
-      className={`group relative rounded-xl border overflow-hidden bg-[#0A0A0F] transition-colors ${
-        selected ? "border-[#00FF87]/60" : "border-white/10 hover:border-white/20"
+      className={`group relative rounded-xl border overflow-hidden bg-[var(--surface-1)] transition-colors ${
+        selected ? "border-accent/60" : "border-white/10 hover:border-white/20"
       }`}
     >
-      <div className="relative aspect-square bg-[#08080C] flex items-center justify-center overflow-hidden">
+      <div className="relative aspect-square bg-[var(--surface-2)] flex items-center justify-center overflow-hidden">
         {asset.media_type === "image" ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -427,7 +452,7 @@ function MediaCard({
           aria-label={selected ? `Deselect ${asset.name}` : `Select ${asset.name}`}
           className={`absolute top-2 left-2 w-5 h-5 rounded border flex items-center justify-center transition-all ${
             selected
-              ? "bg-[#00FF87] border-[#00FF87]"
+              ? "bg-accent border-accent"
               : "bg-black/50 border-white/40 opacity-0 group-hover:opacity-100 backdrop-blur-sm"
           }`}
         >
@@ -440,7 +465,7 @@ function MediaCard({
           <button
             type="button"
             onClick={onCopy}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded-lg bg-[#00FF87]/90 text-[#050508] font-medium hover:bg-[#00FF87] transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded-lg bg-accent/90 text-[#050508] font-medium hover:bg-accent transition-colors"
           >
             <Link2 className="w-3.5 h-3.5" />
             Copy URL
@@ -466,7 +491,7 @@ function MediaCard({
         </div>
 
         {confirming && (
-          <div className="absolute inset-0 bg-[#050508]/92 flex flex-col items-center justify-center gap-2 p-3 text-center">
+          <div className="absolute inset-0 bg-[var(--app-bg)]/92 flex flex-col items-center justify-center gap-2 p-3 text-center">
             <p className="text-[11px] text-white/70 leading-relaxed">
               Delete this file? Any flow using its URL will stop sending media.
             </p>

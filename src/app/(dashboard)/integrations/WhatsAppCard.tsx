@@ -36,7 +36,7 @@ export default function WhatsAppCard({
   const connected = connections.length > 0;
 
   return (
-    <div className="relative rounded-2xl border border-[#25D366]/25 bg-gradient-to-br from-[#25D366]/8 via-[#0A0A0F] to-[#00D4FF]/5 p-6 md:p-7 mb-8 overflow-hidden">
+    <div className="relative rounded-2xl border border-[#25D366]/25 bg-gradient-to-br from-[#25D366]/8 via-[var(--surface-1)] to-accent2/5 p-6 md:p-7 mb-8 overflow-hidden">
       <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-[#25D366]/10 blur-3xl pointer-events-none" />
 
       <div className="relative">
@@ -113,7 +113,7 @@ export default function WhatsAppCard({
                     single paste. */}
                 {canManage && (
                   <details className="w-full group">
-                    <summary className="cursor-pointer text-xs text-[#00D4FF] hover:text-[#00FF87] transition-colors list-none flex items-center gap-1.5">
+                    <summary className="cursor-pointer text-xs text-accent2-ink hover:text-accent-ink transition-colors list-none flex items-center gap-1.5">
                       <KeyRound className="w-3.5 h-3.5" />
                       Update access token
                       <span className="text-white/30">— keeps your verify token</span>
@@ -190,8 +190,8 @@ export default function WhatsAppCard({
                 messages — that is a separate step in their dashboard, and
                 the two values it asks for are shown here so nobody has to
                 query the database for them. */}
-            <div className="bg-[#0A0A0F] border border-[#00FF87]/20 rounded-xl p-5 mt-4">
-              <div className="text-sm font-semibold text-[#00FF87] mb-1">
+            <div className="bg-[var(--surface-1)] border border-accent/20 rounded-xl p-5 mt-4">
+              <div className="text-sm font-semibold text-accent-ink mb-1">
                 Register this webhook with Meta
               </div>
               <p className="text-xs text-white/50 mb-4">
@@ -205,7 +205,7 @@ export default function WhatsAppCard({
                   <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
                     Callback URL
                   </div>
-                  <code className="block text-xs text-[#00D4FF] break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
+                  <code className="block text-xs text-accent2-ink break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
                     {webhookUrl}
                   </code>
                 </div>
@@ -230,7 +230,7 @@ export default function WhatsAppCard({
                         </ActionForm>
                       )}
                     </div>
-                    <code className="block text-xs text-[#00FF87] break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
+                    <code className="block text-xs text-accent-ink break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
                       {c.webhook_verify_token}
                     </code>
                     <p className="text-[10px] text-white/30 mt-1.5">

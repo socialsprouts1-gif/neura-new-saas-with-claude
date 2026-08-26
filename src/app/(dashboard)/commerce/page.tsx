@@ -44,7 +44,7 @@ export default async function CommercePage() {
             <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {all.map((p) => (
                 <div key={p.id} className="glass-card overflow-hidden flex flex-col">
-                  <div className="aspect-[4/3] bg-[#0A0A0F] flex items-center justify-center overflow-hidden">
+                  <div className="aspect-[4/3] bg-[var(--surface-1)] flex items-center justify-center overflow-hidden">
                     {p.image_url ? (
                       // Remote catalogue images: plain img avoids needing a
                       // remotePatterns entry per merchant domain.

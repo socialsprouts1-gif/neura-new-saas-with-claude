@@ -84,7 +84,7 @@ export default async function BillingPage() {
                   </div>
                   <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-[#00FF87] to-[#00D4FF]"
+                      className="h-full rounded-full bg-gradient-to-r from-accent to-accent2"
                       style={{
                         width: `${Math.min(100, (messagesUsed / plan.message_limit) * 100)}%`,
                       }}
@@ -110,7 +110,7 @@ export default async function BillingPage() {
                 <div
                   key={p.id}
                   className={`rounded-xl border p-4 ${
-                    current ? "border-[#00FF87]/30 bg-[#00FF87]/5" : "border-white/8 bg-white/3"
+                    current ? "border-accent/30 bg-accent/5" : "border-white/8 bg-white/3"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">

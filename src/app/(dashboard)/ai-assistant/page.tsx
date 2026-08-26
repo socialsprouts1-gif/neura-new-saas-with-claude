@@ -49,7 +49,7 @@ export default async function AiAssistantPage() {
                   </Td>
                   <Td className="text-white/70">{a.role}</Td>
                   <Td>
-                    <code className="text-[11px] text-[#00D4FF]">{a.model}</code>
+                    <code className="text-[11px] text-accent2-ink">{a.model}</code>
                   </Td>
                   <Td>
                     <Badge tone={a.temperature > 1 ? "purple" : a.temperature < 0.4 ? "blue" : "green"}>

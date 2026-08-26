@@ -43,7 +43,7 @@ export default async function ColumnsPage() {
                 <tr key={column.id} className="hover:bg-white/3 transition-colors">
                   <Td className="font-medium">{column.label}</Td>
                   <Td>
-                    <code className="text-[11px] text-[#00D4FF]">{`{{${column.key}}}`}</code>
+                    <code className="text-[11px] text-accent2-ink">{`{{${column.key}}}`}</code>
                   </Td>
                   <Td>
                     <Badge tone="purple">

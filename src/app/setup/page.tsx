@@ -18,7 +18,7 @@ export default async function SetupPage({
     !!reason && /does not exist|relation|schema cache|not find the table/i.test(reason);
 
   return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[var(--app-bg)] flex items-center justify-center p-6">
       <div className="glass-card p-8 max-w-xl">
         <h1 className="text-xl font-bold mb-2">
           {looksLikeMissingSchema ? "Database not set up yet" : "Account setup incomplete"}
@@ -31,7 +31,7 @@ export default async function SetupPage({
               the migration files in <code className="text-white/80">supabase/migrations/</code>{" "}
               in filename order, in the Supabase SQL editor.
             </p>
-            <ol className="space-y-1.5 mb-6 text-xs font-mono text-[#00FF87]">
+            <ol className="space-y-1.5 mb-6 text-xs font-mono text-accent-ink">
               <li>20260818120000_schema.sql</li>
               <li>20260818120100_rls_policies.sql</li>
               <li>20260818120200_auth_signup_trigger.sql</li>
@@ -47,7 +47,7 @@ export default async function SetupPage({
         )}
 
         {reason && (
-          <div className="bg-[#0A0A0F] border border-white/10 rounded-xl p-4 mb-6">
+          <div className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-4 mb-6">
             <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
               Reported error
             </div>

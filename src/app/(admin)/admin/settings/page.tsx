@@ -80,7 +80,7 @@ export default async function AdminSettingsPage() {
             Platform admin is deliberately not grantable from this UI — an account with
             access cannot mint more. Add the row directly in the SQL editor:
           </p>
-          <pre className="bg-[#0A0A0F] border border-white/10 rounded-xl p-4 overflow-x-auto text-xs">
+          <pre className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-4 overflow-x-auto text-xs">
             <code className="text-white/80">{`insert into platform_admins (user_id)
 select id from auth.users where email = 'you@example.com';`}</code>
           </pre>

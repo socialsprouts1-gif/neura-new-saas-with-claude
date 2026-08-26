@@ -106,8 +106,8 @@ export default async function DashboardPage() {
   return (
     <div className="p-6 md:p-8">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-[#00FF87]/20 bg-gradient-to-br from-[#00FF87]/10 via-[#0A0A0F] to-[#00D4FF]/8 p-6 md:p-8 mb-6">
-        <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-[#00FF87]/10 blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-[var(--surface-1)] to-accent2/8 p-6 md:p-8 mb-6">
+        <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
         <div className="relative flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0">
             <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {orgName}</h1>
@@ -157,7 +157,7 @@ export default async function DashboardPage() {
               {change && (
                 <span
                   className={`text-[11px] px-2 py-0.5 rounded-md ${
-                    change.startsWith("-") ? "text-red-400 bg-red-400/10" : "text-[#00FF87] bg-[#00FF87]/10"
+                    change.startsWith("-") ? "text-red-400 bg-red-400/10" : "text-accent-ink bg-accent/10"
                   }`}
                 >
                   {change}
@@ -180,10 +180,10 @@ export default async function DashboardPage() {
             </div>
             <div className="flex items-center gap-4 text-[11px]">
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#00FF87]" /> Sent
+                <span className="w-2 h-2 rounded-full bg-accent" /> Sent
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#00D4FF]" /> Received
+                <span className="w-2 h-2 rounded-full bg-accent2" /> Received
               </span>
             </div>
           </div>
@@ -203,8 +203,8 @@ export default async function DashboardPage() {
                       style={{ height: `${Math.max(2, (total / peak) * 100)}%` }}
                       title={`${bucket.sent} sent · ${bucket.received} received`}
                     >
-                      <div className="bg-[#00D4FF]/70" style={{ flexGrow: bucket.received || 0 }} />
-                      <div className="bg-[#00FF87]/70" style={{ flexGrow: bucket.sent || 0 }} />
+                      <div className="bg-accent2/70" style={{ flexGrow: bucket.received || 0 }} />
+                      <div className="bg-accent/70" style={{ flexGrow: bucket.sent || 0 }} />
                     </div>
                     <span className="text-[9px] text-white/25 truncate">
                       {bucket.day.getDate()}
@@ -235,7 +235,7 @@ export default async function DashboardPage() {
               >
                 <span
                   className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${
-                    step.done ? "bg-[#00FF87] text-[#050508]" : "border border-white/20"
+                    step.done ? "bg-accent text-[#050508]" : "border border-white/20"
                   }`}
                 >
                   {step.done ? "✓" : ""}
@@ -271,7 +271,7 @@ export default async function DashboardPage() {
                     </div>
                     <div className="h-1.5 rounded-full bg-white/6 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#00FF87] to-[#00D4FF]"
+                        className="h-full rounded-full bg-gradient-to-r from-accent to-accent2"
                         style={{ width: `${percent}%` }}
                       />
                     </div>
@@ -286,7 +286,7 @@ export default async function DashboardPage() {
         <Card>
           <div className="flex items-center justify-between gap-3 mb-1">
             <h2 className="font-semibold">Recent bot activity</h2>
-            <Link href="/automations" className="text-xs text-[#00FF87] hover:underline">
+            <Link href="/automations" className="text-xs text-accent-ink hover:underline">
               View all
             </Link>
           </div>

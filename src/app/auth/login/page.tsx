@@ -69,10 +69,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--app-bg)] flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 grid-pattern opacity-30" />
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#00FF87]/6 rounded-full blur-[120px]" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-accent/6 rounded-full blur-[120px]" />
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
@@ -83,7 +83,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00FF87] to-[#00D4FF] flex items-center justify-center shadow-[0_0_30px_rgba(0,255,135,0.5)]">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_30px_rgba(0,255,135,0.5)]">
               <Zap className="w-5 h-5 text-[#050508]" />
             </div>
             <span className="font-bold text-xl">
@@ -135,7 +135,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@company.com"
-                className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 focus:bg-[#00FF87]/3 transition-all"
+                className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 focus:bg-accent/3 transition-all"
               />
             </div>
 
@@ -150,7 +150,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 focus:bg-[#00FF87]/3 transition-all pr-10"
+                  className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 focus:bg-accent/3 transition-all pr-10"
                 />
                 <button
                   type="button"
@@ -176,7 +176,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-white/50 mt-6">
             Don&apos;t have an account?{" "}
-            <Link href="/auth/register" className="text-[#00FF87] hover:text-[#00CC6A] font-medium transition-colors">
+            <Link href="/auth/register" className="text-accent-ink hover:text-[#00CC6A] font-medium transition-colors">
               Start free trial
             </Link>
           </p>

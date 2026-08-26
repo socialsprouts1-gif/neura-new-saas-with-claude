@@ -67,7 +67,7 @@ export default async function AdminDashboard() {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold">Recent orders</h2>
-            <Link href="/admin/orders" className="text-xs text-[#00D4FF] hover:underline">
+            <Link href="/admin/orders" className="text-xs text-accent2-ink hover:underline">
               View all
             </Link>
           </div>
@@ -107,7 +107,7 @@ export default async function AdminDashboard() {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold">Newest organizations</h2>
-            <Link href="/admin/organizations" className="text-xs text-[#00D4FF] hover:underline">
+            <Link href="/admin/organizations" className="text-xs text-accent2-ink hover:underline">
               View all
             </Link>
           </div>

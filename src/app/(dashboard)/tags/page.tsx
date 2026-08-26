@@ -58,7 +58,7 @@ export default async function TagsPage() {
                 </div>
               </div>
               <div
-                className="h-1.5 rounded-full bg-[#00FF87]/60 flex-shrink-0"
+                className="h-1.5 rounded-full bg-accent/60 flex-shrink-0"
                 style={{ width: `${Math.max(8, Math.round((count / Math.max(busiest, 1)) * 80))}px` }}
               />
             </Card>

@@ -62,7 +62,7 @@ export default async function TemplatesPage() {
           {all.map((template) => (
             <tr key={template.id} className="hover:bg-white/3 transition-colors">
               <Td>
-                <code className="text-[#00D4FF] text-xs">{template.name}</code>
+                <code className="text-accent2-ink text-xs">{template.name}</code>
               </Td>
               <Td>
                 <Badge tone="purple">{template.category}</Badge>

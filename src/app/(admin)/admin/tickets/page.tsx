@@ -64,7 +64,7 @@ export default async function AdminTicketsPage() {
                       className="bg-white/5 border border-white/12 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#A855F7]/50 mb-2 w-full"
                     >
                       {["open", "pending", "resolved", "closed"].map((s) => (
-                        <option key={s} value={s} className="bg-[#141420]">
+                        <option key={s} value={s} className="bg-[var(--surface-3)]">
                           {s}
                         </option>
                       ))}

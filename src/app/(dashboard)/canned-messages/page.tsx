@@ -42,7 +42,7 @@ export default async function CannedMessagesPage() {
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <code className="text-sm text-[#00FF87] font-semibold">/{reply.shortcut}</code>
+                      <code className="text-sm text-accent-ink font-semibold">/{reply.shortcut}</code>
                       <span className="text-sm text-white/70">{reply.title}</span>
                     </div>
                     <p className="text-sm text-white/50 whitespace-pre-wrap leading-relaxed">

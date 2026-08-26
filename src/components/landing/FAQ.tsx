@@ -85,12 +85,12 @@ export default function FAQ() {
                 onClick={() => setOpen(open === i ? null : i)}
               >
                 <div className="flex items-center justify-between gap-4">
-                  <span className="font-semibold text-sm sm:text-base pr-4 group-hover:text-[#00FF87] transition-colors">
+                  <span className="font-semibold text-sm sm:text-base pr-4 group-hover:text-accent-ink transition-colors">
                     {faq.q}
                   </span>
                   <ChevronDown
                     className={`w-5 h-5 text-white/40 flex-shrink-0 transition-transform duration-300 ${
-                      open === i ? "rotate-180 text-[#00FF87]" : ""
+                      open === i ? "rotate-180 text-accent-ink" : ""
                     }`}
                   />
                 </div>

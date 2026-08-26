@@ -9,7 +9,7 @@ import { LEGAL } from "@/lib/legal";
 
 export function LegalShell({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
   return (
-    <main className="bg-[#050508] text-white min-h-screen">
+    <main className="bg-[var(--app-bg)] text-white min-h-screen">
       <Navbar />
       <article className="pt-28 pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto">
@@ -28,7 +28,7 @@ export function Section({ title, children }: { title: string; children: ReactNod
   return (
     <section>
       <h2 className="text-xl font-semibold mb-3 text-white">{title}</h2>
-      <div className="space-y-3 text-white/60 leading-relaxed [&_a]:text-[#00FF87] [&_a:hover]:underline [&_strong]:text-white/85 [&_code]:text-[#00D4FF] [&_code]:text-sm">
+      <div className="space-y-3 text-white/60 leading-relaxed [&_a]:text-accent-ink [&_a:hover]:underline [&_strong]:text-white/85 [&_code]:text-accent2-ink [&_code]:text-sm">
         {children}
       </div>
     </section>
@@ -39,7 +39,7 @@ export function List({ items }: { items: ReactNode[] }) {
   return (
     <ul className="space-y-2 pl-5">
       {items.map((item, index) => (
-        <li key={index} className="list-disc marker:text-[#00FF87]/50 pl-1">
+        <li key={index} className="list-disc marker:text-accent-ink/50 pl-1">
           {item}
         </li>
       ))}

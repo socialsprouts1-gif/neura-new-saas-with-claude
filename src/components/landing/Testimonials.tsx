@@ -65,8 +65,8 @@ export default function Testimonials() {
     <section id="testimonials" className="relative py-28 overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0A0A14]/40 to-transparent" />
-      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-[#00FF87]/4 rounded-full blur-[120px]" />
-      <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-[#00D4FF]/4 rounded-full blur-[100px]" />
+      <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-accent/4 rounded-full blur-[120px]" />
+      <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-accent2/4 rounded-full blur-[100px]" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}

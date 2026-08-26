@@ -3,7 +3,7 @@ import { requireOrg } from "@/lib/org";
 import { saveMediaAsset } from "../portal-actions";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import GalleryBrowser from "./GalleryBrowser";
-import { PageHeader, Card, StatCard, EmptyState } from "@/components/ui/primitives";
+import { Card, StatCard, EmptyState } from "@/components/ui/primitives";
 import type { MediaAsset } from "@/types/portal";
 
 export default async function GalleryPage() {
@@ -24,27 +24,24 @@ export default async function GalleryPage() {
   };
   const stored = all.reduce((total, a) => total + (a.size_bytes ?? 0), 0);
 
+  // Rendered by the browser component so they sit under its hero banner
+  // rather than above the page's own title.
+  const stats = [
+    { label: "Files", value: String(all.length) },
+    { label: "Images", value: String(counts.image) },
+    { label: "Video & docs", value: String(counts.video + counts.document) },
+    { label: "Stored", value: formatTotal(stored) },
+  ];
+
   return (
     <div className="p-6 md:p-8">
-      <PageHeader
-        title="Gallery"
-        subtitle="Upload once, send many times. Every file gets a public URL you can paste into a Send Media Message node, a template, or a campaign."
-      />
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Files" value={all.length} />
-        <StatCard label="Images" value={counts.image} />
-        <StatCard label="Video &amp; docs" value={counts.video + counts.document} />
-        <StatCard label="Stored" value={formatTotal(stored)} />
-      </div>
-
       {error ? (
         <EmptyState
           title="Couldn't load media"
           description={`${error.message}. If this mentions a missing relation or column, run supabase/setup.sql again — uploads added a storage bucket and a column.`}
         />
       ) : (
-        <GalleryBrowser assets={all} orgId={orgId} />
+        <GalleryBrowser assets={all} orgId={orgId} stats={stats} />
       )}
 
       <Card className="mt-6">

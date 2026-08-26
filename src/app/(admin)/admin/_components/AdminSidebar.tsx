@@ -52,9 +52,9 @@ export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex flex-col w-60 bg-[#0A0A0F] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
+    <aside className="flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
       <div className="flex items-center gap-2.5 px-4 h-16 border-b border-white/8 flex-shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A855F7] to-[#00D4FF] flex items-center justify-center shadow-[0_0_16px_rgba(168,85,247,0.35)] flex-shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A855F7] to-accent2 flex items-center justify-center shadow-[0_0_16px_rgba(168,85,247,0.35)] flex-shrink-0">
           <Shield className="w-4 h-4 text-[#050508]" />
         </div>
         <div className="min-w-0">

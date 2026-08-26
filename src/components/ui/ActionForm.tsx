@@ -47,7 +47,7 @@ export default function ActionForm({
         </p>
       )}
       {result?.ok && result.message && (
-        <p className="text-sm text-[#00FF87] mt-3" role="status">
+        <p className="text-sm text-accent-ink mt-3" role="status">
           {result.message}
         </p>
       )}
@@ -90,7 +90,7 @@ export function Field({
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
-        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all"
+        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
       />
       {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
     </label>
@@ -114,10 +114,10 @@ export function SelectField({
       <select
         name={name}
         defaultValue={defaultValue}
-        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#00FF87]/50 transition-all"
+        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-all"
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-[#141420]">
+          <option key={o.value} value={o.value} className="bg-[var(--surface-3)]">
             {o.label}
           </option>
         ))}
@@ -147,7 +147,7 @@ export function TextareaField({
         rows={rows}
         required={required}
         placeholder={placeholder}
-        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all resize-y"
+        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y"
       />
     </label>
   );

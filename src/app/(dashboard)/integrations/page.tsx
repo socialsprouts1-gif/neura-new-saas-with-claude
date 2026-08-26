@@ -119,7 +119,7 @@ export default async function IntegrationsPage() {
                           {w.is_active ? "active" : "paused"}
                         </Badge>
                       </div>
-                      <code className="text-xs text-[#00D4FF] break-all block mb-2">
+                      <code className="text-xs text-accent2-ink break-all block mb-2">
                         {w.target_url}
                       </code>
                       <div className="flex flex-wrap gap-1">
@@ -207,7 +207,7 @@ export default async function IntegrationsPage() {
           Point any tool that speaks HTTP at this base and authenticate with an API key from{" "}
           <span className="text-white/70">API Endpoints</span>.
         </p>
-        <code className="block text-sm text-[#00FF87] bg-[#0A0A0F] border border-white/10 rounded-xl p-3.5 break-all">
+        <code className="block text-sm text-accent-ink bg-[var(--surface-1)] border border-white/10 rounded-xl p-3.5 break-all">
           {apiBase}
         </code>
       </Card>

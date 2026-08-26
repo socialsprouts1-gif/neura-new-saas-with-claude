@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "Neura Chat — AI-Powered WhatsApp Automation Platform",
@@ -13,8 +14,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-[#050508] text-white">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Applies the stored theme before first paint. Without it the dark
+            default renders and then snaps to light on hydration. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="antialiased bg-[var(--app-bg)] text-[var(--color-white)]">
         {children}
       </body>
     </html>

@@ -73,11 +73,11 @@ export default async function AdminOrganizationsPage() {
                       className="bg-white/5 border border-white/12 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#A855F7]/50 mb-2 w-full"
                       defaultValue={sub?.plan_id ?? ""}
                     >
-                      <option value="" className="bg-[#141420]">
+                      <option value="" className="bg-[var(--surface-3)]">
                         Select plan…
                       </option>
                       {(plans ?? []).map((p) => (
-                        <option key={p.id} value={p.id} className="bg-[#141420]">
+                        <option key={p.id} value={p.id} className="bg-[var(--surface-3)]">
                           {p.name}
                         </option>
                       ))}

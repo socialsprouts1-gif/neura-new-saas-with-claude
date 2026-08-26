@@ -43,7 +43,7 @@ export default function Composer({ orgId, contactId }: { orgId: string; contactI
   };
 
   return (
-    <form onSubmit={send} className="border-t border-white/8 p-4 bg-[#0A0A0F]/60">
+    <form onSubmit={send} className="border-t border-white/8 p-4 bg-[var(--surface-1)]/60">
       {error && (
         <p className="text-xs text-red-400 mb-2" role="alert">
           {error}
@@ -54,7 +54,7 @@ export default function Composer({ orgId, contactId }: { orgId: string; contactI
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Type a message…"
-          className="flex-1 bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50"
+          className="flex-1 bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50"
         />
         <button
           type="submit"

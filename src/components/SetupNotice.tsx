@@ -12,7 +12,7 @@ const REQUIRED_VARS = [
 
 export default function SetupNotice() {
   return (
-    <div className="min-h-screen bg-[#050508] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[var(--app-bg)] flex items-center justify-center p-6">
       <div className="glass-card p-8 max-w-lg">
         <h1 className="text-xl font-bold mb-2">Setup required</h1>
         <p className="text-white/60 text-sm mb-6">
@@ -22,7 +22,7 @@ export default function SetupNotice() {
 
         <ul className="space-y-1.5 mb-6">
           {REQUIRED_VARS.map((name) => (
-            <li key={name} className="font-mono text-xs text-[#00FF87]">
+            <li key={name} className="font-mono text-xs text-accent-ink">
               {name}
             </li>
           ))}

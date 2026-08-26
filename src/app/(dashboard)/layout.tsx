@@ -9,7 +9,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { orgName, user, isPlatformAdmin } = await requireOrg();
 
   return (
-    <div className="flex h-screen bg-[#050508] overflow-hidden">
+    <div className="flex h-screen bg-[var(--app-bg)] overflow-hidden">
       <Sidebar isPlatformAdmin={isPlatformAdmin} />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar orgName={orgName} userEmail={user.email ?? ""} />

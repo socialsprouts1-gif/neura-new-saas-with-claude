@@ -150,10 +150,10 @@ export default async function InboxPage({
                 key={conv.id}
                 href={`/inbox?c=${conv.id}`}
                 className={`flex items-center gap-3 px-4 py-3 border-b border-white/5 transition-colors ${
-                  isActive ? "bg-[#00FF87]/8" : "hover:bg-white/3"
+                  isActive ? "bg-accent/8" : "hover:bg-white/3"
                 }`}
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#00FF87]/25 to-[#00D4FF]/25 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent/25 to-accent2/25 flex items-center justify-center text-xs font-bold flex-shrink-0">
                   {initials(ct?.name ?? null, ct?.wa_id ?? "")}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -205,7 +205,7 @@ export default async function InboxPage({
                         run.outcome === "failed"
                           ? "text-red-400"
                           : run.outcome === "replied"
-                            ? "text-[#00FF87]/70"
+                            ? "text-accent-ink/70"
                             : "text-white/35"
                       }
                       title={run.error ?? undefined}
@@ -232,7 +232,7 @@ export default async function InboxPage({
                     <div
                       className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
                         outbound
-                          ? "bg-[#00FF87]/12 border border-[#00FF87]/20"
+                          ? "bg-accent/12 border border-accent/20"
                           : "bg-white/5 border border-white/10"
                       }`}
                     >
@@ -244,7 +244,7 @@ export default async function InboxPage({
                           {renderButtons(m.content).map((label) => (
                             <span
                               key={label}
-                              className="px-2.5 py-1 rounded-lg border border-[#00D4FF]/25 bg-[#00D4FF]/8 text-[#00D4FF] text-[11px] font-medium"
+                              className="px-2.5 py-1 rounded-lg border border-accent2/25 bg-accent2/8 text-accent2-ink text-[11px] font-medium"
                             >
                               {label}
                             </span>

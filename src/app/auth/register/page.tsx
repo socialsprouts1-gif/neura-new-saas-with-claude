@@ -87,16 +87,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050508] flex relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--app-bg)] flex relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 grid-pattern opacity-20" />
-      <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-[#00FF87]/5 rounded-full blur-[150px]" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#00D4FF]/5 rounded-full blur-[120px]" />
+      <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-accent/5 rounded-full blur-[150px]" />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-accent2/5 rounded-full blur-[120px]" />
 
       {/* Left panel */}
       <div className="hidden lg:flex flex-col justify-between w-[45%] p-12 relative">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FF87] to-[#00D4FF] flex items-center justify-center shadow-[0_0_24px_rgba(0,255,135,0.5)]">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_24px_rgba(0,255,135,0.5)]">
             <Zap className="w-4 h-4 text-[#050508]" />
           </div>
           <span className="font-bold text-lg">Neura <span className="gradient-text-green">Chat</span></span>
@@ -117,8 +117,8 @@ export default function RegisterPage() {
           <div className="space-y-3">
             {perks.map((perk) => (
               <div key={perk} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-[#00FF87]/15 border border-[#00FF87]/30 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="w-3 h-3 text-[#00FF87]" />
+                <div className="w-5 h-5 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-3 h-3 text-accent-ink" />
                 </div>
                 <span className="text-sm text-white/70">{perk}</span>
               </div>
@@ -142,7 +142,7 @@ export default function RegisterPage() {
           {/* Mobile logo */}
           <div className="flex justify-center mb-6 lg:hidden">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00FF87] to-[#00D4FF] flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center">
                 <Zap className="w-4 h-4 text-[#050508]" />
               </div>
               <span className="font-bold text-lg">Neura <span className="gradient-text-green">Chat</span></span>
@@ -152,8 +152,8 @@ export default function RegisterPage() {
           <div className="glass-card p-8">
             {checkEmail ? (
               <div className="text-center py-4">
-                <div className="w-12 h-12 rounded-full bg-[#00FF87]/15 border border-[#00FF87]/30 flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-6 h-6 text-[#00FF87]" />
+                <div className="w-12 h-12 rounded-full bg-accent/15 border border-accent/30 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-6 h-6 text-accent-ink" />
                 </div>
                 <h1 className="text-xl font-bold mb-2">Check your email</h1>
                 <p className="text-white/50 text-sm">
@@ -198,7 +198,7 @@ export default function RegisterPage() {
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
                         placeholder="Alex"
-                        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all"
+                        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
                       />
                     </div>
                     <div>
@@ -209,7 +209,7 @@ export default function RegisterPage() {
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
                         placeholder="Johnson"
-                        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all"
+                        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
                       />
                     </div>
                   </div>
@@ -222,7 +222,7 @@ export default function RegisterPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@company.com"
-                      className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all"
+                      className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
                     />
                   </div>
 
@@ -234,7 +234,7 @@ export default function RegisterPage() {
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       placeholder="Your Company Ltd."
-                      className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all"
+                      className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
                     />
                   </div>
 
@@ -248,7 +248,7 @@ export default function RegisterPage() {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="At least 8 characters"
-                        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#00FF87]/50 transition-all pr-10"
+                        className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all pr-10"
                       />
                       <button
                         type="button"
@@ -274,7 +274,7 @@ export default function RegisterPage() {
 
                 <p className="text-center text-sm text-white/50 mt-5">
                   Already have an account?{" "}
-                  <Link href="/auth/login" className="text-[#00FF87] font-medium hover:text-[#00CC6A] transition-colors">
+                  <Link href="/auth/login" className="text-accent-ink font-medium hover:text-[#00CC6A] transition-colors">
                     Sign in
                   </Link>
                 </p>

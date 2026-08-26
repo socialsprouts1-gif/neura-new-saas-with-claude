@@ -56,7 +56,7 @@ export default function IntegrationCard({
       <div className="mt-4 pt-4 border-t border-white/8">
         {!configurable ? (
           <p className="text-xs text-white/40 flex items-center gap-1.5">
-            <Check className="w-3.5 h-3.5 text-[#00FF87]" />
+            <Check className="w-3.5 h-3.5 text-accent-ink" />
             Always on — configure it below the catalogue.
           </p>
         ) : connected ? (
