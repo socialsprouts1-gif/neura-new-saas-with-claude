@@ -526,15 +526,118 @@ export async function saveMediaAsset(formData: FormData): Promise<ActionResult> 
 export async function deleteMediaAsset(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+
+  // Read the object key before deleting the row — afterwards there is
+  // nothing left to tell us which file to remove.
+  const { data: asset } = await supabase
+    .from("media_assets")
+    .select("storage_path")
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("media_assets")
     .delete()
-    .eq("id", String(formData.get("id") ?? ""))
+    .eq("id", id)
     .eq("org_id", orgId);
 
   if (error) return { ok: false, error: error.message };
+
+  // Only files we uploaded. An asset added by pasting someone else's URL has
+  // no storage_path and nothing of ours to clean up.
+  if (asset?.storage_path) {
+    const { error: storageError } = await supabase.storage
+      .from("media")
+      .remove([asset.storage_path]);
+    // The row is already gone, so a failure here leaks a file rather than
+    // breaking the delete. Worth logging, not worth failing.
+    if (storageError) console.error("Deleted media row but not its file", storageError);
+  }
+
   revalidatePath("/gallery");
   return { ok: true, message: "Media deleted." };
+}
+
+/**
+ * Records a file the browser has already uploaded to the media bucket.
+ *
+ * The upload itself does not come through here: Vercel caps a serverless
+ * request body at 4.5 MB, which is smaller than a phone photo, so the client
+ * puts the file in storage directly and then calls this to make it visible.
+ */
+export async function recordUploadedMedia(input: {
+  name: string;
+  url: string;
+  storagePath: string;
+  mediaType: "image" | "video" | "document" | "audio";
+  mimeType: string | null;
+  sizeBytes: number | null;
+}): Promise<ActionResult> {
+  const { orgId, user } = await requireOrg();
+
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "The file needs a name." };
+
+  // The client chose this path, so check it belongs to the caller's org
+  // rather than trusting it. Storage RLS enforces the same rule, but a row
+  // pointing at another tenant's object would still be wrong.
+  if (!input.storagePath.startsWith(`${orgId}/`)) {
+    return { ok: false, error: "That file does not belong to this workspace." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("media_assets").insert({
+    org_id: orgId,
+    name,
+    url: input.url,
+    storage_path: input.storagePath,
+    media_type: input.mediaType,
+    mime_type: input.mimeType,
+    size_bytes: input.sizeBytes,
+    uploaded_by: user.id,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/gallery");
+  return { ok: true, message: `Uploaded ${name}.` };
+}
+
+/**
+ * Deletes several assets at once, for the gallery's multi-select.
+ */
+export async function deleteMediaAssets(ids: string[]): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  if (ids.length === 0) return { ok: false, error: "Nothing selected." };
+
+  const supabase = await createClient();
+
+  const { data: assets } = await supabase
+    .from("media_assets")
+    .select("storage_path")
+    .in("id", ids)
+    .eq("org_id", orgId);
+
+  const { error } = await supabase
+    .from("media_assets")
+    .delete()
+    .in("id", ids)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  const paths = (assets ?? [])
+    .map((a) => a.storage_path)
+    .filter((path): path is string => Boolean(path));
+  if (paths.length > 0) {
+    const { error: storageError } = await supabase.storage.from("media").remove(paths);
+    if (storageError) console.error("Deleted media rows but not their files", storageError);
+  }
+
+  revalidatePath("/gallery");
+  return { ok: true, message: `Deleted ${ids.length} item${ids.length === 1 ? "" : "s"}.` };
 }
 
 export async function saveFlowGraph(input: {

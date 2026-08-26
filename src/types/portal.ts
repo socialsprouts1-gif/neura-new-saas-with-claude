@@ -143,6 +143,11 @@ export type MediaAsset = {
   media_type: "image" | "video" | "document" | "audio";
   mime_type: string | null;
   size_bytes: number | null;
+  /**
+   * Object key in the media bucket. Null when the asset was added by pasting
+   * an external URL — we do not own that file and must not try to delete it.
+   */
+  storage_path: string | null;
   uploaded_by: string | null;
   created_at: string;
 };
