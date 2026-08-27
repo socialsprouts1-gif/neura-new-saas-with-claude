@@ -36,6 +36,8 @@ export default function ThreadHeader({
   waId,
   optedIn,
   aiMode,
+  botEnabled,
+  lastBotRun,
   priority,
   closed,
   needsHuman,
@@ -51,6 +53,10 @@ export default function ThreadHeader({
   waId: string;
   optedIn: boolean;
   aiMode: AiMode;
+  /** What the message runner actually checks before replying to anything. */
+  botEnabled: boolean;
+  /** Why nothing was sent last time, when that is the question being asked. */
+  lastBotRun: { outcome: string; label: string | null; error: string | null } | null;
   priority: Priority;
   closed: boolean;
   needsHuman: boolean;
@@ -274,18 +280,34 @@ export default function ThreadHeader({
         </div>
       )}
 
-      {aiMode === "human" && (
+      {!botEnabled && (
         <div className="flex flex-wrap items-center gap-2 mt-2.5 rounded-lg border border-white/12 bg-white/4 px-3 py-2">
-          <span className="text-xs text-white/60">You are handling this conversation</span>
+          <span className="text-xs text-white/60">
+            Automation is paused on this chat — no chatbot, FAQ or AI reply will be sent.
+          </span>
           <button
             type="button"
             disabled={pending}
-            onClick={() => run(() => setAiMode(conversationId, "copilot"))}
-            className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+            onClick={() => run(() => setAiMode(conversationId, "ai"))}
+            className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/10 text-accent-ink hover:bg-accent/20 transition-colors disabled:opacity-50"
           >
-            Resume AI
+            Resume automation
           </button>
         </div>
+      )}
+
+      {/* What the bot did last. Without this, "it did not reply" and "it was
+          never asked to" look identical from the outside. */}
+      {botEnabled && lastBotRun && lastBotRun.outcome !== "replied" && (
+        <p
+          className={`text-[11px] mt-2 ${
+            lastBotRun.outcome === "failed" ? "text-red-400" : "text-white/35"
+          }`}
+        >
+          {lastBotRun.outcome === "failed"
+            ? `Bot error: ${lastBotRun.error ?? "unknown"}`
+            : `Bot ${lastBotRun.outcome}${lastBotRun.label ? ` — ${lastBotRun.label}` : ""}`}
+        </p>
       )}
 
       {!windowOpen && (

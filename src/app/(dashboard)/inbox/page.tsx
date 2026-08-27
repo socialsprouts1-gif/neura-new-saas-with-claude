@@ -60,7 +60,7 @@ export default async function InboxPage({
   const { data: conversations, error } = await supabase
     .from("conversations")
     .select(
-      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
+      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, bot_enabled, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
     )
     .eq("org_id", orgId)
     // Closed threads leave the active inbox; the "closed" view brings them
@@ -235,7 +235,17 @@ export default async function InboxPage({
     created_at: string;
   } | null;
 
-  // Notes and the timeline only matter for the thread that is open.
+  // Notes, the timeline and the last bot run only matter for the open thread.
+  const { data: lastRun } = active
+    ? await supabase
+        .from("bot_runs")
+        .select("outcome, matched_label, error")
+        .eq("conversation_id", active.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+
   const [{ data: notes }, { data: events }] = active
     ? await Promise.all([
         supabase
@@ -284,6 +294,16 @@ export default async function InboxPage({
           waId={activeContact.wa_id}
           optedIn={!activeContact.opted_out}
           aiMode={active.ai_mode}
+          botEnabled={active.bot_enabled}
+          lastBotRun={
+            lastRun
+              ? {
+                  outcome: lastRun.outcome,
+                  label: lastRun.matched_label,
+                  error: lastRun.error,
+                }
+              : null
+          }
           priority={active.priority}
           closed={Boolean(active.closed_at)}
           needsHuman={active.needs_human}

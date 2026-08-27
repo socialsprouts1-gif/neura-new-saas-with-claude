@@ -137,26 +137,33 @@ export async function POST(request: NextRequest) {
       console.error("Message sent to Meta but failed to log it", messageError);
     }
 
-    // A human just took this conversation. If any live assistant is set to
-    // stand down for that, pause the bot here so the two of them don't both
-    // answer the customer's next message.
-    const { data: standDown } = await supabase
-      .from("ai_assistants")
-      .select("id")
-      .eq("org_id", body.orgId)
-      .eq("is_active", true)
-      .eq("stop_on_human", true)
-      .limit(1);
+    // A human just replied. Stand the AI assistant down if it is configured
+    // to — but only if the assistant was the thing answering. A keyword
+    // chatbot is a different feature with its own on switch, and pausing it
+    // because an agent typed one message is not what anyone asked for.
+    //
+    // The flow position is deliberately left alone: pausing should not throw
+    // away where a parked conversation had got to.
+    const standDown = await assistantShouldStandDown(supabase, body.orgId, conversation.id);
 
     await supabase
       .from("conversations")
       .update({
         last_message_at: new Date().toISOString(),
-        ...(standDown && standDown.length > 0
-          ? { bot_enabled: false, bot_flow_id: null, bot_node_id: null, status: "pending" }
-          : {}),
+        ...(standDown ? { bot_enabled: false, ai_mode: "human" as const } : {}),
       })
       .eq("id", conversation.id);
+
+    if (standDown) {
+      // Silent automation is the hardest kind of bug to report, so leave a
+      // line in the timeline saying what happened and why.
+      await supabase.from("conversation_events").insert({
+        org_id: body.orgId,
+        conversation_id: conversation.id,
+        kind: "mode",
+        label: "AI paused — a human replied",
+      });
+    }
 
     return NextResponse.json({ message });
   } catch (error) {
@@ -174,4 +181,38 @@ export async function POST(request: NextRequest) {
     console.error("Failed to send WhatsApp message", error);
     return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
   }
+}
+
+/**
+ * Whether the AI assistant should stop answering because a person just did.
+ *
+ * True only when a live assistant is set to stand down AND the assistant was
+ * what last answered this conversation. Anything else — a keyword chatbot, an
+ * FAQ entry, an automation, or nothing at all — is left running.
+ */
+async function assistantShouldStandDown(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  conversationId: string
+): Promise<boolean> {
+  const [{ data: assistants }, { data: lastRun }] = await Promise.all([
+    supabase
+      .from("ai_assistants")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("is_active", true)
+      .eq("stop_on_human", true)
+      .limit(1),
+    supabase
+      .from("bot_runs")
+      .select("matched_kind")
+      .eq("conversation_id", conversationId)
+      .in("outcome", ["replied", "handoff"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (!assistants || assistants.length === 0) return false;
+  return lastRun?.matched_kind === "assistant";
 }

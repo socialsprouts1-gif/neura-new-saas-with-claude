@@ -29,6 +29,8 @@ export default function Thread({
   waId,
   optedIn,
   aiMode,
+  botEnabled,
+  lastBotRun,
   priority,
   closed,
   needsHuman,
@@ -50,6 +52,8 @@ export default function Thread({
   waId: string;
   optedIn: boolean;
   aiMode: AiMode;
+  botEnabled: boolean;
+  lastBotRun: { outcome: string; label: string | null; error: string | null } | null;
   priority: Priority;
   closed: boolean;
   needsHuman: boolean;
@@ -91,6 +95,8 @@ export default function Thread({
           waId={waId}
           optedIn={optedIn}
           aiMode={aiMode}
+          botEnabled={botEnabled}
+          lastBotRun={lastBotRun}
           priority={priority}
           closed={closed}
           needsHuman={needsHuman}
