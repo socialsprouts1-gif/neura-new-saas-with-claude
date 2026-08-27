@@ -88,6 +88,46 @@ export type ConversationEvent = {
   created_at: string;
 };
 
+export const MEETING_STATUSES = ["scheduled", "completed", "cancelled", "no_show"] as const;
+export type MeetingStatus = (typeof MEETING_STATUSES)[number];
+
+/** An appointment with a contact — a commitment, not a nudge. */
+export type Meeting = {
+  id: string;
+  org_id: string;
+  contact_id: string | null;
+  created_by: string | null;
+  assigned_to: string | null;
+  title: string;
+  notes: string | null;
+  location: string | null;
+  starts_at: string;
+  duration_minutes: number;
+  status: MeetingStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export const TRANSACTION_STATUSES = ["pending", "paid", "failed", "refunded"] as const;
+export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
+/** Money between the business and its own customers, not the platform. */
+export type Transaction = {
+  id: string;
+  org_id: string;
+  contact_id: string | null;
+  created_by: string | null;
+  amount_cents: number;
+  currency: string;
+  direction: "in" | "out";
+  status: TransactionStatus;
+  method: string | null;
+  reference: string | null;
+  note: string | null;
+  occurred_at: string;
+  created_at: string;
+};
+
 /** The readable identity behind a user id, for assignment and authorship. */
 export type Profile = {
   user_id: string;

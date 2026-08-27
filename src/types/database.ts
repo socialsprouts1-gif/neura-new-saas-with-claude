@@ -23,6 +23,8 @@ import type {
   AssistantKnowledge,
   Profile,
   ConversationNote,
+  Meeting,
+  Transaction,
   ConversationEvent,
   ApiKey,
   BotRun,
@@ -491,6 +493,34 @@ export interface Database {
         Insert: Partial<AiAssistant> & { org_id: string; name: string };
         Update: Partial<AiAssistant>;
         Relationships: [];
+      };
+      meetings: {
+        Row: Meeting;
+        Insert: Partial<Meeting> & { org_id: string; title: string; starts_at: string };
+        Update: Partial<Meeting>;
+        Relationships: [
+          {
+            foreignKeyName: "meetings_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      transactions: {
+        Row: Transaction;
+        Insert: Partial<Transaction> & { org_id: string };
+        Update: Partial<Transaction>;
+        Relationships: [
+          {
+            foreignKeyName: "transactions_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       conversation_notes: {
         Row: ConversationNote;
