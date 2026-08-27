@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react";
 import IntegrationCard, { type CardData } from "./IntegrationCard";
 import ConnectPanel from "./ConnectPanel";
 import { INTEGRATIONS, integrationBySlug } from "@/lib/integrations";
+import { HeroHeader } from "@/components/ui/primitives";
 
 const TABS = ["All", "Featured", "Flows"] as const;
 type Tab = (typeof TABS)[number];
@@ -61,15 +62,10 @@ export default function IntegrationsBrowser({
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-accent/15 via-accent/8 to-accent2/10 border border-accent/20 p-7 md:p-9 mb-6">
-        <div className="absolute -top-20 -right-16 w-64 h-64 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
-        <div className="relative">
-          <h1 className="text-3xl font-bold tracking-tight">Integrations</h1>
-          <p className="text-sm text-white/60 mt-2">
-            Connect third-party services to your workspace.
-          </p>
-        </div>
-      </div>
+      <HeroHeader
+        title="Integrations"
+        subtitle="Connect third-party services to your workspace."
+      />
 
       <div className="relative mb-5">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/35" />

@@ -5,13 +5,20 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import type { FlowEdge, FlowNode } from "@/types/flow";
 import FlowBuilder from "./FlowBuilder";
+import BuiltBanner from "./BuiltBanner";
 
 export default async function FlowBuilderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  // Set when Build with AI has just landed here, carrying anything the
+  // generator had to repair.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
+  const built = Array.isArray(query.built) ? query.built[0] : query.built;
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
@@ -56,6 +63,10 @@ export default async function FlowBuilderPage({
           All bots
         </Link>
       </div>
+
+      {built && (
+        <BuiltBanner warnings={built === "1" ? [] : built.split("\n").filter(Boolean)} />
+      )}
       <div className="flex-1 min-h-0">
         <FlowBuilder
           flowId={flow.id}

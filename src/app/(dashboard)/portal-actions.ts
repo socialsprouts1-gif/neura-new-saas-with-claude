@@ -20,6 +20,7 @@ import {
   type KnowledgeSourceType,
 } from "@/types/portal";
 import { integrationBySlug } from "@/lib/integrations";
+import { generateFlow, PLATFORM_FLOW_MODEL } from "@/lib/flow-generator";
 import type { ActionResult } from "./actions";
 
 // As in actions.ts: the org is always re-derived from the session, never
@@ -991,6 +992,70 @@ export async function saveFlowGraph(input: {
     ok: true,
     message: input.isActive ? "Saved and active." : "Saved as draft.",
   };
+}
+
+/**
+ * Builds a whole bot from a plain-language description.
+ *
+ * Saved as a draft, always: a generated flow is a first draft with real
+ * message copy in it, and nobody should discover what it says by having a
+ * customer receive it.
+ */
+export async function generateFlowFromPrompt(
+  description: string
+): Promise<ActionResult & { id?: string; warnings?: string[] }> {
+  const ctx = await requireOrg();
+  const supabase = await createClient();
+
+  // Generate on the org's own assistant where they have one configured, so
+  // this runs on their key and their provider rather than the platform's.
+  const { data: assistant } = await supabase
+    .from("ai_assistants")
+    .select("provider, model, api_key_encrypted, api_base_url")
+    .eq("org_id", ctx.orgId)
+    .not("api_key_encrypted", "is", null)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+
+  const result = await generateFlow(
+    description,
+    assistant
+      ? {
+          ...assistant,
+          // Their assistant's creativity and reply length are tuned for chat
+          // replies; a flow needs structure and room.
+          temperature: PLATFORM_FLOW_MODEL.temperature,
+          max_tokens: PLATFORM_FLOW_MODEL.max_tokens,
+        }
+      : PLATFORM_FLOW_MODEL
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const entryNodeId =
+    result.graph.nodes.find((node) => node.kind === "on_message")?.id ??
+    result.graph.nodes[0]?.id ??
+    null;
+
+  const { data, error } = await supabase
+    .from("chatbot_flows")
+    .insert({
+      org_id: ctx.orgId,
+      name: result.name,
+      trigger_type: "keyword",
+      nodes: result.graph.nodes,
+      edges: result.graph.edges,
+      entry_node_id: entryNodeId,
+      is_active: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/chatbot");
+  return { ok: true, id: data.id, warnings: result.warnings, message: "Bot built." };
 }
 
 export async function createFlow(): Promise<ActionResult & { id?: string }> {

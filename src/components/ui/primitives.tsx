@@ -23,6 +23,33 @@ export function PageHeader({
   );
 }
 
+/**
+ * The wide gradient banner that opens a section screen. Distinct from
+ * PageHeader, which is a plain title row for screens that lead with data.
+ */
+export function HeroHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-accent/15 via-accent/8 to-accent2/10 border border-accent/20 p-7 md:p-9 mb-6">
+      <div className="absolute -top-20 -right-16 w-64 h-64 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
+      <div className="relative flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+          {subtitle && <p className="text-sm text-white/60 mt-2">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+    </div>
+  );
+}
+
 export function Card({
   children,
   className = "",

@@ -2,13 +2,15 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Upload, Sparkles } from "lucide-react";
+import { LayoutGrid, Plus, Upload } from "lucide-react";
 import { createFlow, createStarterFlow, importFlow } from "../portal-actions";
+import BuildWithAi from "./BuildWithAi";
 
-// Three ways to get a bot, in ascending order of how much you have to do:
-// import one you already have, start from a working example, or build from
-// scratch. Creating navigates straight into the canvas — a list row for an
-// empty bot is a dead end, and the first thing anyone wants to do is build.
+// Four ways to get a bot, in ascending order of how much you have to do:
+// describe it and have it built, import one you already have, start from a
+// working example, or build from scratch. Every route navigates straight
+// into the canvas — a list row for an empty bot is a dead end, and the first
+// thing anyone wants to do is build.
 
 export default function BotToolbar() {
   const router = useRouter();
@@ -28,7 +30,7 @@ export default function BotToolbar() {
     });
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {message && (
         <span className={`text-xs mr-1 ${message.ok ? "text-accent-ink" : "text-red-400"}`}>
           {message.text}
@@ -53,6 +55,8 @@ export default function BotToolbar() {
         }}
       />
 
+      <BuildWithAi />
+
       <button
         type="button"
         disabled={pending}
@@ -60,8 +64,8 @@ export default function BotToolbar() {
         className="btn-secondary text-sm disabled:opacity-50"
         title="Creates a working keyword bot with buttons and a handoff, as a draft"
       >
-        <Sparkles className="w-4 h-4" />
-        Example bot
+        <LayoutGrid className="w-4 h-4" />
+        Example Bot
       </button>
 
       <button
@@ -72,7 +76,7 @@ export default function BotToolbar() {
         title="Import a bot exported from this builder"
       >
         <Upload className="w-4 h-4" />
-        Import
+        Import Chatbot
       </button>
 
       <button
@@ -82,7 +86,7 @@ export default function BotToolbar() {
         className="btn-primary text-sm disabled:opacity-50"
       >
         <Plus className="w-4 h-4" />
-        {pending ? "Working…" : "Create bot"}
+        {pending ? "Working…" : "Create Chatbot"}
       </button>
     </div>
   );

@@ -14,7 +14,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { toggleChatbotFlow, deleteChatbotFlow } from "../portal-actions";
-import { nodeDef, type FlowNode } from "@/types/flow";
+import type { FlowNode } from "@/types/flow";
 
 export interface BotRow {
   id: string;
@@ -53,11 +53,11 @@ export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
 
   return (
     <>
-      <div className="relative max-w-sm mb-4">
-        <Search className="w-4 h-4 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
+      <div className="relative mb-5">
+        <Search className="w-4 h-4 text-white/35 absolute left-4 top-1/2 -translate-y-1/2" />
         <input
-          className="w-full bg-white/4 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/40"
-          placeholder="Search bots by name, keyword, or ID…"
+          className="w-full bg-white/5 border border-white/12 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-white/35 focus:outline-none focus:border-accent/50 transition-all"
+          placeholder="Search chatbots..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -65,14 +65,13 @@ export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
 
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[52rem]">
+          <table className="w-full text-sm min-w-[44rem]">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-widest text-white/40 border-b border-white/8">
-                <th className="font-semibold px-5 py-3">Name</th>
-                <th className="font-semibold px-5 py-3">Bot ID</th>
-                <th className="font-semibold px-5 py-3">Built from</th>
-                <th className="font-semibold px-5 py-3">Status</th>
-                <th className="font-semibold px-5 py-3 text-right">Actions</th>
+              <tr className="text-left text-sm font-semibold bg-accent/8 border-b border-accent/15">
+                <th className="px-5 py-4">Name</th>
+                <th className="px-5 py-4">Chatbot ID</th>
+                <th className="px-5 py-4">Status</th>
+                <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -85,7 +84,7 @@ export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
 
         {filtered.length === 0 && (
           <p className="px-5 py-8 text-sm text-white/40 text-center">
-            No bots match “{query}”.
+            No chatbots match “{query}”.
           </p>
         )}
       </div>
@@ -97,8 +96,6 @@ function BotTableRow({ bot }: { bot: BotRow }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-
-  const kinds = [...new Set(bot.nodes.map((n) => n.kind).filter(Boolean))];
 
   const toggle = () =>
     startTransition(async () => {
@@ -118,44 +115,15 @@ function BotTableRow({ bot }: { bot: BotRow }) {
         <Link
           href={`/chatbot/${bot.id}`}
           className="font-medium hover:text-accent-ink transition-colors"
+          title={`${bot.nodes.length} node${bot.nodes.length === 1 ? "" : "s"}, ${bot.edges.length} connection${bot.edges.length === 1 ? "" : "s"}, v${bot.version}`}
         >
           {bot.name}
         </Link>
-        <div className="text-[11px] text-white/35 mt-0.5">
-          {bot.nodes.length} node{bot.nodes.length === 1 ? "" : "s"} · {bot.edges.length} connection
-          {bot.edges.length === 1 ? "" : "s"} · v{bot.version}
-        </div>
         {error && <div className="text-[11px] text-red-400 mt-1">{error}</div>}
       </td>
 
       <td className="px-5 py-3.5">
         <CopyableId id={bot.id} />
-      </td>
-
-      <td className="px-5 py-3.5">
-        <div className="flex flex-wrap gap-1 max-w-[16rem]">
-          {kinds.slice(0, 4).map((kind) => {
-            const def = nodeDef(kind);
-            if (!def) return null;
-            return (
-              <span
-                key={kind}
-                className="text-[10px] px-1.5 py-0.5 rounded border"
-                style={{
-                  color: def.accent,
-                  borderColor: `${def.accent}33`,
-                  background: `${def.accent}0F`,
-                }}
-              >
-                {def.label}
-              </span>
-            );
-          })}
-          {kinds.length > 4 && (
-            <span className="text-[10px] text-white/35 py-0.5">+{kinds.length - 4}</span>
-          )}
-          {kinds.length === 0 && <span className="text-[11px] text-white/25">Empty</span>}
-        </div>
       </td>
 
       <td className="px-5 py-3.5">
@@ -166,21 +134,19 @@ function BotTableRow({ bot }: { bot: BotRow }) {
           role="switch"
           aria-checked={bot.is_active}
           aria-label={bot.is_active ? "Deactivate bot" : "Activate bot"}
-          className="flex items-center gap-2 disabled:opacity-50"
+          title={bot.is_active ? "Active — matching inbound messages" : "Draft — not matching anything"}
+          className="disabled:opacity-50"
         >
           <span
-            className={`relative w-9 h-5 rounded-full transition-colors ${
+            className={`relative block w-11 h-6 rounded-full transition-colors ${
               bot.is_active ? "bg-accent" : "bg-white/15"
             }`}
           >
             <span
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-[var(--app-bg)] transition-all ${
-                bot.is_active ? "left-4.5" : "left-0.5"
+              className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                bot.is_active ? "left-5.5" : "left-0.5"
               }`}
             />
-          </span>
-          <span className={`text-xs ${bot.is_active ? "text-accent-ink" : "text-white/40"}`}>
-            {bot.is_active ? "Active" : "Draft"}
           </span>
         </button>
       </td>
