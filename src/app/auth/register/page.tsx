@@ -2,8 +2,9 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import BrandMark from "@/components/ui/BrandMark";
 import { useRouter } from "next/navigation";
-import { Zap, Eye, EyeOff, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -96,9 +97,7 @@ export default function RegisterPage() {
       {/* Left panel */}
       <div className="hidden lg:flex flex-col justify-between w-[45%] p-12 relative">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_24px_rgba(0,255,135,0.5)]">
-            <Zap className="w-4 h-4 text-[#050508]" />
-          </div>
+          <BrandMark size={40} />
           <span className="font-bold text-lg">Neura <span className="gradient-text-green">Chat</span></span>
         </Link>
 
@@ -142,9 +141,7 @@ export default function RegisterPage() {
           {/* Mobile logo */}
           <div className="flex justify-center mb-6 lg:hidden">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-[#050508]" />
-              </div>
+              <BrandMark size={40} />
               <span className="font-bold text-lg">Neura <span className="gradient-text-green">Chat</span></span>
             </Link>
           </div>

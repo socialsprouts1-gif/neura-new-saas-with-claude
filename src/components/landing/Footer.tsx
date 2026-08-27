@@ -1,5 +1,6 @@
+import BrandMark from "@/components/ui/BrandMark";
 import Link from "next/link";
-import { Zap, Share2, Link2, GitFork, PlaySquare, ArrowRight } from "lucide-react";
+import { Share2, Link2, GitFork, PlaySquare, ArrowRight } from "lucide-react";
 
 const footerLinks = {
   Product: ["Features", "Pricing", "Integrations", "Changelog", "Roadmap", "Status"],
@@ -47,9 +48,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-2">
             <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,135,0.4)]">
-                <Zap className="w-4 h-4 text-[#050508]" />
-              </div>
+              <BrandMark size={34} />
               <span className="font-bold text-lg">
                 Neura <span className="gradient-text-green">Chat</span>
               </span>

@@ -2,8 +2,9 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import BrandMark from "@/components/ui/BrandMark";
 import { useRouter } from "next/navigation";
-import { Zap, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -83,9 +84,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_30px_rgba(0,255,135,0.5)]">
-              <Zap className="w-5 h-5 text-[#050508]" />
-            </div>
+            <BrandMark size={40} />
             <span className="font-bold text-xl">
               Neura <span className="gradient-text-green">Chat</span>
             </span>
