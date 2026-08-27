@@ -189,7 +189,7 @@ export default function Hero() {
                       <div className="w-3 h-3 rounded-full bg-yellow-400" />
                       <div className="w-3 h-3 rounded-full bg-accent" />
                     </div>
-                    <div className="text-xs text-white/40 font-mono">WhatsFlow AI — Dashboard</div>
+                    <div className="text-xs text-white/40 font-mono">Neura Chat — Dashboard</div>
                     <div className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                       <span className="text-xs text-accent-ink">Live</span>

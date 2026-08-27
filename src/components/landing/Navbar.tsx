@@ -50,7 +50,7 @@ export default function Navbar() {
               <Zap className="w-4 h-4 text-[#050508]" />
             </div>
             <span className="font-bold text-lg">
-              WhatsFlow <span className="gradient-text-green">AI</span>
+              Neura <span className="gradient-text-green">Chat</span>
             </span>
           </Link>
 

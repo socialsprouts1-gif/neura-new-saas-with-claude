@@ -27,7 +27,7 @@ export default function Footer() {
               <span className="gradient-text-green">WhatsApp growth?</span>
             </h3>
             <p className="text-white/60 mb-8 max-w-lg mx-auto">
-              Join 50,000+ businesses already using WhatsFlow AI to grow faster.
+              Join 50,000+ businesses already using Neura Chat to grow faster.
               Start your 14-day free trial today.
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
@@ -51,7 +51,7 @@ export default function Footer() {
                 <Zap className="w-4 h-4 text-[#050508]" />
               </div>
               <span className="font-bold text-lg">
-                WhatsFlow <span className="gradient-text-green">AI</span>
+                Neura <span className="gradient-text-green">Chat</span>
               </span>
             </Link>
             <p className="text-sm text-white/50 leading-relaxed mb-6 max-w-xs">
@@ -112,7 +112,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="border-t border-white/8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-white/40">
-            © 2024 WhatsFlow AI. All rights reserved.
+            © {new Date().getFullYear()} Neura Chat. All rights reserved.
           </p>
           {/* Real destinations, not placeholders: Meta will not let an app go
               live without a working Privacy Policy URL, and a reviewer does
