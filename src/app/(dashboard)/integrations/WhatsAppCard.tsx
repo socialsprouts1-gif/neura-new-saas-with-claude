@@ -1,4 +1,5 @@
-import { AlertTriangle, KeyRound } from "lucide-react";
+import { AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
+import ConnectWhatsApp from "./ConnectWhatsApp";
 import { connectWaba, disconnectWaba, regenerateVerifyToken, verifyWabaConnection } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, statusTone } from "@/components/ui/primitives";
@@ -24,6 +25,7 @@ export default function WhatsAppCard({
   canManage,
   loadError,
   healthUnavailable,
+  signup,
 }: {
   connections: Connection[];
   webhookUrl: string;
@@ -32,6 +34,8 @@ export default function WhatsAppCard({
   loadError?: string | null;
   /** Connections loaded, but the health columns are not there yet. */
   healthUnavailable?: boolean;
+  /** Result of a just-completed Embedded Signup, read off the URL. */
+  signup?: { connected?: string; error?: string; note?: string };
 }) {
   const connected = connections.length > 0;
 
@@ -62,6 +66,34 @@ export default function WhatsAppCard({
             </p>
           </div>
         </div>
+
+        {signup?.connected && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-accent/30 bg-accent/8 p-4 mb-4">
+            <CheckCircle2 className="w-4 h-4 text-accent-ink flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="text-sm font-medium text-accent-ink mb-0.5">
+                Connected {signup.connected}
+              </div>
+              <p className="text-xs text-white/60 leading-relaxed">
+                Meta issued the token, subscribed this app to your WhatsApp Business Account, and
+                registered the number. Nothing else to paste — message the number to test it.
+                {signup.note ? ` ${signup.note}` : ""}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {signup?.error && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/8 p-4 mb-4">
+            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="text-sm font-medium text-red-300 mb-0.5">
+                The connection did not complete
+              </div>
+              <p className="text-xs text-white/60 leading-relaxed">{signup.error}</p>
+            </div>
+          </div>
+        )}
 
         {loadError ? (
           <div className="flex items-start gap-2.5 rounded-xl border border-[#FF5C5C]/30 bg-[#FF5C5C]/8 p-4">
@@ -243,8 +275,33 @@ export default function WhatsAppCard({
             </div>
           </div>
         ) : canManage ? (
-          <ActionForm action={connectWaba} submitLabel="Connect number" resetOnSuccess>
-            <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-5">
+            {/* The one-button path. Everything the form below asks for is
+                derived from what Meta hands back, including subscribed_apps,
+                which the operator cannot do from Meta's dashboard at all. */}
+            <div className="rounded-xl border border-accent/25 bg-accent/8 p-5">
+              <h3 className="text-sm font-semibold mb-1">Connect through Meta</h3>
+              <p className="text-xs text-white/55 leading-relaxed mb-4 max-w-2xl">
+                Meta walks you through choosing or adding a number, and we receive the credentials
+                directly — no IDs to look up, no token to paste, and the webhook subscription that
+                has no button anywhere in Meta&apos;s own dashboard is done for you.
+              </p>
+              <ConnectWhatsApp />
+            </div>
+
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-white/45 hover:text-white/70 transition-colors list-none">
+                Connect manually instead
+                <span className="text-white/25"> — if you already have a System User token</span>
+              </summary>
+              <div className="mt-4 pt-4 border-t border-white/8">
+                <p className="text-xs text-white/45 leading-relaxed mb-4 max-w-2xl">
+                  This path does not subscribe your app to the WhatsApp Business Account. Without
+                  that, inbound messages are never delivered no matter how the callback URL is
+                  configured, and it can only be done through the API.
+                </p>
+                <ActionForm action={connectWaba} submitLabel="Connect number" resetOnSuccess>
+                  <div className="grid sm:grid-cols-2 gap-4">
               <Field label="WABA ID" name="waba_id" required placeholder="123456789012345" />
               <Field
                 label="Phone number ID"
@@ -260,10 +317,13 @@ export default function WhatsAppCard({
                 type="password"
                 required
                 placeholder="EAAG…"
-                hint="Use a permanent System User token, not the 24-hour one"
-              />
-            </div>
-          </ActionForm>
+                      hint="Use a permanent System User token, not the 24-hour one"
+                    />
+                  </div>
+                </ActionForm>
+              </div>
+            </details>
+          </div>
         ) : (
           <p className="text-sm text-white/40">
             No number connected. Ask an owner or admin to connect one.

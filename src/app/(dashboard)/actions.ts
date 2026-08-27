@@ -6,6 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { encryptToken, decryptToken } from "@/lib/crypto";
 import { checkAccessToken } from "@/lib/access-token";
+import { headers } from "next/headers";
+import {
+  EMBEDDED_SIGNUP_SETUP_MESSAGE,
+  createSignupState,
+  embeddedSignupUrl,
+  getEmbeddedSignupEnv,
+} from "@/lib/embedded-signup";
 import {
   MetaApiError,
   InvalidAccessTokenError,
@@ -404,4 +411,36 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
 
     return { ok: false, error: message };
   }
+}
+
+/**
+ * Builds the Meta dialog URL for this org and hands it back to the client.
+ *
+ * The state is signed rather than stored: the callback arrives from
+ * facebook.com with no Supabase session cookie, so it needs the org id in a
+ * form it can trust, and an abandoned dialog should leave nothing behind.
+ */
+export async function startEmbeddedSignup(): Promise<ActionResult & { url?: string }> {
+  const { orgId, role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can connect a WhatsApp number." };
+  }
+
+  const env = getEmbeddedSignupEnv();
+  if (!env) return { ok: false, error: EMBEDDED_SIGNUP_SETUP_MESSAGE };
+
+  const host = (await headers()).get("host");
+  if (!host) return { ok: false, error: "Could not work out this deployment's address." };
+  const origin = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
+
+  return {
+    ok: true,
+    url: embeddedSignupUrl({
+      env,
+      // Must match the callback exactly, and must be listed under Valid
+      // OAuth Redirect URIs in the Meta app — Meta compares it twice.
+      redirectUri: `${origin}/api/whatsapp/embedded-signup/callback`,
+      state: createSignupState(orgId, env.appSecret),
+    }),
+  };
 }

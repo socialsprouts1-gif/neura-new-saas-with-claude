@@ -18,10 +18,26 @@ const CATEGORY_ORDER: IntegrationCategory[] = [
   "Support",
 ];
 
-export default async function IntegrationsPage() {
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  // The Embedded Signup callback reports its outcome by redirecting here.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { orgId, role } = await requireOrg();
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
+
+  const query = await searchParams;
+  const one = (key: string) => {
+    const value = query[key];
+    return Array.isArray(value) ? value[0] : value;
+  };
+  const signup = {
+    connected: one("wa_connected"),
+    error: one("wa_error"),
+    note: one("wa_note"),
+  };
 
   const [{ data: connections }, { data: webhooks }, waba] =
     await Promise.all([
@@ -73,6 +89,7 @@ export default async function IntegrationsPage() {
         // Connections loaded, but without health tracking. Say so quietly
         // rather than letting the banner's absence read as "all fine".
         healthUnavailable={waba.degraded}
+        signup={signup}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
