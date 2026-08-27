@@ -50,6 +50,16 @@ export type AiAssistant = {
 };
 
 export const KNOWLEDGE_SOURCE_TYPES = ["text", "faq", "url", "file"] as const;
+/** The readable identity behind a user id, for assignment and authorship. */
+export type Profile = {
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type KnowledgeSourceType = (typeof KNOWLEDGE_SOURCE_TYPES)[number];
 
 /** One thing the assistant is allowed to know. A null assistant_id means the

@@ -21,6 +21,7 @@ import type {
 import type {
   AiAssistant,
   AssistantKnowledge,
+  Profile,
   ApiKey,
   BotRun,
   CannedMessage,
@@ -149,6 +150,8 @@ export interface Database {
           last_inbound_at: string | null;
           bot_variables: Record<string, string>;
           bot_resume_at: string | null;
+          assigned_to: string | null;
+          last_read_at: string | null;
         };
         Insert: {
           id?: string;
@@ -163,6 +166,8 @@ export interface Database {
           last_inbound_at?: string | null;
           bot_variables?: Record<string, string>;
           bot_resume_at?: string | null;
+          assigned_to?: string | null;
+          last_read_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["conversations"]["Insert"]>;
         Relationships: [
@@ -447,6 +452,12 @@ export interface Database {
         Row: AiAssistant;
         Insert: Partial<AiAssistant> & { org_id: string; name: string };
         Update: Partial<AiAssistant>;
+        Relationships: [];
+      };
+      profiles: {
+        Row: Profile;
+        Insert: Partial<Profile> & { user_id: string };
+        Update: Partial<Profile>;
         Relationships: [];
       };
       assistant_knowledge: {

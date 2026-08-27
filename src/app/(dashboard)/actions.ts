@@ -307,6 +307,115 @@ export async function createSupportTicket(formData: FormData): Promise<ActionRes
   return { ok: true, message: "Support ticket raised." };
 }
 
+// ---------------------------------------------------------------- Inbox
+
+/** Marks a thread read for the whole team. Unread is derived from this. */
+export async function markConversationRead(id: string): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** Hands a thread to a teammate, or back to the unassigned pile. */
+export async function assignConversation(
+  id: string,
+  userId: string | null
+): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  if (userId) {
+    // Assigning to someone outside the org would hide the thread from
+    // everyone who can actually see it.
+    const { data: member } = await supabase
+      .from("org_members")
+      .select("user_id")
+      .eq("org_id", orgId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!member) return { ok: false, error: "That person is not in this workspace." };
+  }
+
+  const { error } = await supabase
+    .from("conversations")
+    .update({ assigned_to: userId })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/inbox");
+  return { ok: true, message: userId ? "Assigned." : "Unassigned." };
+}
+
+export async function setConversationStatus(
+  id: string,
+  status: "open" | "pending" | "resolved" | "closed"
+): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("conversations")
+    .update({ status })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/inbox");
+  return { ok: true, message: `Marked ${status}.` };
+}
+
+/** Renames the person behind a thread — the pencil beside their name. */
+export async function renameContact(id: string, name: string): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: "Give the contact a name." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("contacts")
+    .update({ name: trimmed, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/inbox");
+  return { ok: true, message: "Contact renamed." };
+}
+
+/**
+ * The opt-in switch in the thread header.
+ *
+ * Opting out stops campaigns and broadcasts reaching this person. It does
+ * not gag a reply inside an open service window — that is a response to a
+ * message they sent, and withholding it would be the rude read of consent.
+ */
+export async function setContactOptIn(id: string, optedIn: boolean): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("contacts")
+    .update({
+      opted_out: !optedIn,
+      opted_out_at: optedIn ? null : new Date().toISOString(),
+      opt_out_reason: optedIn ? null : "Set from the inbox",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/inbox");
+  return { ok: true, message: optedIn ? "Opted in." : "Opted out of campaigns." };
+}
+
 export async function toggleConversationBot(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
 
