@@ -41,6 +41,9 @@ export default function BotToolbar() {
         accept="application/json,.json"
         className="hidden"
         onChange={async (event) => {
+          // Read the File out first: files is a live FileList and the reset
+          // below empties it. A File pulled from it beforehand is a separate
+          // object and stays readable, which is why this order works.
           const file = event.target.files?.[0];
           // Reset immediately so picking the same file twice still fires.
           event.target.value = "";

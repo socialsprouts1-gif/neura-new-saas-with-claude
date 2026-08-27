@@ -273,9 +273,14 @@ export default function GalleryBrowser({
         multiple
         className="hidden"
         onChange={(e) => {
-          const files = e.target.files;
+          // Copy out of the FileList before resetting the input. e.target.files
+          // is live: clearing value empties it in place, so holding the list
+          // and reading it afterwards yields nothing and the upload silently
+          // does not happen. The reset itself is needed — without it, picking
+          // the same file twice fires no change event.
+          const files = Array.from(e.target.files ?? []);
           e.target.value = "";
-          if (files) void upload(files);
+          if (files.length > 0) void upload(files);
         }}
       />
 
