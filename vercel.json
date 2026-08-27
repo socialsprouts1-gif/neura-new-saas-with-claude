@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/resume-flows",
-      "schedule": "* * * * *"
-    }
-  ]
-}

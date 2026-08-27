@@ -46,6 +46,7 @@ one needs a redeploy, not just a restart.
 | `META_APP_SECRET` | yes | Meta App → Basic Settings. Verifies `X-Hub-Signature-256` |
 | `TOKEN_ENCRYPTION_KEY` | yes | `openssl rand -base64 32`. Encrypts stored WABA tokens |
 | `ANTHROPIC_API_KEY` | fallback for Anthropic assistants | console.anthropic.com |
+| `CRON_SECRET` | to run the flow scheduler | any long random string you choose |
 | `OPENAI_API_KEY` | fallback for OpenAI assistants | platform.openai.com |
 | `GOOGLE_API_KEY` | fallback for Gemini assistants | aistudio.google.com |
 
@@ -56,6 +57,25 @@ own key, pasted on its **AI Configuration** tab and encrypted at rest with
 `TOKEN_ENCRYPTION_KEY`. An assistant reaches for the environment key only
 when it has none of its own, so a tenant on their own OpenAI account needs
 nothing set here. Everything except the AI Assistant works without all three.
+
+### 3. Keep delayed flows moving
+
+A chatbot Delay longer than ten seconds parks the conversation and is resumed
+by `GET /api/cron/resume-flows`. Nothing calls that on its own.
+
+On a Vercel **Pro** plan, add a `vercel.json`:
+
+```json
+{ "crons": [{ "path": "/api/cron/resume-flows", "schedule": "* * * * *" }] }
+```
+
+On **Hobby**, do not — Vercel rejects a deployment whose `vercel.json`
+declares a cron more often than daily, and every push stops shipping. Point a
+free pinger (cron-job.org, UptimeRobot) at the URL once a minute instead,
+sending `Authorization: Bearer <CRON_SECRET>`.
+
+Without either, everything still works except the part of a flow that comes
+after a Delay of more than ten seconds.
 
 ### 3. Connect a WhatsApp number
 

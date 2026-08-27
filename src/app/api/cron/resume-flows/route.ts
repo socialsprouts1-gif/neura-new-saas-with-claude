@@ -11,6 +11,17 @@ import type { ChatbotFlow } from "@/types/portal";
 // A flow that hits a delay longer than we run inline parks with a time and a
 // node to come back to. Nothing was ever coming back for it, so the rest of
 // the flow was silently dropped. This is what comes back.
+//
+// Deliberately not wired to a vercel.json cron: a once-a-minute schedule is
+// a Pro feature, and declaring one on Hobby makes Vercel refuse the whole
+// deployment rather than just ignoring the cron. Drive it from outside
+// instead — any pinger that can send a header will do:
+//
+//   curl -H "Authorization: Bearer $CRON_SECRET" \
+//        https://your-domain/api/cron/resume-flows
+//
+// On Pro, add vercel.json back with { "crons": [{ "path":
+// "/api/cron/resume-flows", "schedule": "* * * * *" }] } and drop the pinger.
 
 // Service role: this runs on a timer with no user session, and it has to see
 // every org's parked conversations. Nothing here takes input from a request
