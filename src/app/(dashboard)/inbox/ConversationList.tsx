@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronRight, Filter, Search, Tag, Users } from "lucide-react";
+import NewMessageAlert from "./NewMessageAlert";
 
 export interface ConversationRow {
   id: string;
@@ -74,12 +75,14 @@ export default function ConversationList({
   teammates,
   allTags,
   currentUserId,
+  orgId,
 }: {
   rows: ConversationRow[];
   activeId: string | null;
   teammates: Teammate[];
   allTags: string[];
   currentUserId: string;
+  orgId: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -289,7 +292,10 @@ export default function ConversationList({
           }
         </Menu>
 
-        <span className="ml-auto text-xs text-white/35 tabular-nums pr-1">{visible.length}</span>
+        <div className="ml-auto flex items-center gap-1">
+          <NewMessageAlert orgId={orgId} activeConversationId={activeId} />
+          <span className="text-xs text-white/35 tabular-nums pr-1">{visible.length}</span>
+        </div>
       </div>
 
       <div className="flex gap-1 px-3 pt-3 overflow-x-auto flex-shrink-0 scrollbar-none">

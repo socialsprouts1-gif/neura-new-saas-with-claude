@@ -272,6 +272,7 @@ export default async function InboxPage({
         teammates={teammates}
         allTags={allTags}
         currentUserId={user.id}
+        orgId={orgId}
       />
 
       {active && activeContact ? (
