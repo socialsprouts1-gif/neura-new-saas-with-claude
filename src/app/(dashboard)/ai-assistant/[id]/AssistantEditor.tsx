@@ -2,22 +2,17 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Database, Loader2, Settings2, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { deleteAiAssistant, toggleAiAssistant } from "@/app/(dashboard)/portal-actions";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { toggleAiAssistant } from "@/app/(dashboard)/portal-actions";
 import { providerById } from "@/lib/ai-providers";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
 import SettingsTab from "./SettingsTab";
 import KnowledgeTab from "./KnowledgeTab";
 import RulesTab from "./RulesTab";
 
-const TABS = [
-  { id: "settings", label: "Settings", icon: Settings2 },
-  { id: "knowledge", label: "Knowledge Base", icon: Database },
-  { id: "rules", label: "Agent Rules", icon: SlidersHorizontal },
-] as const;
-
-type TabId = (typeof TABS)[number]["id"];
+const TABS = ["Settings", "Knowledge Base", "Agent Rules"] as const;
+type Tab = (typeof TABS)[number];
 
 export default function AssistantEditor({
   assistant,
@@ -30,7 +25,7 @@ export default function AssistantEditor({
   hasKey: boolean;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabId>("settings");
+  const [tab, setTab] = useState<Tab>("Settings");
   const [pending, startTransition] = useTransition();
 
   const provider = providerById(assistant.provider);
@@ -45,59 +40,67 @@ export default function AssistantEditor({
     });
   };
 
-  const remove = () => {
-    if (!confirm(`Delete ${assistant.name}? Its knowledge base entries go with it.`)) return;
-    const data = new FormData();
-    data.set("id", assistant.id);
-    startTransition(async () => {
-      const result = await deleteAiAssistant(data);
-      if (result.ok) router.push("/ai-assistant");
-    });
-  };
-
   return (
     <div className="p-6 md:p-8 max-w-5xl">
-      <Link
-        href="/ai-assistant"
-        className="inline-flex items-center gap-1.5 text-xs text-white/45 hover:text-white/70 mb-4"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        All assistants
-      </Link>
-
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight truncate">{assistant.name}</h1>
-          <p className="text-sm text-white/50 mt-1">
-            {assistant.role} · {provider?.name ?? assistant.provider} ·{" "}
-            <code className="text-accent2-ink">{assistant.model}</code>
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+        <div className="flex items-start gap-3 min-w-0">
+          <Link
+            href="/ai-assistant"
+            aria-label="Back to all assistants"
+            className="p-2 rounded-lg border border-white/12 text-white/50 hover:text-white hover:border-white/25 transition-colors flex-shrink-0 mt-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div className="min-w-0">
+            <nav className="text-xs text-white/40 mb-1">
+              <Link href="/dashboard" className="hover:text-white/70">
+                Dashboard
+              </Link>
+              {" > "}
+              <Link href="/ai-assistant" className="hover:text-white/70">
+                AI Assistant
+              </Link>
+              {" > Edit"}
+            </nav>
+            <h1 className="text-2xl font-bold tracking-tight truncate">Edit AI Assistant</h1>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={pending}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 ${
+            assistant.is_active
+              ? "border border-white/15 text-white/70 hover:text-white hover:border-white/30"
+              : "bg-accent text-[#050508] hover:bg-[var(--accent-strong)]"
+          }`}
+        >
+          {pending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {assistant.is_active ? "Pause assistant" : "Set live"}
+        </button>
+      </div>
+
+      <div className="flex gap-6 border-b border-white/10 mb-6 overflow-x-auto">
+        {TABS.map((option) => (
           <button
+            key={option}
             type="button"
-            onClick={toggle}
-            disabled={pending}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 ${
-              assistant.is_active
-                ? "border border-white/15 text-white/70 hover:text-white hover:border-white/30"
-                : "bg-accent text-[#050508] hover:bg-[var(--accent-strong)]"
+            onClick={() => setTab(option)}
+            className={`pb-3 -mb-px text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+              tab === option
+                ? "border-accent text-accent-ink"
+                : "border-transparent text-white/50 hover:text-white/80"
             }`}
           >
-            {pending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {assistant.is_active ? "Pause assistant" : "Set live"}
+            {option}
+            {option === "Knowledge Base" && knowledge.length > 0 && (
+              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md bg-white/8 text-white/50">
+                {knowledge.length}
+              </span>
+            )}
           </button>
-          <button
-            type="button"
-            onClick={remove}
-            disabled={pending}
-            aria-label="Delete this assistant"
-            className="p-2.5 rounded-xl border border-white/12 text-white/40 hover:text-red-400 hover:border-red-400/30 transition-colors disabled:opacity-60"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+        ))}
       </div>
 
       {/* The two states that make an assistant look fine and answer nothing. */}
@@ -108,7 +111,7 @@ export default function AssistantEditor({
           </div>
           <p className="text-xs text-white/50 leading-relaxed">
             This assistant is saved but cannot generate a single reply. Paste a key under AI
-            Configuration below
+            Configuration on the Settings tab
             {provider?.envVar ? `, or set ${provider.envVar} in the environment.` : "."}
           </p>
         </div>
@@ -117,46 +120,21 @@ export default function AssistantEditor({
         <div className="rounded-xl border border-white/12 bg-white/4 p-4 mb-5">
           <div className="text-sm font-semibold mb-1">Paused</div>
           <p className="text-xs text-white/50 leading-relaxed">
-            Ready to go, but not answering anything yet. Press “Set live” when the prompt reads the
-            way you want it to.
+            Ready to go, but not answering anything yet. Press “Set live” when the instructions
+            read the way you want them to.
           </p>
         </div>
       )}
 
-      <div className="flex gap-1 p-1 rounded-xl bg-white/4 border border-white/8 mb-5 overflow-x-auto">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              tab === id ? "bg-accent text-[#050508]" : "text-white/55 hover:text-white/85"
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-            {id === "knowledge" && knowledge.length > 0 && (
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-                  tab === id ? "bg-black/15" : "bg-white/8 text-white/50"
-                }`}
-              >
-                {knowledge.length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {tab === "settings" && <SettingsTab assistant={assistant} />}
-      {tab === "knowledge" && (
+      {tab === "Settings" && <SettingsTab assistant={assistant} />}
+      {tab === "Knowledge Base" && (
         <KnowledgeTab
           assistantId={assistant.id}
           entries={knowledge}
           enabled={assistant.use_knowledge_base}
         />
       )}
-      {tab === "rules" && <RulesTab assistant={assistant} />}
+      {tab === "Agent Rules" && <RulesTab assistant={assistant} />}
     </div>
   );
 }

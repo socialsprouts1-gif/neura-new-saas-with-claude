@@ -21,6 +21,7 @@ import {
 } from "@/types/portal";
 import { integrationBySlug } from "@/lib/integrations";
 import { generateFlow, PLATFORM_FLOW_MODEL } from "@/lib/flow-generator";
+import { buildInstructions, PROMPT_BUILDER_MODEL } from "@/lib/prompt-builder";
 import type { ActionResult } from "./actions";
 
 // As in actions.ts: the org is always re-derived from the session, never
@@ -76,44 +77,129 @@ export async function createAiAssistant(
   return { ok: true, message: "Assistant created.", id: data.id };
 }
 
-/** Basic Information + Prompt Configuration, the Settings tab. */
+/** The assistant an org's AI features should run on: their own key first. */
+async function orgAiConfig(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string
+) {
+  const { data } = await supabase
+    .from("ai_assistants")
+    .select("provider, model, api_key_encrypted, api_base_url")
+    .eq("org_id", orgId)
+    .not("api_key_encrypted", "is", null)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+/** Writes the system prompt from a plain-language description of the job. */
+export async function generateAssistantInstructions(
+  description: string,
+  role: string
+): Promise<ActionResult & { prompt?: string }> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+  const own = await orgAiConfig(supabase, orgId);
+
+  const result = await buildInstructions(
+    description,
+    role,
+    own
+      ? {
+          ...own,
+          // Their assistant is tuned for chat replies; a prompt needs
+          // structure and a little more room.
+          temperature: PROMPT_BUILDER_MODEL.temperature,
+          max_tokens: PROMPT_BUILDER_MODEL.max_tokens,
+        }
+      : PROMPT_BUILDER_MODEL
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, prompt: result.prompt, message: "Instructions written." };
+}
+
+/**
+ * Pulls the readable text off a page so it can be stored as knowledge.
+ *
+ * The assistant answers from what is stored here — it never browses — so the
+ * text is fetched once, now, and kept.
+ */
+export async function importKnowledgeFromUrl(
+  url: string
+): Promise<ActionResult & { title?: string; content?: string }> {
+  await requireOrg();
+
+  let target: URL;
+  try {
+    target = new URL(url.trim());
+  } catch {
+    return { ok: false, error: "That is not a valid URL." };
+  }
+  if (target.protocol !== "https:" && target.protocol !== "http:") {
+    return { ok: false, error: "The link must start with http:// or https://" };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(target, {
+      headers: { accept: "text/html,text/plain" },
+      signal: AbortSignal.timeout(15_000),
+      redirect: "follow",
+    });
+  } catch {
+    return { ok: false, error: "Could not reach that page. Check the link and try again." };
+  }
+
+  if (!response.ok) {
+    return { ok: false, error: `That page returned ${response.status}. Check the link.` };
+  }
+
+  const html = (await response.text()).slice(0, 500_000);
+
+  // script and style first, or their contents land in the knowledge base as
+  // a wall of minified JavaScript.
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 40_000);
+
+  if (text.length < 40) {
+    return {
+      ok: false,
+      error: "There was no readable text on that page — it may render entirely in JavaScript. Copy the text in by hand instead.",
+    };
+  }
+
+  const titleMatch = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
+  const title = (titleMatch?.[1] ?? target.hostname).trim().slice(0, 120);
+
+  return { ok: true, title, content: text };
+}
+
+/**
+ * The whole Settings tab: who the assistant is, its prompt, and the provider
+ * and key it runs on. One action because they are one decision — saving the
+ * model apart from the key leaves an assistant pointing at something it
+ * cannot authenticate against.
+ */
 export async function saveAssistantSettings(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
   const id = String(formData.get("id") ?? "");
 
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { ok: false, error: "Assistant name is required." };
-
-  const handoffKeywords = String(formData.get("handoff_keywords") ?? "")
-    .split(",")
-    .map((word) => word.trim().toLowerCase())
-    .filter(Boolean);
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("ai_assistants")
-    .update({
-      name,
-      role: String(formData.get("role") ?? "").trim() || "Support agent",
-      system_prompt: String(formData.get("system_prompt") ?? "").trim(),
-      prompt_preset: String(formData.get("prompt_preset") ?? "custom"),
-      handoff_keywords: handoffKeywords,
-      is_active: String(formData.get("is_active") ?? "") === "true",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("org_id", orgId);
-
-  if (error) return { ok: false, error: error.message };
-  revalidatePath(`/ai-assistant/${id}`);
-  revalidatePath("/ai-assistant");
-  return { ok: true, message: "Settings saved." };
-}
-
-/** Provider, model, key and generation limits — the AI Configuration card. */
-export async function saveAssistantAiConfig(formData: FormData): Promise<ActionResult> {
-  const { orgId } = await requireOrg();
-  const id = String(formData.get("id") ?? "");
 
   const providerId = String(formData.get("provider") ?? "anthropic");
   if (!isProviderId(providerId)) return { ok: false, error: "Unknown provider." };
@@ -143,7 +229,18 @@ export async function saveAssistantAiConfig(formData: FormData): Promise<ActionR
     return { ok: false, error: "The base URL must start with https:// (or http://localhost)." };
   }
 
+  const handoffKeywords = String(formData.get("handoff_keywords") ?? "")
+    .split(",")
+    .map((word) => word.trim().toLowerCase())
+    .filter(Boolean);
+
   const update: Partial<AiAssistant> = {
+    name,
+    role: String(formData.get("role") ?? "").trim() || "Support agent",
+    system_prompt: String(formData.get("system_prompt") ?? "").trim(),
+    prompt_preset: String(formData.get("prompt_preset") ?? "custom"),
+    handoff_keywords: handoffKeywords,
+    is_active: String(formData.get("is_active") ?? "") === "true",
     provider: providerId,
     model,
     api_base_url: provider.needsBaseUrl ? baseUrl : null,
@@ -154,7 +251,7 @@ export async function saveAssistantAiConfig(formData: FormData): Promise<ActionR
 
   // Three cases: clear it, replace it, or leave the stored one alone. An
   // empty box means "no change" — otherwise every unrelated save on this
-  // card would wipe a key the tenant pasted once and cannot read back.
+  // tab would wipe a key the tenant pasted once and cannot read back.
   if (String(formData.get("remove_api_key") ?? "") === "true") {
     update.api_key_encrypted = null;
   } else {
@@ -177,7 +274,8 @@ export async function saveAssistantAiConfig(formData: FormData): Promise<ActionR
 
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/ai-assistant/${id}`);
-  return { ok: true, message: "AI configuration saved." };
+  revalidatePath("/ai-assistant");
+  return { ok: true, message: "Assistant saved." };
 }
 
 /** The Agent Rules tab: memory, working hours and follow-up. */

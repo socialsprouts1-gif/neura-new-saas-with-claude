@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, Clock, Repeat } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { saveAssistantRules } from "@/app/(dashboard)/portal-actions";
 import { DAY_LABELS, TIMEZONES } from "@/lib/working-hours";
 import type { AiAssistant } from "@/types/portal";
@@ -22,6 +22,9 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
 
   const [hoursOn, setHoursOn] = useState(assistant.working_hours_enabled);
   const [days, setDays] = useState<number[]>(assistant.working_days ?? []);
+  const [timezone, setTimezone] = useState(assistant.working_hours_timezone);
+  const [start, setStart] = useState(assistant.working_hours_start);
+  const [end, setEnd] = useState(assistant.working_hours_end);
 
   const [followupOn, setFollowupOn] = useState(assistant.followup_enabled);
   const [maxFollowups, setMaxFollowups] = useState(assistant.max_followups);
@@ -31,33 +34,56 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
       current.includes(day) ? current.filter((value) => value !== day) : [...current, day].sort()
     );
 
+  // What most businesses want, in one click. Only touches the controlled
+  // fields — the uncontrolled ones keep whatever is typed in them.
+  const applyDefaults = () => {
+    setMemoryTurns(10);
+    setUseKnowledge(true);
+    setStopOnHuman(true);
+    setDays([1, 2, 3, 4, 5]);
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+    setStart("09:00");
+    setEnd("18:00");
+  };
+
   return (
     // One form across all three cards: the rules read as a single policy,
     // and saving a working-hours change without the message that goes with
     // it would leave the assistant silent at 6pm.
-    <SaveForm action={saveAssistantRules} label="Save agent rules">
+    <SaveForm action={saveAssistantRules} label="Save Assistant">
       <input type="hidden" name="id" value={assistant.id} />
       {days.map((day) => (
         <input key={day} type="hidden" name="working_days" value={day} />
       ))}
 
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={applyDefaults}
+          className="inline-flex items-center gap-1.5 text-xs text-white/55 hover:text-white px-3 py-2 rounded-lg border border-white/12 hover:border-white/25 transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Apply defaults
+        </button>
+      </div>
+
       <div className="space-y-5">
         <SectionCard
           title="Memory & Knowledge"
           description="How much of the conversation the assistant carries, and what it may draw on."
-          icon={<Brain className="w-4.5 h-4.5" />}
         >
-          <SliderRow
-            name="memory_turns"
-            label="Messages remembered"
-            value={memoryTurns}
-            onChange={setMemoryTurns}
-            min={1}
-            max={50}
-            step={1}
-            format={(value) => `${value} messages`}
-            scale={["answers each message alone", "follows a long thread"]}
-          />
+          <div className="max-w-xs">
+            <TextInput
+              label="Conversation memory (turns)"
+              name="memory_turns"
+              type="number"
+              min={1}
+              max={100}
+              value={memoryTurns}
+              onChange={(event) => setMemoryTurns(Number(event.target.value))}
+              hint="Number of back-and-forth messages the AI remembers"
+            />
+          </div>
           <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
             Every remembered message is sent again with each reply, so a deeper memory costs more
             per answer. Twenty is enough for almost every support conversation.
@@ -68,30 +94,29 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
               name="use_knowledge_base"
               checked={useKnowledge}
               onChange={setUseKnowledge}
-              label="Use knowledge base"
+              label="Smart knowledge search"
               description="Send the entries from the Knowledge Base tab with every reply, as the assistant's only source of fact about your business."
             />
             <Toggle
               name="stop_on_human"
               checked={stopOnHuman}
               onChange={setStopOnHuman}
-              label="Stand down when a human replies"
-              description="As soon as someone on your team sends a message from the inbox, the bot pauses on that chat until you resume it."
+              label="Stop when human replies"
+              description="The agent stops when your team sends a message from the inbox, until you resume the bot on that chat."
             />
           </div>
         </SectionCard>
 
         <SectionCard
           title="Working Hours"
-          description="When the assistant is on duty. Outside these hours it sends your off-hours message, or nothing at all."
-          icon={<Clock className="w-4.5 h-4.5" />}
+          description="Auto-reply with an after-hours message outside business hours."
         >
           <div className="border-b border-white/8 pb-1 mb-4">
             <Toggle
               name="working_hours_enabled"
               checked={hoursOn}
               onChange={setHoursOn}
-              label="Only reply during working hours"
+              label="Enable working hours"
               description="Off means the assistant answers around the clock."
             />
           </div>
@@ -101,29 +126,34 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
               <Select
                 label="Timezone"
                 name="working_hours_timezone"
-                defaultValue={assistant.working_hours_timezone}
+                value={timezone}
+                onChange={(event) => setTimezone(event.target.value)}
                 options={TIMEZONES.map((zone) => ({
                   value: zone,
                   label: zone.replace(/_/g, " "),
                 }))}
               />
               <TextInput
-                label="Opens"
+                label="Start time"
                 name="working_hours_start"
                 type="time"
-                defaultValue={assistant.working_hours_start}
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
               />
               <TextInput
-                label="Closes"
+                label="End time"
                 name="working_hours_end"
                 type="time"
-                defaultValue={assistant.working_hours_end}
-                hint="A closing time before the opening one runs overnight."
+                value={end}
+                onChange={(event) => setEnd(event.target.value)}
+                hint="An end time before the start one runs overnight."
               />
             </div>
 
             <div className="mt-4">
-              <span className="block text-xs font-medium text-white/70 mb-2">Working days</span>
+              <span className="block text-xs font-medium text-white/70 mb-2">
+                Weekdays (0 = Sun … 6 = Sat)
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {DAY_LABELS.map((label, day) => (
                   <button
@@ -145,11 +175,11 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
 
             <div className="mt-4">
               <TextArea
-                label="Off-hours message"
+                label="After-hours message"
                 name="off_hours_message"
                 rows={3}
                 defaultValue={assistant.off_hours_message}
-                placeholder="Thanks for messaging! We're closed right now — someone will reply when we open at 9am."
+                placeholder="Thank you for contacting us. Kindly drop your query, and we will contact you soon."
                 hint="Leave this empty and the assistant simply stays quiet outside working hours, and the chat waits for a human."
               />
             </div>
@@ -159,7 +189,6 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
         <SectionCard
           title="Follow-up"
           description="Nudge a conversation that went quiet before the 24-hour reply window closes."
-          icon={<Repeat className="w-4.5 h-4.5" />}
         >
           <div className="border-b border-white/8 pb-1 mb-4">
             <Toggle
