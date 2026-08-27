@@ -67,6 +67,12 @@ export interface FlowOutcome {
   handedOff: boolean;
   /** Set when a Delay parked the run for longer than we run inline. */
   resumeAt: string | null;
+  /**
+   * Where the scheduler should pick the flow back up. Distinct from
+   * parkedAt, which means "waiting for the customer" — this one means
+   * "waiting for the clock", and the two resume differently.
+   */
+  resumeNodeId: string | null;
 }
 
 /**
@@ -141,6 +147,7 @@ export async function runFlow(
     executed: [],
     lastReply: null,
     parkedAt: null,
+    resumeNodeId: null,
     error: null,
     handedOff: false,
     resumeAt: null,
@@ -162,7 +169,12 @@ export async function runFlow(
       variables = step.variables;
       if (step.reply) outcome.lastReply = step.reply;
       if (step.handedOff) outcome.handedOff = true;
-      if (step.resumeAt) outcome.resumeAt = step.resumeAt;
+      if (step.resumeAt) {
+        outcome.resumeAt = step.resumeAt;
+        // The node after the delay is where time resumes the flow. Recorded
+        // now because once the loop breaks the graph position is lost.
+        outcome.resumeNodeId = nextNode(graph, node.id, null)?.id ?? null;
+      }
 
       if (step.stop) {
         current = null;

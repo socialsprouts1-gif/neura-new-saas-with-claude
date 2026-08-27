@@ -60,6 +60,18 @@ export default function NewMessageAlert({
       return;
     }
 
+    // Realtime applies RLS using the token the socket authenticated with.
+    // The browser client picks that up from the auth listener, which can
+    // land after this effect — and an unauthenticated socket is silently
+    // delivered nothing rather than refused, which looks exactly like the
+    // publication being missing. Set it explicitly first.
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      const token = data.session?.access_token;
+      if (token) supabase.realtime.setAuth(token);
+    });
+
     const channel = supabase
       .channel(`inbox:${orgId}`)
       .on(
@@ -87,9 +99,21 @@ export default function NewMessageAlert({
           router.refresh();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Worth one line in the console: a channel that never reaches
+        // SUBSCRIBED is the difference between "no messages" and "not
+        // listening", and nothing on screen distinguishes them.
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            `Inbox realtime did not connect (${status}). New messages will not ` +
+              "chime until the page is reloaded. If this persists, check that " +
+              "the messages table is in the supabase_realtime publication."
+          );
+        }
+      });
 
     return () => {
+      cancelled = true;
       void supabase.removeChannel(channel);
     };
   }, [orgId, router]);

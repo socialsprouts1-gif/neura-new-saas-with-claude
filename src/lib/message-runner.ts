@@ -377,9 +377,12 @@ async function applyFlowState(
   const { error } = await supabase
     .from("conversations")
     .update({
-      bot_flow_id: outcome.parkedAt ? flowId : null,
+      // Either kind of pause keeps the flow id: one waits for the customer,
+      // the other waits for the clock, and both need to find their way back.
+      bot_flow_id: outcome.parkedAt || outcome.resumeNodeId ? flowId : null,
       bot_node_id: outcome.parkedAt,
       bot_resume_at: outcome.resumeAt,
+      bot_resume_node_id: outcome.resumeNodeId,
     })
     .eq("id", conversationId);
 

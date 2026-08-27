@@ -164,6 +164,7 @@ export interface Database {
           last_inbound_at: string | null;
           bot_variables: Record<string, string>;
           bot_resume_at: string | null;
+          bot_resume_node_id: string | null;
           assigned_to: string | null;
           last_read_at: string | null;
           ai_mode: "ai" | "copilot" | "human";
@@ -191,6 +192,7 @@ export interface Database {
           last_inbound_at?: string | null;
           bot_variables?: Record<string, string>;
           bot_resume_at?: string | null;
+          bot_resume_node_id?: string | null;
           assigned_to?: string | null;
           last_read_at?: string | null;
           ai_mode?: "ai" | "copilot" | "human";

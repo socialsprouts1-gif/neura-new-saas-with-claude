@@ -340,9 +340,9 @@ export const NODE_DEFS: NodeDef[] = [
     label: "Delay",
     group: "Logic",
     description: "Waits before continuing.",
-    runtime: "needs_scheduler",
+    runtime: "ready",
     runtimeNote:
-      "Delays up to 10 seconds run inline. Anything longer parks the conversation until a scheduler resumes it, and that scheduler is not built yet — the flow will stop there.",
+      "Up to 10 seconds runs inline. Anything longer parks the conversation and a scheduled job resumes it, so the wait is accurate to about a minute rather than to the second.",
     fields: [
       { name: "value", label: "Wait for", kind: "number" },
       {
