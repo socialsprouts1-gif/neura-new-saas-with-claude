@@ -45,11 +45,17 @@ one needs a redeploy, not just a restart.
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | The secret (or legacy service_role) key. Bypasses RLS — server only, never `NEXT_PUBLIC_` |
 | `META_APP_SECRET` | yes | Meta App → Basic Settings. Verifies `X-Hub-Signature-256` |
 | `TOKEN_ENCRYPTION_KEY` | yes | `openssl rand -base64 32`. Encrypts stored WABA tokens |
-| `ANTHROPIC_API_KEY` | only for the AI Assistant | console.anthropic.com |
+| `ANTHROPIC_API_KEY` | fallback for Anthropic assistants | console.anthropic.com |
+| `OPENAI_API_KEY` | fallback for OpenAI assistants | platform.openai.com |
+| `GOOGLE_API_KEY` | fallback for Gemini assistants | aistudio.google.com |
 
 `META_ACCESS_TOKEN` appears in `.env.local.example` but is not read by any
 code path — sending uses the per-org token from `waba_connections`.
-Everything except the AI Assistant works without `ANTHROPIC_API_KEY`.
+The three provider keys are fallbacks only: each AI assistant can hold its
+own key, pasted on its **AI Configuration** tab and encrypted at rest with
+`TOKEN_ENCRYPTION_KEY`. An assistant reaches for the environment key only
+when it has none of its own, so a tenant on their own OpenAI account needs
+nothing set here. Everything except the AI Assistant works without all three.
 
 ### 3. Connect a WhatsApp number
 

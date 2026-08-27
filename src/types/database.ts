@@ -20,6 +20,7 @@ import type {
 } from "./admin";
 import type {
   AiAssistant,
+  AssistantKnowledge,
   ApiKey,
   BotRun,
   CannedMessage,
@@ -447,6 +448,20 @@ export interface Database {
         Insert: Partial<AiAssistant> & { org_id: string; name: string };
         Update: Partial<AiAssistant>;
         Relationships: [];
+      };
+      assistant_knowledge: {
+        Row: AssistantKnowledge;
+        Insert: Partial<AssistantKnowledge> & { org_id: string; title: string };
+        Update: Partial<AssistantKnowledge>;
+        Relationships: [
+          {
+            foreignKeyName: "assistant_knowledge_assistant_id_fkey";
+            columns: ["assistant_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_assistants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       chatbot_flows: {
         Row: ChatbotFlow;

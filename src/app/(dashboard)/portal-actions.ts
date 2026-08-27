@@ -6,6 +6,19 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { NODE_DEFS, type FlowEdge, type FlowNode } from "@/types/flow";
 import { encryptToken } from "@/lib/crypto";
+import { checkAccessToken } from "@/lib/access-token";
+import {
+  defaultModelFor,
+  isProviderId,
+  presetById,
+  providerById,
+} from "@/lib/ai-providers";
+import { parseClock } from "@/lib/working-hours";
+import {
+  KNOWLEDGE_SOURCE_TYPES,
+  type AiAssistant,
+  type KnowledgeSourceType,
+} from "@/types/portal";
 import { integrationBySlug } from "@/lib/integrations";
 import type { ActionResult } from "./actions";
 
@@ -20,33 +33,240 @@ async function requireManager() {
 
 // ---------------------------------------------------------------- AI assistants
 
-export async function saveAiAssistant(formData: FormData): Promise<ActionResult> {
+/**
+ * Creates the row and hands back its id, so the caller can send the user
+ * straight into the editor. Everything else about an assistant is edited
+ * there rather than guessed at creation time.
+ */
+export async function createAiAssistant(
+  formData: FormData
+): Promise<ActionResult & { id?: string }> {
   const { orgId } = await requireOrg();
 
   const name = String(formData.get("name") ?? "").trim();
-  const role = String(formData.get("role") ?? "").trim() || "Support agent";
-  const model = String(formData.get("model") ?? "claude-sonnet-5");
-  const systemPrompt = String(formData.get("system_prompt") ?? "").trim();
-  const temperature = Number(formData.get("temperature") ?? 0.7);
-
   if (!name) return { ok: false, error: "Assistant name is required." };
-  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
-    return { ok: false, error: "Temperature must be between 0 and 2." };
-  }
+
+  const presetId = String(formData.get("prompt_preset") ?? "support");
+  const preset = presetById(presetId);
+  const providerId = String(formData.get("provider") ?? "anthropic");
+  const provider = isProviderId(providerId) ? providerId : "anthropic";
 
   const supabase = await createClient();
-  const { error } = await supabase.from("ai_assistants").insert({
-    org_id: orgId,
-    name,
-    role,
-    model,
-    system_prompt: systemPrompt,
-    temperature,
-  });
+  const { data, error } = await supabase
+    .from("ai_assistants")
+    .insert({
+      org_id: orgId,
+      name,
+      role: preset?.role ?? "Support agent",
+      provider,
+      model: defaultModelFor(provider),
+      system_prompt: preset?.prompt ?? "",
+      prompt_preset: preset?.id ?? "custom",
+      // New assistants start switched off. An assistant that begins
+      // answering customers the moment it is named, before anyone has read
+      // its prompt, is a support incident waiting to happen.
+      is_active: false,
+    })
+    .select("id")
+    .single();
 
   if (error) return { ok: false, error: error.message };
   revalidatePath("/ai-assistant");
-  return { ok: true, message: "Assistant created." };
+  return { ok: true, message: "Assistant created.", id: data.id };
+}
+
+/** Basic Information + Prompt Configuration, the Settings tab. */
+export async function saveAssistantSettings(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "");
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, error: "Assistant name is required." };
+
+  const handoffKeywords = String(formData.get("handoff_keywords") ?? "")
+    .split(",")
+    .map((word) => word.trim().toLowerCase())
+    .filter(Boolean);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ai_assistants")
+    .update({
+      name,
+      role: String(formData.get("role") ?? "").trim() || "Support agent",
+      system_prompt: String(formData.get("system_prompt") ?? "").trim(),
+      prompt_preset: String(formData.get("prompt_preset") ?? "custom"),
+      handoff_keywords: handoffKeywords,
+      is_active: String(formData.get("is_active") ?? "") === "true",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/ai-assistant/${id}`);
+  revalidatePath("/ai-assistant");
+  return { ok: true, message: "Settings saved." };
+}
+
+/** Provider, model, key and generation limits — the AI Configuration card. */
+export async function saveAssistantAiConfig(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "");
+
+  const providerId = String(formData.get("provider") ?? "anthropic");
+  if (!isProviderId(providerId)) return { ok: false, error: "Unknown provider." };
+  const provider = providerById(providerId)!;
+
+  const model = String(formData.get("model") ?? "").trim() || defaultModelFor(providerId);
+  if (!model) return { ok: false, error: "Pick a model, or type one for your endpoint." };
+
+  const temperature = Number(formData.get("temperature") ?? 0.7);
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
+    return { ok: false, error: "Creativity must be between 0 and 2." };
+  }
+
+  const maxTokens = Number(formData.get("max_tokens") ?? 1024);
+  if (!Number.isFinite(maxTokens) || maxTokens < 64 || maxTokens > 8192) {
+    return { ok: false, error: "Reply length must be between 64 and 8192 tokens." };
+  }
+
+  const baseUrl = String(formData.get("api_base_url") ?? "").trim();
+  if (provider.needsBaseUrl && !baseUrl) {
+    return {
+      ok: false,
+      error: "A custom endpoint needs a base URL, e.g. https://openrouter.ai/api/v1",
+    };
+  }
+  if (baseUrl && !/^https:\/\/|^http:\/\/localhost/.test(baseUrl)) {
+    return { ok: false, error: "The base URL must start with https:// (or http://localhost)." };
+  }
+
+  const update: Partial<AiAssistant> = {
+    provider: providerId,
+    model,
+    api_base_url: provider.needsBaseUrl ? baseUrl : null,
+    temperature,
+    max_tokens: Math.round(maxTokens),
+    updated_at: new Date().toISOString(),
+  };
+
+  // Three cases: clear it, replace it, or leave the stored one alone. An
+  // empty box means "no change" — otherwise every unrelated save on this
+  // card would wipe a key the tenant pasted once and cannot read back.
+  if (String(formData.get("remove_api_key") ?? "") === "true") {
+    update.api_key_encrypted = null;
+  } else {
+    const pasted = String(formData.get("api_key") ?? "");
+    if (pasted.trim()) {
+      const check = checkAccessToken(pasted);
+      if (!check.ok || !check.token) {
+        return { ok: false, error: check.error ?? "That API key cannot be used." };
+      }
+      update.api_key_encrypted = encryptToken(check.token);
+    }
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ai_assistants")
+    .update(update)
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/ai-assistant/${id}`);
+  return { ok: true, message: "AI configuration saved." };
+}
+
+/** The Agent Rules tab: memory, working hours and follow-up. */
+export async function saveAssistantRules(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "");
+
+  const memoryTurns = Number(formData.get("memory_turns") ?? 20);
+  if (!Number.isFinite(memoryTurns) || memoryTurns < 0 || memoryTurns > 100) {
+    return { ok: false, error: "Memory must be between 0 and 100 messages." };
+  }
+
+  const start = String(formData.get("working_hours_start") ?? "09:00");
+  const end = String(formData.get("working_hours_end") ?? "18:00");
+  const enabled = String(formData.get("working_hours_enabled") ?? "") === "true";
+  if (enabled) {
+    if (parseClock(start) === null || parseClock(end) === null) {
+      return { ok: false, error: "Working hours must be times like 09:00 and 18:00." };
+    }
+    if (start === end) {
+      return { ok: false, error: "The opening and closing time cannot be the same." };
+    }
+  }
+
+  const workingDays = formData
+    .getAll("working_days")
+    .map((day) => Number(day))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+  if (enabled && workingDays.length === 0) {
+    return { ok: false, error: "Pick at least one working day, or turn working hours off." };
+  }
+
+  const delay = Number(formData.get("followup_delay_minutes") ?? 60);
+  const maxFollowups = Number(formData.get("max_followups") ?? 1);
+  const followupEnabled = String(formData.get("followup_enabled") ?? "") === "true";
+  if (followupEnabled) {
+    if (!Number.isFinite(delay) || delay < 1 || delay > 10080) {
+      return { ok: false, error: "The follow-up delay must be between 1 minute and 7 days." };
+    }
+    if (!Number.isFinite(maxFollowups) || maxFollowups < 0 || maxFollowups > 10) {
+      return { ok: false, error: "Send between 0 and 10 follow-ups." };
+    }
+    if (!String(formData.get("followup_message") ?? "").trim()) {
+      return { ok: false, error: "Write the follow-up message, or turn follow-ups off." };
+    }
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ai_assistants")
+    .update({
+      memory_turns: Math.round(memoryTurns),
+      use_knowledge_base: String(formData.get("use_knowledge_base") ?? "") === "true",
+      stop_on_human: String(formData.get("stop_on_human") ?? "") === "true",
+      working_hours_enabled: enabled,
+      working_hours_timezone: String(formData.get("working_hours_timezone") ?? "UTC"),
+      working_hours_start: start,
+      working_hours_end: end,
+      working_days: workingDays,
+      off_hours_message: String(formData.get("off_hours_message") ?? "").trim(),
+      followup_enabled: followupEnabled,
+      followup_delay_minutes: Math.round(delay),
+      followup_message: String(formData.get("followup_message") ?? "").trim(),
+      max_followups: Math.round(maxFollowups),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/ai-assistant/${id}`);
+  return { ok: true, message: "Agent rules saved." };
+}
+
+export async function toggleAiAssistant(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "");
+  const isActive = String(formData.get("is_active") ?? "") === "true";
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ai_assistants")
+    .update({ is_active: !isActive, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/ai-assistant");
+  revalidatePath(`/ai-assistant/${id}`);
+  return { ok: true, message: isActive ? "Assistant paused." : "Assistant is live." };
 }
 
 export async function deleteAiAssistant(formData: FormData): Promise<ActionResult> {
@@ -61,6 +281,93 @@ export async function deleteAiAssistant(formData: FormData): Promise<ActionResul
   if (error) return { ok: false, error: error.message };
   revalidatePath("/ai-assistant");
   return { ok: true, message: "Assistant deleted." };
+}
+
+// ------------------------------------------------------- Knowledge base
+
+export async function saveKnowledgeEntry(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const assistantId = String(formData.get("assistant_id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const content = String(formData.get("content") ?? "").trim();
+  const sourceUrl = String(formData.get("source_url") ?? "").trim();
+  const sourceType = String(formData.get("source_type") ?? "text");
+
+  if (!title) return { ok: false, error: "Give this entry a title." };
+  if (!KNOWLEDGE_SOURCE_TYPES.includes(sourceType as KnowledgeSourceType)) {
+    return { ok: false, error: "Unknown knowledge source type." };
+  }
+  if (!content) {
+    return {
+      ok: false,
+      error:
+        sourceType === "url"
+          ? "Paste the text from that page. The assistant reads what is stored here, it does not browse."
+          : "This entry has no content for the assistant to read.",
+    };
+  }
+  if (sourceUrl && !/^https?:\/\//.test(sourceUrl)) {
+    return { ok: false, error: "The source link must start with http:// or https://" };
+  }
+
+  const supabase = await createClient();
+  const existingId = String(formData.get("id") ?? "").trim();
+
+  const row = {
+    title,
+    content,
+    source_type: sourceType as KnowledgeSourceType,
+    source_url: sourceUrl || null,
+    // Scoped to one assistant when opened from its editor, org-wide when
+    // added from the shared list.
+    assistant_id: assistantId || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = existingId
+    ? await supabase
+        .from("assistant_knowledge")
+        .update(row)
+        .eq("id", existingId)
+        .eq("org_id", orgId)
+    : await supabase.from("assistant_knowledge").insert({ org_id: orgId, ...row });
+
+  if (error) return { ok: false, error: error.message };
+  if (assistantId) revalidatePath(`/ai-assistant/${assistantId}`);
+  revalidatePath("/ai-assistant");
+  return { ok: true, message: existingId ? "Entry updated." : "Added to the knowledge base." };
+}
+
+export async function toggleKnowledgeEntry(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const isActive = String(formData.get("is_active") ?? "") === "true";
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("assistant_knowledge")
+    .update({ is_active: !isActive, updated_at: new Date().toISOString() })
+    .eq("id", String(formData.get("id") ?? ""))
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/ai-assistant/${String(formData.get("assistant_id") ?? "")}`);
+  return { ok: true };
+}
+
+export async function deleteKnowledgeEntry(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("assistant_knowledge")
+    .delete()
+    .eq("id", String(formData.get("id") ?? ""))
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/ai-assistant/${String(formData.get("assistant_id") ?? "")}`);
+  return { ok: true, message: "Entry removed." };
 }
 
 // ---------------------------------------------------------------- Chatbot

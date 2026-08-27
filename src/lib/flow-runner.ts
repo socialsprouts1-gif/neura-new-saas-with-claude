@@ -426,6 +426,16 @@ async function executeNode(
 
       if (!assistant) throw new Error("No active AI assistant to hand this node to.");
 
+      // Org-wide knowledge plus this assistant's own, matching what the
+      // inbound-message path feeds it.
+      const { data: knowledge } = await context.supabase
+        .from("assistant_knowledge")
+        .select("*")
+        .eq("org_id", context.orgId)
+        .eq("is_active", true)
+        .or(`assistant_id.is.null,assistant_id.eq.${assistant.id}`)
+        .order("created_at");
+
       const extra = text("instructions").trim();
       const generated = await generateAssistantReply({
         assistant: extra
@@ -434,9 +444,16 @@ async function executeNode(
         orgName: context.orgName,
         contactName: context.contactName,
         history: [{ role: "user", text: context.inboundText || "(no text)" }],
+        knowledge: knowledge ?? [],
       });
 
-      if (!generated.ok) throw new Error(generated.error);
+      if (generated.status !== "replied") {
+        // Inside a flow there is no "quietly do nothing" — the node has to
+        // either send or stop the run with a reason a human can read.
+        throw new Error(
+          generated.status === "skipped" ? generated.reason : generated.error
+        );
+      }
 
       const result = await sendTextMessage(
         connection.phoneNumberId,

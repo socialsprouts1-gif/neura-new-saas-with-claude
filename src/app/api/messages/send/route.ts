@@ -137,9 +137,25 @@ export async function POST(request: NextRequest) {
       console.error("Message sent to Meta but failed to log it", messageError);
     }
 
+    // A human just took this conversation. If any live assistant is set to
+    // stand down for that, pause the bot here so the two of them don't both
+    // answer the customer's next message.
+    const { data: standDown } = await supabase
+      .from("ai_assistants")
+      .select("id")
+      .eq("org_id", body.orgId)
+      .eq("is_active", true)
+      .eq("stop_on_human", true)
+      .limit(1);
+
     await supabase
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString() })
+      .update({
+        last_message_at: new Date().toISOString(),
+        ...(standDown && standDown.length > 0
+          ? { bot_enabled: false, bot_flow_id: null, bot_node_id: null, status: "pending" }
+          : {}),
+      })
       .eq("id", conversation.id);
 
     return NextResponse.json({ message });

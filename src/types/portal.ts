@@ -11,10 +11,57 @@ export type AiAssistant = {
   org_id: string;
   name: string;
   role: string;
+  /** ProviderId from @/lib/ai-providers. Widened to string because the DB
+   *  column is text and a row written by an older build can hold anything. */
+  provider: string;
   model: string;
+  /** AES-256-GCM envelope. Never leaves the server; the editor sees a mask. */
+  api_key_encrypted: string | null;
+  api_base_url: string | null;
   system_prompt: string;
+  prompt_preset: string;
   temperature: number;
+  max_tokens: number;
   handoff_keywords: string[];
+  is_active: boolean;
+
+  // Agent rules — memory & knowledge
+  memory_turns: number;
+  use_knowledge_base: boolean;
+  stop_on_human: boolean;
+
+  // Agent rules — working hours. Times are 'HH:MM'; working_days uses
+  // JavaScript's getDay() numbering, 0 = Sunday.
+  working_hours_enabled: boolean;
+  working_hours_timezone: string;
+  working_hours_start: string;
+  working_hours_end: string;
+  working_days: number[];
+  off_hours_message: string;
+
+  // Agent rules — follow-up
+  followup_enabled: boolean;
+  followup_delay_minutes: number;
+  followup_message: string;
+  max_followups: number;
+
+  created_at: string;
+  updated_at: string;
+};
+
+export const KNOWLEDGE_SOURCE_TYPES = ["text", "faq", "url", "file"] as const;
+export type KnowledgeSourceType = (typeof KNOWLEDGE_SOURCE_TYPES)[number];
+
+/** One thing the assistant is allowed to know. A null assistant_id means the
+ *  entry is shared by every assistant in the org. */
+export type AssistantKnowledge = {
+  id: string;
+  org_id: string;
+  assistant_id: string | null;
+  title: string;
+  content: string;
+  source_type: KnowledgeSourceType;
+  source_url: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -168,12 +215,6 @@ export type Product = {
 
 // Models offered when creating an AI assistant. Kept here so the option list
 // and the stored value can never drift apart.
-export const ASSISTANT_MODELS = [
-  { value: "claude-opus-5", label: "Claude Opus 5 — most capable" },
-  { value: "claude-sonnet-5", label: "Claude Sonnet 5 — balanced" },
-  { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 — fastest" },
-] as const;
-
 // --- message runner -------------------------------------------------------
 
 export type BotMatchKind =

@@ -1,5 +1,5 @@
 import "server-only";
-import type { AiAssistant, ChatbotFlow, FaqEntry } from "@/types/portal";
+import type { AiAssistant, AssistantKnowledge, ChatbotFlow, FaqEntry } from "@/types/portal";
 import { generateAssistantReply, type AssistantTurn } from "@/lib/ai-assistant";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
 import {
@@ -169,15 +169,23 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
         orgName: resources.orgName,
         contactName: event.contactName,
         history: await loadHistory(supabase, event.conversationId),
+        // Org-wide entries plus this assistant's own. generateAssistantReply
+        // drops the lot when use_knowledge_base is off.
+        knowledge: resources.knowledge.filter(
+          (entry) => entry.assistant_id === null || entry.assistant_id === assistant.id
+        ),
       });
 
-      if (!generated.ok) {
+      if (generated.status !== "replied") {
+        // "skipped" is a rule doing its job — off duty, nothing to answer.
+        // Logging it as failed would put a red row in front of the tenant
+        // for behaviour they configured on purpose.
         await finish({
           matched_kind: "assistant",
           matched_id: assistant.id,
           matched_label: assistant.name,
-          outcome: "failed",
-          error: generated.error,
+          outcome: generated.status === "skipped" ? "skipped" : "failed",
+          error: generated.status === "skipped" ? generated.reason : generated.error,
         });
         return;
       }
@@ -405,9 +413,16 @@ async function loadResources(
   supabase: RunnerClient,
   event: InboundEvent,
   conversation: ConversationState
-): Promise<RunnerResources & { orgName: string }> {
-  const [flowsResult, faqsResult, automationsResult, assistantsResult, orgResult, inboundCount] =
-    await Promise.all([
+): Promise<RunnerResources & { orgName: string; knowledge: AssistantKnowledge[] }> {
+  const [
+    flowsResult,
+    faqsResult,
+    automationsResult,
+    assistantsResult,
+    knowledgeResult,
+    orgResult,
+    inboundCount,
+  ] = await Promise.all([
       supabase.from("chatbot_flows").select("*").eq("org_id", event.orgId).eq("is_active", true),
       supabase.from("faq_entries").select("*").eq("org_id", event.orgId).eq("is_active", true),
       supabase
@@ -417,6 +432,12 @@ async function loadResources(
         .eq("is_active", true),
       supabase
         .from("ai_assistants")
+        .select("*")
+        .eq("org_id", event.orgId)
+        .eq("is_active", true)
+        .order("created_at"),
+      supabase
+        .from("assistant_knowledge")
         .select("*")
         .eq("org_id", event.orgId)
         .eq("is_active", true)
@@ -436,6 +457,7 @@ async function loadResources(
     faqs: (faqsResult.data ?? []) as FaqEntry[],
     automations: (automationsResult.data ?? []) as AutomationFlow[],
     assistants: (assistantsResult.data ?? []) as AiAssistant[],
+    knowledge: (knowledgeResult.data ?? []) as AssistantKnowledge[],
     // The message that triggered this run is already stored, so a first
     // message means exactly one inbound row exists.
     isFirstMessage: (inboundCount.count ?? 0) <= 1,
