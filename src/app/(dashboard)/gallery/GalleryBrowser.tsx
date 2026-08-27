@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   Link2,
   Music,
+  AlertTriangle,
   Search,
   Trash2,
   Upload,
@@ -96,10 +97,14 @@ export default function GalleryBrowser({
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const [uploading, setUploading] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
+  // A success can fade; a failure must not. An error that disappears after
+  // three seconds is indistinguishable from nothing happening at all, which
+  // is exactly how a failed upload looked.
   const say = useCallback((ok: boolean, text: string) => {
     setToast({ ok, text });
-    setTimeout(() => setToast(null), 3000);
+    if (ok) setTimeout(() => setToast((current) => (current?.ok ? null : current)), 3000);
   }, []);
 
   const visible = useMemo(() => {
@@ -116,6 +121,24 @@ export default function GalleryBrowser({
     for (const asset of assets) map[asset.media_type] = (map[asset.media_type] ?? 0) + 1;
     return map;
   }, [assets]);
+
+  // Check the bucket on load rather than letting the first upload be the
+  // thing that discovers it is missing.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { error } = await createClient().storage.from("media").list("", { limit: 1 });
+      if (cancelled || !error) return;
+      setStorageError(
+        /bucket|not found/i.test(error.message)
+          ? "Storage isn't set up yet: this project has no \u201cmedia\u201d bucket. Run supabase/setup.sql in the Supabase SQL editor, then reload."
+          : `Storage rejected a read: ${error.message}. If this mentions row-level security, run supabase/setup.sql again \u2014 uploads need a select policy on storage.objects.`
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const upload = useCallback(
     async (files: FileList | File[]) => {
@@ -153,12 +176,13 @@ export default function GalleryBrowser({
           .upload(path, file, { contentType: file.type || undefined, upsert: false });
 
         if (uploadError) {
-          say(
-            false,
-            uploadError.message.toLowerCase().includes("bucket")
-              ? "The media bucket doesn't exist yet — run supabase/setup.sql."
-              : `${file.name}: ${uploadError.message}`
-          );
+          const raw = uploadError.message;
+          const hint = /bucket|not found/i.test(raw)
+            ? " The \u201cmedia\u201d bucket does not exist \u2014 run supabase/setup.sql."
+            : /row-level security|policy|denied|unauthor/i.test(raw)
+              ? " Storage refused the write \u2014 run supabase/setup.sql again to install the media policies."
+              : "";
+          say(false, `${file.name}: ${raw}.${hint}`);
           continue;
         }
 
@@ -273,6 +297,16 @@ export default function GalleryBrowser({
           </div>
         ))}
       </div>
+
+      {storageError && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-red-500/30 bg-red-500/8 p-4 mb-4">
+          <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <div className="text-sm font-medium text-red-300 mb-0.5">Uploads will not work yet</div>
+            <p className="text-xs text-white/60 leading-relaxed">{storageError}</p>
+          </div>
+        </div>
+      )}
 
       {/* Upload */}
       <div
@@ -397,7 +431,17 @@ export default function GalleryBrowser({
           }`}
           role="status"
         >
-          {toast.text}
+          <div className="flex items-start gap-3">
+            <span className="flex-1 leading-relaxed">{toast.text}</span>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="opacity-60 hover:opacity-100 transition-opacity flex-shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>

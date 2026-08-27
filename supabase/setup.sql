@@ -1671,6 +1671,18 @@ on conflict (id) do update
 -- Objects are keyed <org_id>/<uuid>-<filename>, so the first path segment
 -- decides who may write. is_org_member is SECURITY DEFINER, so it sees the
 -- membership rows the caller cannot select directly.
+-- Reads. A public bucket serves files over its public URL without touching
+-- RLS, which is why this was missed — but the Storage API still needs SELECT
+-- to list a folder, and supabase-js checks whether an object exists before
+-- uploading with upsert:false. Without this, uploads are rejected outright.
+drop policy if exists media_objects_select on storage.objects;
+create policy media_objects_select on storage.objects
+  for select to authenticated
+  using (
+    bucket_id = 'media'
+    and public.is_org_member(((storage.foldername(name))[1])::uuid)
+  );
+
 drop policy if exists media_objects_insert on storage.objects;
 create policy media_objects_insert on storage.objects
   for insert to authenticated
