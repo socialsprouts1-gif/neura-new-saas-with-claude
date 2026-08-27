@@ -1,22 +1,27 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { INTEGRATIONS, type IntegrationCategory } from "@/lib/integrations";
-import { createWebhook, deleteWebhook } from "../portal-actions";
-import IntegrationCard from "./IntegrationCard";
+import { INTEGRATIONS } from "@/lib/integrations";
+import IntegrationsBrowser from "./IntegrationsBrowser";
+import type { CardData } from "./IntegrationCard";
 import WhatsAppCard from "./WhatsAppCard";
-import ActionForm, { Field } from "@/components/ui/ActionForm";
-import { PageHeader, Card, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
+import WebhooksPanel from "./WebhooksPanel";
+import ApiPanel from "./ApiPanel";
+import type { OutgoingWebhook } from "@/types/portal";
 
-const CATEGORY_ORDER: IntegrationCategory[] = [
-  "Developer",
-  "Automation",
-  "E-commerce",
-  "CRM",
-  "Payments",
-  "Productivity",
-  "Support",
-];
+// WhatsApp is not in the catalogue — it has its own connection lifecycle,
+// its own table and its own Embedded Signup flow — but it is the first thing
+// anyone comes here to connect, so it leads the grid as a card like the rest.
+const WHATSAPP_CARD = {
+  slug: "whatsapp",
+  name: "WhatsApp Business",
+  description:
+    "Connect with customers on their favourite messaging app. Send updates, support messages and campaigns from a number on your own Meta WhatsApp Business Account — no reseller in the middle.",
+  note:
+    "The number must not be active on the WhatsApp or WhatsApp Business app. Meta allows a number on the app or the Cloud API, never both — moving one over deletes its chat history on the phone.",
+  brand: "#25D366",
+  alwaysOn: false,
+} as const;
 
 export default async function IntegrationsPage({
   searchParams,
@@ -39,195 +44,75 @@ export default async function IntegrationsPage({
     note: one("wa_note"),
   };
 
-  const [{ data: connections }, { data: webhooks }, waba] =
-    await Promise.all([
-      // credentials_encrypted is deliberately not selected — this page never
-      // needs the secret, and not fetching it keeps it out of the RSC payload.
-      supabase.from("org_integrations").select("provider, status, connected_at").eq("org_id", orgId),
-      supabase.from("outgoing_webhooks").select("*").eq("org_id", orgId).order("created_at"),
-      // access_token_encrypted is likewise never selected here.
-      loadWabaConnections(supabase, orgId),
-    ]);
+  const [{ data: connections }, { data: webhooks }, waba] = await Promise.all([
+    // credentials_encrypted is deliberately not selected — this page never
+    // needs the secret, and not fetching it keeps it out of the RSC payload.
+    supabase.from("org_integrations").select("provider, status, connected_at").eq("org_id", orgId),
+    supabase.from("outgoing_webhooks").select("*").eq("org_id", orgId).order("created_at"),
+    // access_token_encrypted is likewise never selected here.
+    loadWabaConnections(supabase, orgId),
+  ]);
 
-  const wabaConnections = waba.data;
-  const wabaError = waba.error;
-
+  const wabaConnections = waba.data ?? [];
   const connectedSet = new Set(
-    (connections ?? []).filter((c) => c.status === "connected").map((c) => c.provider)
+    (connections ?? []).filter((row) => row.status === "connected").map((row) => row.provider)
   );
 
   const host = (await headers()).get("host") ?? "your-domain";
   const proto = host.startsWith("localhost") ? "http" : "https";
   const apiBase = `${proto}://${host}/api`;
-  const webhookUrl = `${apiBase}/webhooks/whatsapp`;
 
-  const byCategory = CATEGORY_ORDER.map((cat) => ({
-    category: cat,
-    items: INTEGRATIONS.filter((i) => i.category === cat),
-  })).filter((g) => g.items.length > 0);
-
-  const liveCount = INTEGRATIONS.filter(
-    (i) => i.capability === "live" || i.capability === "via_webhook"
-  ).length;
+  const cards: CardData[] = [
+    {
+      ...WHATSAPP_CARD,
+      // A failed query returns no rows, which renders identically to having
+      // no connection. Treat it as not connected on the tile and let the
+      // panel say what actually happened.
+      connected: wabaConnections.length > 0,
+    },
+    ...INTEGRATIONS.map((def) => ({
+      slug: def.slug,
+      name: def.name,
+      description: def.description,
+      note: def.note,
+      brand: def.brand,
+      connected: connectedSet.has(def.slug),
+      // Nothing to connect, only settings to adjust.
+      alwaysOn: def.fields.length === 0,
+    })),
+  ];
 
   return (
     <div className="p-6 md:p-8">
-      <PageHeader
-        title="Integrations"
-        subtitle="Connect Neura Chat to the tools you already run your business on."
-      />
-
-      <WhatsAppCard
-        connections={wabaConnections ?? []}
-        webhookUrl={webhookUrl}
+      <IntegrationsBrowser
+        cards={cards}
         canManage={canManage}
-        // A failed query returns no rows, which renders identically to having
-        // no connection. Saying "Not connected" about a number that is
-        // connected sends people back to Meta to fix nothing, so pass the
-        // error through and let the card say what actually happened.
-        loadError={wabaError?.message ?? null}
-        // Connections loaded, but without health tracking. Say so quietly
-        // rather than letting the banner's absence read as "all fine".
-        healthUnavailable={waba.degraded}
-        signup={signup}
+        // Land on the WhatsApp panel when Meta has just redirected back, so
+        // the outcome of the signup is the first thing on screen.
+        initialOpen={signup.connected || signup.error ? "whatsapp" : null}
+        panels={{
+          whatsapp: (
+            <WhatsAppCard
+              connections={wabaConnections}
+              webhookUrl={`${apiBase}/webhooks/whatsapp`}
+              canManage={canManage}
+              loadError={waba.error?.message ?? null}
+              // Connections loaded, but without health tracking. Say so
+              // quietly rather than letting the banner's absence read as
+              // "all fine".
+              healthUnavailable={waba.degraded}
+              signup={signup}
+            />
+          ),
+          webhooks: (
+            <WebhooksPanel
+              webhooks={(webhooks ?? []) as OutgoingWebhook[]}
+              canManage={canManage}
+            />
+          ),
+          api: <ApiPanel apiBase={apiBase} />,
+        }}
       />
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Available" value={INTEGRATIONS.length} />
-        <StatCard label="Connected" value={connectedSet.size} />
-        <StatCard label="Work today" value={liveCount} hint="No provider app needed" />
-        <StatCard label="Webhooks" value={webhooks?.length ?? 0} />
-      </div>
-
-      {byCategory.map((group) => (
-        <section key={group.category} className="mb-8">
-          <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
-            {group.category}
-          </h2>
-          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {group.items.map((def) => (
-              <IntegrationCard
-                key={def.slug}
-                def={def}
-                connected={connectedSet.has(def.slug)}
-                canManage={canManage}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-
-      {/* ---------------- Outgoing webhooks ---------------- */}
-      <section className="mb-8">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
-          Outgoing webhooks
-        </h2>
-
-        <div className="grid lg:grid-cols-[1fr_340px] gap-6 items-start">
-          <div className="order-2 lg:order-1 space-y-3">
-            {webhooks && webhooks.length > 0 ? (
-              webhooks.map((w) => (
-                <Card key={w.id}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-sm">{w.name}</span>
-                        <Badge tone={w.is_active ? "green" : "grey"}>
-                          {w.is_active ? "active" : "paused"}
-                        </Badge>
-                      </div>
-                      <code className="text-xs text-accent2-ink break-all block mb-2">
-                        {w.target_url}
-                      </code>
-                      <div className="flex flex-wrap gap-1">
-                        {w.events.map((e) => (
-                          <Badge key={e} tone="purple">
-                            {e}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    {canManage && (
-                      <ActionForm action={deleteWebhook} submitLabel="Delete" compact>
-                        <input type="hidden" name="id" value={w.id} />
-                      </ActionForm>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-white/8">
-                    <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
-                      Signing secret
-                    </div>
-                    <code className="text-[11px] text-white/50 break-all">{w.secret}</code>
-                    <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
-                      Every delivery is signed with this secret in the{" "}
-                      <code className="text-white/60">X-Neura-Signature</code> header. Verify it
-                      before trusting the payload.
-                    </p>
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                title="No webhooks yet"
-                description="Add one to push message, status and contact events into Zapier, Make, n8n or any endpoint you control."
-              />
-            )}
-          </div>
-
-          <Card className="order-1 lg:order-2">
-            <h3 className="font-semibold mb-1">New webhook</h3>
-            <p className="text-sm text-white/50 mb-5">HTTPS endpoints only.</p>
-            {canManage ? (
-              <ActionForm action={createWebhook} submitLabel="Create webhook" resetOnSuccess>
-                <div className="space-y-4">
-                  <Field label="Name" name="name" required placeholder="Zapier — new leads" />
-                  <Field
-                    label="Target URL"
-                    name="target_url"
-                    type="url"
-                    required
-                    placeholder="https://hooks.zapier.com/…"
-                  />
-                  <fieldset>
-                    <legend className="text-xs font-medium text-white/70 mb-2">Events</legend>
-                    <div className="space-y-2">
-                      {[
-                        ["message.received", "Inbound message"],
-                        ["message.status", "Delivery status change"],
-                        ["contact.created", "New contact"],
-                      ].map(([value, label]) => (
-                        <label key={value} className="flex items-center gap-2.5 text-sm text-white/70">
-                          <input
-                            type="checkbox"
-                            name={value}
-                            defaultChecked={value === "message.received"}
-                            className="accent-[#00FF87] w-4 h-4"
-                          />
-                          {label}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-                </div>
-              </ActionForm>
-            ) : (
-              <p className="text-sm text-white/40">Only owners and admins can add webhooks.</p>
-            )}
-          </Card>
-        </div>
-      </section>
-
-      <Card>
-        <h2 className="font-semibold mb-1">Base URL</h2>
-        <p className="text-sm text-white/50 mb-4">
-          Point any tool that speaks HTTP at this base and authenticate with an API key from{" "}
-          <span className="text-white/70">API Endpoints</span>.
-        </p>
-        <code className="block text-sm text-accent-ink bg-[var(--surface-1)] border border-white/10 rounded-xl p-3.5 break-all">
-          {apiBase}
-        </code>
-      </Card>
     </div>
   );
 }

@@ -1,113 +1,80 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Check } from "lucide-react";
+import { Info, Pencil, Plug } from "lucide-react";
 import BrandLogo from "@/components/ui/BrandLogo";
-import ActionForm, { Field } from "@/components/ui/ActionForm";
-import { Badge, type Tone } from "@/components/ui/primitives";
-import {
-  CAPABILITY_HELP,
-  CAPABILITY_LABEL,
-  type IntegrationDef,
-} from "@/lib/integrations";
-import { connectIntegration, disconnectIntegration } from "../portal-actions";
 
-const CAPABILITY_TONE: Record<IntegrationDef["capability"], Tone> = {
-  live: "green",
-  via_webhook: "blue",
-  credentials: "amber",
-};
+// A catalogue tile: logo, name, connection state, description, an optional
+// caveat, and the two actions. Purely presentational — everything it can do
+// happens in the panel the parent opens.
+
+export interface CardData {
+  slug: string;
+  name: string;
+  description: string;
+  note?: string;
+  brand: string;
+  connected: boolean;
+  /**
+   * Always-on entries have nothing to connect, only settings to adjust, so
+   * their primary action reads Configure. Everything else is Connect until
+   * it is connected.
+   */
+  alwaysOn: boolean;
+}
 
 export default function IntegrationCard({
-  def,
-  connected,
-  canManage,
+  card,
+  onOpen,
 }: {
-  def: IntegrationDef;
-  connected: boolean;
-  canManage: boolean;
+  card: CardData;
+  onOpen: (slug: string, view: "manage" | "connect") => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const configurable = def.fields.length > 0;
+  const primaryLabel = card.alwaysOn || card.connected ? "Configure" : "Connect";
 
   return (
     <div className="glass-card p-5 flex flex-col">
-      <div className="flex items-start gap-3.5">
-        <BrandLogo slug={def.slug} brand={def.brand} />
+      <div className="flex items-start gap-3">
+        <BrandLogo slug={card.slug} brand={card.brand} />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-sm">{def.name}</h3>
-            {connected && <Badge tone="green">connected</Badge>}
-          </div>
-          <p className="text-[11px] text-white/35 mt-0.5">{def.category}</p>
-        </div>
+        <h3 className="font-semibold text-base truncate flex-1 min-w-0 mt-1.5">{card.name}</h3>
+
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border flex-shrink-0 ${
+            card.connected
+              ? "bg-accent/10 text-accent-ink border-accent/20"
+              : "bg-white/5 text-white/45 border-white/10"
+          }`}
+        >
+          <Info className="w-3 h-3" />
+          {card.connected ? "Connected" : "Not Connected"}
+        </span>
       </div>
 
-      <p className="text-sm text-white/55 mt-3 flex-1">{def.description}</p>
+      <p className="text-sm text-white/55 mt-3.5 leading-relaxed">{card.description}</p>
 
-      <div className="mt-3">
-        <Badge tone={CAPABILITY_TONE[def.capability]}>{CAPABILITY_LABEL[def.capability]}</Badge>
-        <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
-          {CAPABILITY_HELP[def.capability]}
+      {card.note && (
+        <p className="text-[11px] text-white/45 leading-relaxed mt-3.5 pl-3 border-l-2 border-accent/40">
+          {card.note}
         </p>
-      </div>
+      )}
 
-      <div className="mt-4 pt-4 border-t border-white/8">
-        {!configurable ? (
-          <p className="text-xs text-white/40 flex items-center gap-1.5">
-            <Check className="w-3.5 h-3.5 text-accent-ink" />
-            Always on — configure it below the catalogue.
-          </p>
-        ) : connected ? (
-          canManage ? (
-            <ActionForm action={disconnectIntegration} submitLabel="Disconnect" compact>
-              <input type="hidden" name="provider" value={def.slug} />
-            </ActionForm>
-          ) : (
-            <p className="text-xs text-white/40">Connected. Ask an admin to change it.</p>
-          )
-        ) : canManage ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setOpen((v) => !v)}
-              className="btn-secondary text-xs py-2 px-3.5 w-full justify-center"
-              aria-expanded={open}
-            >
-              Connect
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-            </button>
-
-            {open && (
-              <div className="mt-4">
-                {def.prerequisite && (
-                  <p className="text-[11px] text-[#FACC15] bg-[#FACC15]/8 border border-[#FACC15]/20 rounded-lg p-2.5 mb-3 leading-relaxed">
-                    {def.prerequisite}
-                  </p>
-                )}
-                <ActionForm action={connectIntegration} submitLabel="Save connection" compact>
-                  <input type="hidden" name="provider" value={def.slug} />
-                  <div className="space-y-3">
-                    {def.fields.map((f) => (
-                      <Field
-                        key={f.name}
-                        name={f.name}
-                        label={f.label}
-                        type={f.type}
-                        required={f.required}
-                        placeholder={f.placeholder}
-                        hint={f.hint}
-                      />
-                    ))}
-                  </div>
-                </ActionForm>
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="text-xs text-white/40">Only owners and admins can connect integrations.</p>
-        )}
+      <div className="flex items-center justify-end gap-2 mt-5 pt-1">
+        <button
+          type="button"
+          onClick={() => onOpen(card.slug, "manage")}
+          className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-medium text-white/55 hover:text-white hover:bg-white/5 transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+          Manage
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpen(card.slug, "connect")}
+          className="btn-primary text-sm py-2.5 px-5"
+        >
+          <Plug className="w-4 h-4" />
+          {primaryLabel}
+        </button>
       </div>
     </div>
   );

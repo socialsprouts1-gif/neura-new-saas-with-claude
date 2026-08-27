@@ -37,9 +37,21 @@ export interface IntegrationDef {
   capability: IntegrationCapability;
   /** What the user must do on the provider's side before this can work. */
   prerequisite?: string;
+  /**
+   * A short caveat shown on the card itself, for the things people get
+   * wrong before they ever open the connect form.
+   */
+  note?: string;
   fields: IntegrationField[];
   /** Brand colour used for the logo tile background wash. */
   brand: string;
+  /** Surfaced under the Featured tab: what most businesses connect first. */
+  featured?: boolean;
+  /**
+   * Reachable from a chatbot or automation flow. True only where a flow can
+   * actually call the provider today — the webhook-driven entries.
+   */
+  flows?: boolean;
 }
 
 export const INTEGRATIONS: IntegrationDef[] = [
@@ -53,6 +65,9 @@ export const INTEGRATIONS: IntegrationDef[] = [
     capability: "live",
     fields: [],
     brand: "#00FF87",
+    flows: true,
+    note:
+      "Every delivery is signed with your secret in the X-Neura-Signature header. Verify it before trusting the payload.",
   },
   {
     slug: "api",
@@ -63,6 +78,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
     capability: "live",
     fields: [],
     brand: "#00D4FF",
+    flows: true,
   },
 
   // ---------------- Work today by consuming our webhook / API ----------------
@@ -78,6 +94,8 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "target_url", label: "Zapier catch hook URL", type: "url", required: true, placeholder: "https://hooks.zapier.com/hooks/catch/…" },
     ],
     brand: "#FF4F00",
+    featured: true,
+    flows: true,
   },
   {
     slug: "make",
@@ -90,6 +108,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "target_url", label: "Make webhook URL", type: "url", required: true, placeholder: "https://hook.eu2.make.com/…" },
     ],
     brand: "#6D00CC",
+    flows: true,
   },
   {
     slug: "n8n",
@@ -102,6 +121,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "target_url", label: "n8n webhook URL", type: "url", required: true, placeholder: "https://n8n.yourdomain.com/webhook/…" },
     ],
     brand: "#EA4B71",
+    flows: true,
   },
   {
     slug: "google-sheets",
@@ -115,6 +135,10 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "target_url", label: "Apps Script web app URL", type: "url", required: true, placeholder: "https://script.google.com/macros/s/…/exec" },
     ],
     brand: "#0F9D58",
+    featured: true,
+    flows: true,
+    note:
+      "Deploy the Apps Script as “Execute as me” and “Anyone”. Any other setting drops the rows silently — Google returns success either way.",
   },
   {
     slug: "slack",
@@ -127,6 +151,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "target_url", label: "Slack incoming webhook URL", type: "url", required: true, placeholder: "https://hooks.slack.com/services/…" },
     ],
     brand: "#4A154B",
+    flows: true,
   },
 
   // ---------------- Credential storage; per-provider sync not built ----------------
@@ -142,6 +167,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "access_token", label: "Admin API access token", type: "password", required: true, placeholder: "shpat_…" },
     ],
     brand: "#95BF47",
+    featured: true,
   },
   {
     slug: "woocommerce",
@@ -209,6 +235,9 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "key_secret", label: "Key secret", type: "password", required: true },
     ],
     brand: "#0C2451",
+    featured: true,
+    note:
+      "Use Connect to add a merchant account, then set its webhook to the URL shown after saving — without that, payments clear at Razorpay but never mark the order paid here.",
   },
   {
     slug: "stripe",
@@ -221,6 +250,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "secret_key", label: "Secret key", type: "password", required: true, placeholder: "sk_live_…" },
     ],
     brand: "#635BFF",
+    featured: true,
   },
   {
     slug: "shiprocket",
@@ -261,6 +291,9 @@ export const INTEGRATIONS: IntegrationDef[] = [
       { name: "access_token", label: "Page access token", type: "password", required: true, placeholder: "EAAG…" },
     ],
     brand: "#1877F2",
+    featured: true,
+    note:
+      "The token must come from a System User, not your own login. A personal token dies when your password changes and takes the lead sync with it.",
   },
   {
     slug: "cashfree",
