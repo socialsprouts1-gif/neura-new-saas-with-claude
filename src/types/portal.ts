@@ -50,6 +50,44 @@ export type AiAssistant = {
 };
 
 export const KNOWLEDGE_SOURCE_TYPES = ["text", "faq", "url", "file"] as const;
+export const LEAD_STAGES = [
+  "new",
+  "contacted",
+  "qualified",
+  "demo",
+  "proposal",
+  "won",
+  "lost",
+] as const;
+export type LeadStage = (typeof LEAD_STAGES)[number];
+
+export const AI_MODES = ["ai", "copilot", "human"] as const;
+export type AiMode = (typeof AI_MODES)[number];
+
+export const PRIORITIES = ["normal", "medium", "high", "urgent"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+/** A private note between agents. The customer never sees one. */
+export type ConversationNote = {
+  id: string;
+  org_id: string;
+  conversation_id: string;
+  author_id: string | null;
+  body: string;
+  created_at: string;
+};
+
+/** One line of the activity timeline. Append-only by design. */
+export type ConversationEvent = {
+  id: string;
+  org_id: string;
+  conversation_id: string;
+  kind: string;
+  label: string;
+  actor_id: string | null;
+  created_at: string;
+};
+
 /** The readable identity behind a user id, for assignment and authorship. */
 export type Profile = {
   user_id: string;
@@ -135,6 +173,8 @@ export type Reminder = {
   id: string;
   org_id: string;
   contact_id: string | null;
+  /** Set when the reminder was raised from a thread in the inbox. */
+  conversation_id: string | null;
   created_by: string | null;
   title: string;
   body: string | null;

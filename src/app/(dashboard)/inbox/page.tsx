@@ -7,6 +7,7 @@ import ConversationList, {
   type Teammate,
 } from "./ConversationList";
 import Thread, { type ThreadMessage } from "./Thread";
+import type { LeadStage } from "@/types/portal";
 
 // WhatsApp only delivers free-form replies within 24 hours of the customer's
 // last inbound message. Outside it, only an approved template goes through.
@@ -52,16 +53,19 @@ export default async function InboxPage({
 }: {
   searchParams: Promise<{ c?: string }>;
 }) {
-  const { orgId } = await requireOrg();
+  const { orgId, user } = await requireOrg();
   const { c: selectedId } = await searchParams;
   const supabase = await createClient();
 
   const { data: conversations, error } = await supabase
     .from("conversations")
     .select(
-      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, bot_enabled, contacts(id, wa_id, name, tags, opted_out)"
+      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
     )
     .eq("org_id", orgId)
+    // Closed threads leave the active inbox; the "closed" view brings them
+    // back when someone needs one.
+    .is("closed_at", null)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(200);
 
@@ -117,7 +121,7 @@ export default async function InboxPage({
     }
   }
 
-  const [{ data: members }, { data: canned }, { data: templates }, { data: media }] =
+  const [{ data: members }, { data: canned }, { data: templates }, { data: media }, { data: pendingReminders }] =
     await Promise.all([
       supabase.from("org_members").select("user_id").eq("org_id", orgId),
       supabase
@@ -138,7 +142,18 @@ export default async function InboxPage({
         .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(50),
+      supabase
+        .from("reminders")
+        .select("conversation_id")
+        .eq("org_id", orgId)
+        .eq("status", "pending"),
     ]);
+
+  const withReminder = new Set(
+    (pendingReminders ?? [])
+      .map((reminder) => reminder.conversation_id)
+      .filter((id): id is string => Boolean(id))
+  );
 
   // Names come from profiles rather than the join: org_members has no
   // declared foreign key to it, so PostgREST cannot embed one in the other.
@@ -167,6 +182,8 @@ export default async function InboxPage({
       name: string | null;
       tags: string[];
       opted_out: boolean;
+      lead_stage: string;
+      lead_score: number | null;
     } | null;
 
     return {
@@ -184,6 +201,11 @@ export default async function InboxPage({
       status: row.status,
       assignedTo: row.assigned_to,
       assignedName: teammates.find((mate) => mate.userId === row.assigned_to)?.name ?? null,
+      score: contact?.lead_score ?? null,
+      stage: contact?.lead_stage ?? "new",
+      needsHuman: row.needs_human,
+      hasReminder: withReminder.has(row.id),
+      priority: row.priority,
     };
   });
 
@@ -203,7 +225,33 @@ export default async function InboxPage({
     wa_id: string;
     name: string | null;
     opted_out: boolean;
+    tags: string[];
+    lead_stage: LeadStage;
+    lead_score: number | null;
+    lead_score_reasons: string[];
+    source: string | null;
+    campaign: string | null;
+    deal_value: number | null;
+    created_at: string;
   } | null;
+
+  // Notes and the timeline only matter for the thread that is open.
+  const [{ data: notes }, { data: events }] = active
+    ? await Promise.all([
+        supabase
+          .from("conversation_notes")
+          .select("id, body, author_id, created_at")
+          .eq("conversation_id", active.id)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase
+          .from("conversation_events")
+          .select("id, label, created_at")
+          .eq("conversation_id", active.id)
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ])
+    : [{ data: null }, { data: null }];
 
   const windowOpen = isWindowOpen(active?.last_inbound_at ?? null);
 
@@ -223,6 +271,7 @@ export default async function InboxPage({
         activeId={active?.id ?? null}
         teammates={teammates}
         allTags={allTags}
+        currentUserId={user.id}
       />
 
       {active && activeContact ? (
@@ -233,13 +282,46 @@ export default async function InboxPage({
           name={activeContact.name ?? ""}
           waId={activeContact.wa_id}
           optedIn={!activeContact.opted_out}
-          status={active.status}
-          botEnabled={active.bot_enabled}
+          aiMode={active.ai_mode}
+          priority={active.priority}
+          closed={Boolean(active.closed_at)}
+          needsHuman={active.needs_human}
+          needsHumanReason={active.needs_human_reason}
           windowOpen={windowOpen}
           assignedTo={active.assigned_to}
           unread={rows.find((row) => row.id === active.id)?.unread ?? false}
           teammates={teammates}
           messages={threadMessages}
+          customer={{
+            conversationId: active.id,
+            contactId: activeContact.id,
+            name: activeContact.name ?? "",
+            waId: activeContact.wa_id,
+            tags: activeContact.tags ?? [],
+            stage: activeContact.lead_stage,
+            score: activeContact.lead_score,
+            scoreReasons: activeContact.lead_score_reasons ?? [],
+            intent: active.ai_intent,
+            sentiment: active.ai_sentiment,
+            summary: active.ai_summary,
+            nextAction: active.ai_next_action,
+            source: activeContact.source,
+            campaign: activeContact.campaign,
+            dealValue: activeContact.deal_value,
+            createdAt: activeContact.created_at,
+            notes: (notes ?? []).map((note) => ({
+              id: note.id,
+              body: note.body,
+              author:
+                teammates.find((mate) => mate.userId === note.author_id)?.name ?? "Someone",
+              createdAt: note.created_at,
+            })),
+            events: (events ?? []).map((event) => ({
+              id: event.id,
+              label: event.label,
+              createdAt: event.created_at,
+            })),
+          }}
           canned={canned ?? []}
           templates={templates ?? []}
           media={(media ?? []).map((asset) => ({

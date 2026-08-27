@@ -2,8 +2,11 @@
 
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, FileText, Image as ImageIcon, Loader2, Paperclip, Send, Smile, Zap } from "lucide-react";
+import { Loader2, Send, Smile } from "lucide-react";
 import EmojiPicker from "./EmojiPicker";
+import CopilotMenu from "./CopilotMenu";
+import PlusMenu from "./PlusMenu";
+import type { Teammate } from "./ConversationList";
 
 export interface CannedMessage {
   id: string;
@@ -30,30 +33,34 @@ export interface MediaOption {
 // so outbound sending has one code path shared with any future API client.
 export default function Composer({
   orgId,
+  conversationId,
   contactId,
   windowOpen,
   canned,
   templates,
   media,
-  botEnabled,
-  onToggleBot,
+  tags,
+  teammates,
+  assignedTo,
 }: {
   orgId: string;
+  conversationId: string;
   contactId: string;
   /** Inside the 24-hour service window, free-form text delivers. */
   windowOpen: boolean;
   canned: CannedMessage[];
   templates: TemplateOption[];
   media: MediaOption[];
-  botEnabled: boolean;
-  onToggleBot: () => void;
+  tags: string[];
+  teammates: Teammate[];
+  assignedTo: string | null;
 }) {
   const router = useRouter();
   const input = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"emoji" | "canned" | "media" | "template" | null>(null);
+  const [panel, setPanel] = useState<"emoji" | "canned" | null>(null);
 
   const post = async (payload: Record<string, unknown>) => {
     setSending(true);
@@ -102,67 +109,45 @@ export default function Composer({
 
   return (
     <div className="border-t border-white/8 bg-[var(--surface-1)]/60 flex-shrink-0">
-      {/* Window state and the two sends that do not go through the text box */}
-      <div className="flex flex-wrap items-center gap-3 px-4 pt-3">
-        <span className={`text-xs ${windowOpen ? "text-white/45" : "text-[#FACC15]"}`}>
+      <div className="px-4 pt-3 flex flex-wrap items-center gap-3">
+        <span className={`text-xs ${windowOpen ? "text-white/40" : "text-[#FACC15]"}`}>
           {windowOpen
             ? "Free-form messages allowed (24h window)"
             : "Window closed — only an approved template will deliver"}
         </span>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Panel
-            open={panel === "template"}
-            onToggle={() => setPanel(panel === "template" ? null : "template")}
-            align="right"
-            trigger={
-              <>
-                <FileText className="w-3.5 h-3.5" />
-                Send template
-              </>
-            }
-            triggerClass={
-              windowOpen
-                ? "btn-secondary text-xs py-2 px-3.5"
-                : "btn-primary text-xs py-2 px-3.5"
-            }
+        {canned.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPanel(panel === "canned" ? null : "canned")}
+            className="ml-auto text-xs text-white/45 hover:text-white"
           >
-            <div className="w-72 max-h-64 overflow-y-auto p-1.5">
-              {templates.length === 0 ? (
-                <p className="px-2.5 py-3 text-[11px] text-white/40 leading-relaxed">
-                  No approved templates yet. Create one under WhatsApp templates and submit it to
-                  Meta — only approved templates can open a closed window.
-                </p>
-              ) : (
-                templates.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    disabled={sending}
-                    onClick={async () => {
-                      if (
-                        await post({
-                          templateName: template.name,
-                          language: template.language,
-                          components: [],
-                        })
-                      ) {
-                        setPanel(null);
-                      }
-                    }}
-                    className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors disabled:opacity-50"
-                  >
-                    <div className="text-sm font-medium truncate">{template.name}</div>
-                    <div className="text-[10px] text-white/40">
-                      {template.language} · {template.category.toLowerCase()}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </Panel>
-        </div>
+            Canned replies
+          </button>
+        )}
       </div>
+
+      {panel === "canned" && (
+        <div className="mx-4 mt-2 rounded-xl border border-white/12 bg-[var(--surface-1)] max-h-52 overflow-y-auto p-1.5">
+          {canned.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => {
+                setBody(entry.body);
+                setPanel(null);
+                input.current?.focus();
+              }}
+              className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium truncate">{entry.title}</span>
+                <code className="text-[10px] text-accent2-ink flex-shrink-0">/{entry.shortcut}</code>
+              </div>
+              <p className="text-[11px] text-white/40 line-clamp-1 mt-0.5">{entry.body}</p>
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <p className="text-xs text-red-400 px-4 pt-2" role="alert">
@@ -170,41 +155,27 @@ export default function Composer({
         </p>
       )}
 
-      <form onSubmit={sendText} className="flex items-end gap-2 p-4">
-        <Panel
-          open={panel === "media"}
-          onToggle={() => setPanel(panel === "media" ? null : "media")}
-          trigger={<Paperclip className="w-4 h-4" />}
-          triggerClass="p-2.5 rounded-xl text-white/45 hover:text-white hover:bg-white/8 transition-colors"
-          triggerLabel="Attach media"
-        >
-          <div className="w-72 max-h-64 overflow-y-auto p-1.5">
-            {media.length === 0 ? (
-              <p className="px-2.5 py-3 text-[11px] text-white/40 leading-relaxed">
-                Nothing in the Gallery yet. Upload there first — WhatsApp needs a hosted URL, so
-                attachments come from your own media library.
-              </p>
-            ) : (
-              media.map((asset) => (
-                <button
-                  key={asset.id}
-                  type="button"
-                  onClick={() => {
-                    // The send endpoint takes text; a media URL in the body
-                    // is what WhatsApp will preview for the customer.
-                    insert(asset.url);
-                    setPanel(null);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
-                >
-                  <ImageIcon className="w-3.5 h-3.5 text-white/40 flex-shrink-0" />
-                  <span className="text-sm truncate">{asset.name}</span>
-                  <span className="ml-auto text-[10px] text-white/30">{asset.type}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </Panel>
+      {/* [+] [AI] [type a message] [send] — nothing else lives out here. */}
+      <form onSubmit={sendText} className="flex items-end gap-1.5 p-4">
+        <PlusMenu
+          conversationId={conversationId}
+          contactId={contactId}
+          tags={tags}
+          teammates={teammates}
+          assignedTo={assignedTo}
+          media={media}
+          templates={templates}
+          onInsert={insert}
+          onSendTemplate={(template) =>
+            void post({
+              templateName: template.name,
+              language: template.language,
+              components: [],
+            })
+          }
+        />
+
+        <CopilotMenu conversationId={conversationId} draft={body} onInsert={setBody} />
 
         <textarea
           ref={input}
@@ -216,73 +187,21 @@ export default function Composer({
           className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/35 focus:outline-none focus:border-accent/50 transition-all resize-none max-h-32"
         />
 
-        <Panel
-          open={panel === "emoji"}
-          onToggle={() => setPanel(panel === "emoji" ? null : "emoji")}
-          align="right"
-          trigger={<Smile className="w-4 h-4" />}
-          triggerClass="p-2.5 rounded-xl text-white/45 hover:text-white hover:bg-white/8 transition-colors"
-          triggerLabel="Emoji"
-        >
-          <EmojiPicker onPick={(emoji) => insert(emoji)} />
-        </Panel>
-
-        <Panel
-          open={panel === "canned"}
-          onToggle={() => setPanel(panel === "canned" ? null : "canned")}
-          align="right"
-          trigger={<Zap className="w-4 h-4" />}
-          triggerClass="p-2.5 rounded-xl text-white/45 hover:text-white hover:bg-white/8 transition-colors"
-          triggerLabel="Canned messages"
-        >
-          <div className="w-80 max-h-64 overflow-y-auto p-1.5">
-            {canned.length === 0 ? (
-              <p className="px-2.5 py-3 text-[11px] text-white/40 leading-relaxed">
-                No canned messages yet. Save the replies you type most often under Canned messages
-                and they land here.
-              </p>
-            ) : (
-              canned.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => {
-                    setBody(entry.body);
-                    setPanel(null);
-                    input.current?.focus();
-                  }}
-                  className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium truncate">{entry.title}</span>
-                    <code className="text-[10px] text-accent2-ink flex-shrink-0">
-                      /{entry.shortcut}
-                    </code>
-                  </div>
-                  <p className="text-[11px] text-white/40 line-clamp-2 mt-0.5">{entry.body}</p>
-                </button>
-              ))
-            )}
-          </div>
-        </Panel>
-
-        <button
-          type="button"
-          onClick={onToggleBot}
-          aria-label={botEnabled ? "Pause the bot on this chat" : "Resume the bot on this chat"}
-          title={
-            botEnabled
-              ? "Bot is answering. Sending a reply pauses it if the assistant is set to stand down."
-              : "Bot is paused on this chat"
-          }
-          className={`p-2.5 rounded-xl border transition-colors ${
-            botEnabled
-              ? "border-accent/30 bg-accent/10 text-accent-ink"
-              : "border-white/12 text-white/40 hover:text-white"
-          }`}
-        >
-          <Bot className="w-4 h-4" />
-        </button>
+        <div className="relative flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setPanel(panel === "emoji" ? null : "emoji")}
+            aria-label="Emoji"
+            className="p-2.5 rounded-xl text-white/45 hover:text-white hover:bg-white/8 transition-colors"
+          >
+            <Smile className="w-4 h-4" />
+          </button>
+          {panel === "emoji" && (
+            <div className="absolute bottom-full right-0 mb-2 z-30">
+              <EmojiPicker onPick={insert} />
+            </div>
+          )}
+        </div>
 
         <button
           type="submit"
@@ -293,42 +212,6 @@ export default function Composer({
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
       </form>
-    </div>
-  );
-}
-
-/** A popover anchored to its trigger, closed by clicking the trigger again. */
-function Panel({
-  open,
-  onToggle,
-  trigger,
-  triggerClass,
-  triggerLabel,
-  align = "left",
-  children,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  trigger: React.ReactNode;
-  triggerClass: string;
-  triggerLabel?: string;
-  align?: "left" | "right";
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="relative flex-shrink-0">
-      <button type="button" onClick={onToggle} aria-label={triggerLabel} className={triggerClass}>
-        {trigger}
-      </button>
-      {open && (
-        <div
-          className={`absolute bottom-full mb-2 z-30 rounded-xl border border-white/12 bg-[var(--surface-1)] shadow-2xl ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
-        >
-          {children}
-        </div>
-      )}
     </div>
   );
 }

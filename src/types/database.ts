@@ -22,6 +22,8 @@ import type {
   AiAssistant,
   AssistantKnowledge,
   Profile,
+  ConversationNote,
+  ConversationEvent,
   ApiKey,
   BotRun,
   CannedMessage,
@@ -117,6 +119,12 @@ export interface Database {
           opted_out: boolean;
           opted_out_at: string | null;
           opt_out_reason: string | null;
+          lead_stage: import("./portal").LeadStage;
+          lead_score: number | null;
+          lead_score_reasons: string[];
+          source: string | null;
+          campaign: string | null;
+          deal_value: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -130,6 +138,12 @@ export interface Database {
           opted_out?: boolean;
           opted_out_at?: string | null;
           opt_out_reason?: string | null;
+          lead_stage?: import("./portal").LeadStage;
+          lead_score?: number | null;
+          lead_score_reasons?: string[];
+          source?: string | null;
+          campaign?: string | null;
+          deal_value?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -152,6 +166,17 @@ export interface Database {
           bot_resume_at: string | null;
           assigned_to: string | null;
           last_read_at: string | null;
+          ai_mode: "ai" | "copilot" | "human";
+          priority: "normal" | "medium" | "high" | "urgent";
+          closed_at: string | null;
+          needs_human: boolean;
+          needs_human_reason: string | null;
+          ai_summary: string | null;
+          ai_next_action: string | null;
+          ai_intent: string | null;
+          ai_sentiment: string | null;
+          ai_analyzed_at: string | null;
+          ai_analyzed_message_id: string | null;
         };
         Insert: {
           id?: string;
@@ -168,6 +193,17 @@ export interface Database {
           bot_resume_at?: string | null;
           assigned_to?: string | null;
           last_read_at?: string | null;
+          ai_mode?: "ai" | "copilot" | "human";
+          priority?: "normal" | "medium" | "high" | "urgent";
+          closed_at?: string | null;
+          needs_human?: boolean;
+          needs_human_reason?: string | null;
+          ai_summary?: string | null;
+          ai_next_action?: string | null;
+          ai_intent?: string | null;
+          ai_sentiment?: string | null;
+          ai_analyzed_at?: string | null;
+          ai_analyzed_message_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["conversations"]["Insert"]>;
         Relationships: [
@@ -452,6 +488,27 @@ export interface Database {
         Row: AiAssistant;
         Insert: Partial<AiAssistant> & { org_id: string; name: string };
         Update: Partial<AiAssistant>;
+        Relationships: [];
+      };
+      conversation_notes: {
+        Row: ConversationNote;
+        Insert: Partial<ConversationNote> & {
+          org_id: string;
+          conversation_id: string;
+          body: string;
+        };
+        Update: Partial<ConversationNote>;
+        Relationships: [];
+      };
+      conversation_events: {
+        Row: ConversationEvent;
+        Insert: Partial<ConversationEvent> & {
+          org_id: string;
+          conversation_id: string;
+          kind: string;
+          label: string;
+        };
+        Update: Partial<ConversationEvent>;
         Relationships: [];
       };
       profiles: {

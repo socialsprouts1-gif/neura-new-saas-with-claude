@@ -16,6 +16,11 @@ export interface ConversationRow {
   status: string;
   assignedTo: string | null;
   assignedName: string | null;
+  score: number | null;
+  stage: string;
+  needsHuman: boolean;
+  hasReminder: boolean;
+  priority: string;
 }
 
 export interface Teammate {
@@ -26,6 +31,40 @@ export interface Teammate {
 type Scope = "all" | "unread" | "assigned" | "unassigned" | string;
 type SortKey = "name" | "date" | "unread";
 
+/** Hot is the analyser's own threshold for a lead worth chasing today. */
+const HOT_SCORE = 70;
+
+type View = "all" | "unread" | "mine" | "hot" | "followup" | "unassigned" | "human";
+
+const VIEWS: Array<{ id: View; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "unread", label: "Unread" },
+  { id: "mine", label: "Mine" },
+  { id: "hot", label: "Hot" },
+  { id: "followup", label: "Follow-up" },
+  { id: "unassigned", label: "Unassigned" },
+  { id: "human", label: "Human" },
+];
+
+function inView(row: ConversationRow, view: View, me: string | null): boolean {
+  switch (view) {
+    case "unread":
+      return row.unread;
+    case "mine":
+      return Boolean(me) && row.assignedTo === me;
+    case "hot":
+      return (row.score ?? 0) >= HOT_SCORE;
+    case "followup":
+      return row.hasReminder;
+    case "unassigned":
+      return !row.assignedTo;
+    case "human":
+      return row.needsHuman;
+    default:
+      return true;
+  }
+}
+
 // The list rail: filter, sort, search and pick. Everything here is local
 // state over rows the server already sent — filtering a hundred threads in
 // the browser beats a round trip per keystroke.
@@ -34,11 +73,13 @@ export default function ConversationList({
   activeId,
   teammates,
   allTags,
+  currentUserId,
 }: {
   rows: ConversationRow[];
   activeId: string | null;
   teammates: Teammate[];
   allTags: string[];
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -46,11 +87,13 @@ export default function ConversationList({
   const [sort, setSort] = useState<SortKey>("date");
   const [descending, setDescending] = useState(true);
   const [tag, setTag] = useState<string | null>(null);
+  const [view, setView] = useState<View>("all");
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
     const filtered = rows.filter((row) => {
+      if (!inView(row, view, currentUserId)) return false;
       if (scope === "unread" && !row.unread) return false;
       if (scope === "assigned" && !row.assignedTo) return false;
       if (scope === "unassigned" && row.assignedTo) return false;
@@ -81,7 +124,7 @@ export default function ConversationList({
       const right = b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0;
       return direction * (left - right);
     });
-  }, [rows, query, scope, sort, descending, tag]);
+  }, [rows, query, scope, sort, descending, tag, view, currentUserId]);
 
   const scopeLabel =
     scope === "all"
@@ -249,6 +292,28 @@ export default function ConversationList({
         <span className="ml-auto text-xs text-white/35 tabular-nums pr-1">{visible.length}</span>
       </div>
 
+      <div className="flex gap-1 px-3 pt-3 overflow-x-auto flex-shrink-0 scrollbar-none">
+        {VIEWS.map((option) => {
+          const count = rows.filter((row) => inView(row, option.id, currentUserId)).length;
+          if (count === 0 && option.id !== "all" && view !== option.id) return null;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setView(option.id)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap transition-colors ${
+                view === option.id
+                  ? "bg-accent/12 text-accent-ink border border-accent/25"
+                  : "text-white/45 hover:text-white/80 border border-transparent"
+              }`}
+            >
+              {option.label}
+              <span className="ml-1.5 tabular-nums opacity-60">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="p-3 flex-shrink-0">
         <div className="relative">
           <Search className="w-4 h-4 text-white/35 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -273,9 +338,22 @@ export default function ConversationList({
 
       <div className="flex-1 overflow-y-auto">
         {visible.length === 0 ? (
-          <p className="px-4 py-8 text-sm text-white/40 text-center">
-            No conversations match this view.
-          </p>
+          <div className="px-6 py-12 text-center">
+            <div className="text-2xl mb-2">
+              {view === "hot" ? "🔥" : view === "followup" ? "⏰" : view === "human" ? "🚨" : "💬"}
+            </div>
+            <p className="text-sm text-white/45 leading-relaxed">
+              {view === "hot"
+                ? "No hot leads right now."
+                : view === "followup"
+                  ? "You're all caught up."
+                  : view === "human"
+                    ? "Nothing needs a person right now."
+                    : view === "unread"
+                      ? "Nothing unread."
+                      : "No conversations match this view."}
+            </p>
+          </div>
         ) : (
           visible.map((row) => {
             const isActive = row.id === activeId;
@@ -301,6 +379,11 @@ export default function ConversationList({
                     >
                       {row.name}
                     </span>
+                    {(row.score ?? 0) >= HOT_SCORE && (
+                      <span className="text-[10px] text-[#FF6B35] flex-shrink-0" title={`Lead score ${row.score}`}>
+                        🔥
+                      </span>
+                    )}
                     <span className="ml-auto text-[10px] text-white/35 flex-shrink-0">
                       {clockOrDay(row.lastMessageAt)}
                     </span>
@@ -313,7 +396,12 @@ export default function ConversationList({
                     >
                       {row.preview || "No messages yet"}
                     </span>
-                    {row.unread && (
+                    {row.needsHuman && (
+                      <span className="ml-auto text-[10px] text-[#FB923C] flex-shrink-0">
+                        human
+                      </span>
+                    )}
+                    {row.unread && !row.needsHuman && (
                       <span className="ml-auto w-2 h-2 rounded-full bg-accent flex-shrink-0" />
                     )}
                   </div>

@@ -2,75 +2,98 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Check, Loader2, MoreVertical, Pencil, UserPlus, X } from "lucide-react";
-import {
-  assignConversation,
-  renameContact,
-  setContactOptIn,
-  setConversationStatus,
-} from "@/app/(dashboard)/actions";
+import { Check, Loader2, MoreVertical, Pencil, X } from "lucide-react";
+import { assignConversation, renameContact, setContactOptIn } from "@/app/(dashboard)/actions";
+import { setAiMode, setConversationClosed, setPriority } from "./actions";
+import { AI_MODES, PRIORITIES, type AiMode, type Priority } from "@/types/portal";
 import type { Teammate } from "./ConversationList";
 
+const MODE_LABEL: Record<AiMode, string> = {
+  ai: "AI Active",
+  copilot: "Copilot",
+  human: "Human",
+};
+
+const MODE_HELP: Record<AiMode, string> = {
+  ai: "AI answers automatically.",
+  copilot: "AI suggests, you send.",
+  human: "AI is paused on this chat.",
+};
+
+const PRIORITY_DOT: Record<Priority, string> = {
+  normal: "bg-white/25",
+  medium: "bg-[#FACC15]",
+  high: "bg-[#FB923C]",
+  urgent: "bg-[#F87171]",
+};
+
+// Name, number, who is answering, what stage — and everything else behind
+// the one ⋮. The header is the thing a new agent reads in two seconds.
 export default function ThreadHeader({
   conversationId,
   contactId,
   name,
   waId,
   optedIn,
-  status,
-  botEnabled,
+  aiMode,
+  priority,
+  closed,
+  needsHuman,
+  needsHumanReason,
   windowOpen,
   assignedTo,
   teammates,
-  onToggleBot,
+  onOpenPanel,
 }: {
   conversationId: string;
   contactId: string;
   name: string;
   waId: string;
   optedIn: boolean;
-  status: string;
-  botEnabled: boolean;
-  /** Inside WhatsApp's 24-hour service window, so free-form replies deliver. */
+  aiMode: AiMode;
+  priority: Priority;
+  closed: boolean;
+  needsHuman: boolean;
+  needsHumanReason: string | null;
   windowOpen: boolean;
   assignedTo: string | null;
   teammates: Teammate[];
-  onToggleBot: () => void;
+  /** Opens the customer drawer on screens too narrow for the rail. */
+  onOpenPanel: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
-  const menu = useRef<HTMLDetailsElement>(null);
+  const modeMenu = useRef<HTMLDetailsElement>(null);
+  const moreMenu = useRef<HTMLDetailsElement>(null);
 
   const run = (work: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {
       setError(null);
       const result = await work();
       if (!result.ok) setError(result.error ?? "That didn't work.");
-      menu.current?.removeAttribute("open");
+      modeMenu.current?.removeAttribute("open");
+      moreMenu.current?.removeAttribute("open");
       router.refresh();
     });
 
   const assignee = teammates.find((mate) => mate.userId === assignedTo);
 
   return (
-    <header className="px-5 py-3 border-b border-white/8 flex-shrink-0">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-shrink-0">
-          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-accent/30 to-accent2/25 flex items-center justify-center text-sm font-bold">
-            {(name.trim() || waId).slice(0, 2).toUpperCase()}
-          </div>
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--app-bg)] ${
-              windowOpen ? "bg-accent" : "bg-white/25"
-            }`}
-            title={windowOpen ? "Service window open" : "Service window closed"}
-          />
-        </div>
+    <header className="px-4 md:px-5 py-3 border-b border-white/8 flex-shrink-0">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onOpenPanel}
+          className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/30 to-accent2/25 flex items-center justify-center text-sm font-bold flex-shrink-0"
+          aria-label="Customer details"
+        >
+          {(name.trim() || waId).slice(0, 2).toUpperCase()}
+        </button>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           {editing ? (
             <div className="flex items-center gap-1.5">
               <input
@@ -119,142 +142,161 @@ export default function ThreadHeader({
                   setEditing(true);
                 }}
                 aria-label="Rename contact"
-                className="p-1 rounded-lg text-accent-ink/70 hover:text-accent-ink hover:bg-white/8 transition-colors"
+                className="p-1 rounded text-white/30 hover:text-accent-ink transition-colors"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <Pencil className="w-3 h-3" />
               </button>
+              {priority !== "normal" && (
+                <span
+                  className={`w-2 h-2 rounded-full ${PRIORITY_DOT[priority]}`}
+                  title={`Priority: ${priority}`}
+                />
+              )}
             </div>
           )}
-          <div className="text-xs text-white/45 font-mono">{waId}</div>
+          <div className="text-xs text-white/45 font-mono truncate">{waId}</div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3 flex-wrap">
-          {assignee && (
-            <span className="text-[11px] text-accent2-ink hidden sm:inline">
-              {assignee.name}
-            </span>
-          )}
-
-          <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-white/55">
-            <span
-              className={`w-2 h-2 rounded-full ${windowOpen ? "bg-accent" : "bg-white/25"}`}
-            />
-            {windowOpen ? "Window open" : "Window closed"}
-          </span>
-
-          {/* Opting out stops campaigns reaching this person; it does not
-              gag a reply inside an open window, which is a response to a
-              message they sent. */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-white/55">OptIn</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={optedIn}
-              aria-label="Opted in to campaigns"
-              title={
-                optedIn
-                  ? "Opted in — campaigns and broadcasts may reach this contact"
-                  : "Opted out — campaigns will skip this contact"
-              }
-              disabled={pending}
-              onClick={() => run(() => setContactOptIn(contactId, !optedIn))}
-              className="disabled:opacity-50"
-            >
-              <span
-                className={`relative block w-11 h-6 rounded-full transition-colors ${
-                  optedIn ? "bg-accent" : "bg-white/15"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${
-                    optedIn ? "left-5.5" : "left-0.5"
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={onToggleBot}
-            title={botEnabled ? "Bot is answering this chat" : "Bot is paused on this chat"}
-            aria-label={botEnabled ? "Pause the bot" : "Resume the bot"}
-            className={`p-2 rounded-lg border transition-colors ${
-              botEnabled
+        {/* AI mode — the one control an agent reaches for most. */}
+        <details ref={modeMenu} className="relative flex-shrink-0">
+          <summary
+            className={`list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              aiMode === "ai"
                 ? "border-accent/30 bg-accent/10 text-accent-ink"
-                : "border-white/12 text-white/40 hover:text-white"
+                : aiMode === "copilot"
+                  ? "border-accent2/30 bg-accent2/8 text-accent2-ink"
+                  : "border-white/15 text-white/60"
             }`}
           >
-            <Bot className="w-4 h-4" />
-          </button>
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                aiMode === "ai" ? "bg-accent" : aiMode === "copilot" ? "bg-accent2" : "bg-white/40"
+              }`}
+            />
+            {MODE_LABEL[aiMode]}
+          </summary>
 
-          <details ref={menu} className="relative">
-            <summary
-              aria-label="Conversation actions"
-              className="list-none cursor-pointer p-2 rounded-lg text-white/45 hover:text-white hover:bg-white/8 transition-colors"
-            >
-              {pending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <MoreVertical className="w-4 h-4" />
-              )}
-            </summary>
-
-            <div className="absolute right-0 top-full mt-1.5 z-30 w-60 rounded-xl border border-white/12 bg-[var(--surface-1)] shadow-2xl py-1.5">
-              <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-white/35 flex items-center gap-1.5">
-                <UserPlus className="w-3 h-3" />
-                Assign to
-              </div>
-              {teammates.map((mate) => (
-                <button
-                  key={mate.userId}
-                  type="button"
-                  onClick={() => run(() => assignConversation(conversationId, mate.userId))}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors"
-                >
-                  <Check
-                    className={`w-3.5 h-3.5 flex-shrink-0 ${
-                      assignedTo === mate.userId ? "text-accent-ink" : "opacity-0"
-                    }`}
-                  />
-                  <span className="truncate">{mate.name}</span>
-                </button>
-              ))}
+          <div className="absolute right-0 top-full mt-1.5 z-30 w-56 rounded-xl border border-white/12 bg-[var(--surface-1)] shadow-2xl py-1.5">
+            {AI_MODES.map((mode) => (
               <button
+                key={mode}
                 type="button"
-                onClick={() => run(() => assignConversation(conversationId, null))}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors"
+                onClick={() => run(() => setAiMode(conversationId, mode))}
+                className="w-full text-left px-3 py-2 hover:bg-white/6 transition-colors"
               >
-                <Check
-                  className={`w-3.5 h-3.5 flex-shrink-0 ${!assignedTo ? "text-accent-ink" : "opacity-0"}`}
-                />
-                Nobody
-              </button>
-
-              <div className="h-px bg-white/8 my-1.5" />
-              <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-white/35">
-                Status
-              </div>
-              {(["open", "pending", "resolved", "closed"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => run(() => setConversationStatus(conversationId, option))}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors capitalize"
-                >
+                <div className="flex items-center gap-2">
                   <Check
                     className={`w-3.5 h-3.5 flex-shrink-0 ${
-                      status === option ? "text-accent-ink" : "opacity-0"
+                      aiMode === mode ? "text-accent-ink" : "opacity-0"
                     }`}
                   />
-                  {option}
-                </button>
-              ))}
-            </div>
-          </details>
-        </div>
+                  <span className="text-sm text-white/80">{MODE_LABEL[mode]}</span>
+                </div>
+                <p className="text-[10px] text-white/40 ml-5.5 mt-0.5">{MODE_HELP[mode]}</p>
+              </button>
+            ))}
+          </div>
+        </details>
+
+        <details ref={moreMenu} className="relative flex-shrink-0">
+          <summary
+            aria-label="More"
+            className="list-none cursor-pointer p-2 rounded-lg text-white/45 hover:text-white hover:bg-white/8 transition-colors"
+          >
+            {pending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <MoreVertical className="w-4 h-4" />
+            )}
+          </summary>
+
+          <div className="absolute right-0 top-full mt-1.5 z-30 w-60 rounded-xl border border-white/12 bg-[var(--surface-1)] shadow-2xl py-1.5 max-h-96 overflow-y-auto">
+            <Heading>Assign to</Heading>
+            {teammates.map((mate) => (
+              <Item
+                key={mate.userId}
+                checked={assignedTo === mate.userId}
+                onClick={() => run(() => assignConversation(conversationId, mate.userId))}
+              >
+                {mate.name}
+              </Item>
+            ))}
+            <Item
+              checked={!assignedTo}
+              onClick={() => run(() => assignConversation(conversationId, null))}
+            >
+              Nobody
+            </Item>
+
+            <Divider />
+            <Heading>Priority</Heading>
+            {PRIORITIES.map((option) => (
+              <Item
+                key={option}
+                checked={priority === option}
+                onClick={() => run(() => setPriority(conversationId, option))}
+              >
+                <span className="capitalize">{option}</span>
+              </Item>
+            ))}
+
+            <Divider />
+            <Item onClick={onOpenPanel}>Customer details</Item>
+            <Item
+              onClick={() => run(() => setContactOptIn(contactId, !optedIn))}
+              checked={optedIn}
+            >
+              Opted in to campaigns
+            </Item>
+            <Item onClick={() => run(() => setConversationClosed(conversationId, !closed))}>
+              {closed ? "Reopen conversation" : "Close conversation"}
+            </Item>
+          </div>
+        </details>
       </div>
+
+      {/* Two states that change what an agent should do next. Nothing else
+          gets a banner. */}
+      {needsHuman && aiMode !== "human" && (
+        <div className="flex flex-wrap items-center gap-2 mt-2.5 rounded-lg border border-[#FB923C]/30 bg-[#FB923C]/8 px-3 py-2">
+          <span className="text-xs text-[#FB923C] font-medium">Human needed</span>
+          {needsHumanReason && (
+            <span className="text-[11px] text-white/55">{needsHumanReason}</span>
+          )}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => setAiMode(conversationId, "human"))}
+            className="ml-auto text-xs px-3 py-1.5 rounded-lg bg-[#FB923C]/15 border border-[#FB923C]/30 text-[#FB923C] hover:bg-[#FB923C]/25 transition-colors disabled:opacity-50"
+          >
+            Take over
+          </button>
+        </div>
+      )}
+
+      {aiMode === "human" && (
+        <div className="flex flex-wrap items-center gap-2 mt-2.5 rounded-lg border border-white/12 bg-white/4 px-3 py-2">
+          <span className="text-xs text-white/60">You are handling this conversation</span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => setAiMode(conversationId, "copilot"))}
+            className="ml-auto text-xs px-3 py-1.5 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30 transition-colors disabled:opacity-50"
+          >
+            Resume AI
+          </button>
+        </div>
+      )}
+
+      {!windowOpen && (
+        <p className="text-[11px] text-[#FACC15] mt-2">
+          The 24-hour window has closed — only an approved template will reach this person.
+        </p>
+      )}
+
+      {assignee && (
+        <p className="text-[11px] text-white/35 mt-1.5">Assigned to {assignee.name}</p>
+      )}
 
       {error && (
         <p className="text-xs text-red-400 mt-2" role="alert">
@@ -262,5 +304,42 @@ export default function ThreadHeader({
         </p>
       )}
     </header>
+  );
+}
+
+function Heading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/35">
+      {children}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div className="h-px bg-white/8 my-1.5" />;
+}
+
+function Item({
+  children,
+  onClick,
+  checked,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  checked?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-white/6 transition-colors"
+    >
+      {checked !== undefined && (
+        <Check
+          className={`w-3.5 h-3.5 flex-shrink-0 ${checked ? "text-accent-ink" : "opacity-0"}`}
+        />
+      )}
+      <span className="truncate">{children}</span>
+    </button>
   );
 }
