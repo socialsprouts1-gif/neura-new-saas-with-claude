@@ -1940,9 +1940,10 @@ $$;
 -- =========================================================================
 
 alter table public.conversations
-  -- Who is allowed to answer. 'copilot' is the default: AI drafts, a human
-  -- sends. Nothing auto-sends unless the org explicitly chose 'ai'.
-  add column if not exists ai_mode text not null default 'copilot',
+  -- Who is allowed to answer. 'ai' is the default: this is an automation
+  -- product, and a bot that waits for a human before every reply is not
+  -- automating anything. 'copilot' and 'human' are chosen per conversation.
+  add column if not exists ai_mode text not null default 'ai',
   add column if not exists priority text not null default 'normal',
   -- Set when a human closes the thread; closed threads leave the active list.
   add column if not exists closed_at timestamptz,
@@ -2100,3 +2101,28 @@ alter table public.conversations
 create index if not exists conversations_resume_idx
   on public.conversations(bot_resume_at)
   where bot_resume_at is not null and bot_resume_node_id is not null;
+
+-- =========================================================================
+-- AI Active is the default, not Copilot.
+--
+-- Copilot was the cautious choice: AI drafts, a human sends. But a WhatsApp
+-- automation product whose bots do not answer until someone presses a button
+-- is not doing the thing it was bought for. A tenant who wants a human in
+-- the loop can still pick Copilot per conversation.
+-- =========================================================================
+
+alter table public.conversations
+  alter column ai_mode set default 'ai';
+
+-- Conversations still sitting on the old default have never had a mode
+-- chosen for them — nobody picked Copilot, it was picked for them. Move
+-- those over, and only those: a conversation someone deliberately set to
+-- 'human' stays where they put it.
+--
+-- bot_enabled is what the message runner actually reads, so the two have to
+-- agree or the mode becomes a label over the wrong behaviour.
+update public.conversations
+set ai_mode = 'ai',
+    bot_enabled = true
+where ai_mode = 'copilot'
+  and bot_enabled = true;

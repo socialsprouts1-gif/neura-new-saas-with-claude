@@ -19,6 +19,7 @@ import {
   type FlowVariables,
 } from "@/lib/flow-engine";
 import {
+  describeMetaError,
   MetaApiError,
   sendCtaUrl,
   sendInteractiveButtons,
@@ -29,6 +30,7 @@ import {
   type MetaMediaType,
 } from "@/lib/meta-whatsapp";
 import { generateAssistantReply } from "@/lib/ai-assistant";
+import { nodeDef } from "@/types/flow";
 import type { OrgConnection, RunnerClient } from "@/lib/whatsapp-send";
 
 // The I/O half of the flow runtime. flow-engine.ts decides where to go; this
@@ -188,9 +190,13 @@ export async function runFlow(
 
       current = nextNode(graph, node.id, step.nextHandle ?? null);
     } catch (error) {
+      // describeMetaError exists precisely so this never reads as a JSON
+      // envelope. A tenant seeing "(#131030) Recipient phone number not in
+      // allowed list" inside braces cannot act on it; the sentence it maps
+      // to names the screen in Meta where the fix lives.
       outcome.error =
         error instanceof MetaApiError
-          ? `Meta rejected the send at "${node.kind}" (${error.status}): ${JSON.stringify(error.body)}`
+          ? `${describeMetaError(error.status, error.body)} (at the ${nodeLabel(node.kind)} step)`
           : error instanceof Error
             ? `${node.kind}: ${error.message}`
             : `${node.kind}: unknown failure`;
@@ -533,3 +539,8 @@ async function persistVariables(context: FlowContext, variables: FlowVariables):
 }
 
 export { findNode, graphOf };
+
+/** "Send Text Message" reads better in an error than "send_text". */
+function nodeLabel(kind: FlowNode["kind"]): string {
+  return nodeDef(kind)?.label ?? kind;
+}

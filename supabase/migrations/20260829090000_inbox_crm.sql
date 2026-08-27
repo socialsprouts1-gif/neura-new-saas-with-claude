@@ -8,9 +8,10 @@
 -- =========================================================================
 
 alter table public.conversations
-  -- Who is allowed to answer. 'copilot' is the default: AI drafts, a human
-  -- sends. Nothing auto-sends unless the org explicitly chose 'ai'.
-  add column if not exists ai_mode text not null default 'copilot',
+  -- Who is allowed to answer. 'ai' is the default: this is an automation
+  -- product, and a bot that waits for a human before every reply is not
+  -- automating anything. 'copilot' and 'human' are chosen per conversation.
+  add column if not exists ai_mode text not null default 'ai',
   add column if not exists priority text not null default 'normal',
   -- Set when a human closes the thread; closed threads leave the active list.
   add column if not exists closed_at timestamptz,
