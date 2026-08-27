@@ -218,6 +218,24 @@ export default function WhatsAppCard({
               </p>
             )}
 
+            {/* Embedded Signup is not only for the first number. Adding a
+                second one, or moving to a number in a different business,
+                are both ordinary things to want — and the previous version
+                only offered this to orgs with no connection at all, which
+                made it unreachable the moment you succeeded once. */}
+            {canManage && (
+              <div className="rounded-xl border border-accent/25 bg-accent/8 p-5 mt-4">
+                <h3 className="text-sm font-semibold mb-1">Add another number through Meta</h3>
+                <p className="text-xs text-white/55 leading-relaxed mb-4 max-w-2xl">
+                  Meta walks you through choosing or adding a number, and we receive the
+                  credentials directly — including the webhook subscription that has no button
+                  anywhere in Meta&apos;s own dashboard. Reconnecting an existing number this way
+                  is safe: it keeps the verify token below, so your webhook stays registered.
+                </p>
+                <ConnectWhatsApp label="Connect another number" />
+              </div>
+            )}
+
             {/* Storing credentials does not tell Meta where to deliver
                 messages — that is a separate step in their dashboard, and
                 the two values it asks for are shown here so nobody has to
