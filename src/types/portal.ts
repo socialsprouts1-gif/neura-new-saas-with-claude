@@ -88,6 +88,18 @@ export type ConversationEvent = {
   created_at: string;
 };
 
+/** A drip step: which template, and how long after the one before it. */
+export type CampaignStep = {
+  id: string;
+  org_id: string;
+  campaign_id: string;
+  template_id: string | null;
+  step_index: number;
+  delay_hours: number;
+  variables: string[];
+  created_at: string;
+};
+
 export const MEETING_STATUSES = ["scheduled", "completed", "cancelled", "no_show"] as const;
 export type MeetingStatus = (typeof MEETING_STATUSES)[number];
 

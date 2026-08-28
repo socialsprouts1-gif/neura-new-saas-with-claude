@@ -58,24 +58,33 @@ own key, pasted on its **AI Configuration** tab and encrypted at rest with
 when it has none of its own, so a tenant on their own OpenAI account needs
 nothing set here. Everything except the AI Assistant works without all three.
 
-### 3. Keep delayed flows moving
+### 3. Keep the schedulers running
 
-A chatbot Delay longer than ten seconds parks the conversation and is resumed
-by `GET /api/cron/resume-flows`. Nothing calls that on its own.
+Two endpoints do work on a timer, and nothing calls either on its own:
+
+| Endpoint | What stops without it |
+| --- | --- |
+| `GET /api/cron/resume-flows` | A chatbot Delay longer than ten seconds parks the conversation; this resumes it. |
+| `GET /api/cron/dispatch-campaigns` | Campaigns queue their recipients rather than sending inline; this drains the queue. Nothing is ever sent without it. |
 
 On a Vercel **Pro** plan, add a `vercel.json`:
 
 ```json
-{ "crons": [{ "path": "/api/cron/resume-flows", "schedule": "* * * * *" }] }
+{
+  "crons": [
+    { "path": "/api/cron/resume-flows", "schedule": "* * * * *" },
+    { "path": "/api/cron/dispatch-campaigns", "schedule": "* * * * *" }
+  ]
+}
 ```
 
 On **Hobby**, do not — Vercel rejects a deployment whose `vercel.json`
 declares a cron more often than daily, and every push stops shipping. Point a
-free pinger (cron-job.org, UptimeRobot) at the URL once a minute instead,
+free pinger (cron-job.org, UptimeRobot) at both URLs once a minute instead,
 sending `Authorization: Bearer <CRON_SECRET>`.
 
-Without either, everything still works except the part of a flow that comes
-after a Delay of more than ten seconds.
+Without them, everything still works except the part of a flow that comes
+after a Delay of more than ten seconds, and campaign delivery.
 
 ### 3. Connect a WhatsApp number
 

@@ -209,33 +209,6 @@ export async function deleteContact(formData: FormData): Promise<ActionResult> {
   return { ok: true, message: "Contact deleted." };
 }
 
-export async function createCampaign(formData: FormData): Promise<ActionResult> {
-  const { orgId } = await requireOrg();
-
-  const name = String(formData.get("name") ?? "").trim();
-  const templateId = String(formData.get("template_id") ?? "") || null;
-  const scheduledAt = String(formData.get("scheduled_at") ?? "").trim();
-  const tag = String(formData.get("tag") ?? "").trim();
-
-  if (!name) return { ok: false, error: "Campaign name is required." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.from("campaigns").insert({
-    org_id: orgId,
-    template_id: templateId,
-    // Stored as a filter document so the segment can grow richer later
-    // without a schema change.
-    segment_filter: tag ? { tags: [tag] } : {},
-    scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-    status: scheduledAt ? "scheduled" : "draft",
-  });
-
-  if (error) return { ok: false, error: error.message };
-
-  revalidatePath("/campaigns");
-  return { ok: true, message: "Campaign created." };
-}
-
 export async function createAutomation(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
 

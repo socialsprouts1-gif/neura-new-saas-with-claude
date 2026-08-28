@@ -301,3 +301,88 @@ export {
   metaErrorDetail,
   type MetaErrorDetail,
 } from "@/lib/meta-errors";
+
+// --- message templates ----------------------------------------------------
+
+export interface MetaTemplateSummary {
+  id: string;
+  name: string;
+  language: string;
+  status: string;
+  category: string;
+  components?: unknown[];
+  rejected_reason?: string;
+}
+
+async function graph(
+  path: string,
+  accessToken: string,
+  init?: { method?: string; body?: unknown }
+): Promise<unknown> {
+  assertUsableAccessToken(accessToken);
+
+  const response = await fetch(`${META_GRAPH_BASE_URL}/${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new MetaApiError(response.status, data);
+  return data;
+}
+
+/**
+ * Submits a template for review. Meta returns immediately with a PENDING
+ * status; approval takes anywhere from a minute to a day, which is why the
+ * sync below exists rather than a callback.
+ */
+export async function createMessageTemplate(
+  wabaId: string,
+  accessToken: string,
+  payload: {
+    name: string;
+    language: string;
+    category: string;
+    components: unknown[];
+  }
+): Promise<{ id: string; status: string; category: string }> {
+  const data = (await graph(`${wabaId}/message_templates`, accessToken, {
+    method: "POST",
+    body: payload,
+  })) as { id: string; status?: string; category?: string };
+
+  return {
+    id: data.id,
+    status: data.status ?? "PENDING",
+    category: data.category ?? payload.category,
+  };
+}
+
+/** Every template on the account, for reconciling status after review. */
+export async function listMessageTemplates(
+  wabaId: string,
+  accessToken: string
+): Promise<MetaTemplateSummary[]> {
+  const data = (await graph(
+    `${wabaId}/message_templates?limit=200&fields=id,name,language,status,category,components,rejected_reason`,
+    accessToken
+  )) as { data?: MetaTemplateSummary[] };
+
+  return data.data ?? [];
+}
+
+export async function deleteMessageTemplate(
+  wabaId: string,
+  accessToken: string,
+  name: string
+): Promise<void> {
+  await graph(
+    `${wabaId}/message_templates?name=${encodeURIComponent(name)}`,
+    accessToken,
+    { method: "DELETE" }
+  );
+}

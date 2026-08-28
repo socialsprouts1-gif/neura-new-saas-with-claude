@@ -1,113 +1,184 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { createCampaign } from "../actions";
-import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
-import { PageHeader, Card, Badge, Table, Td, EmptyState, statusTone } from "@/components/ui/primitives";
+import {
+  PageHeader,
+  StatCard,
+  Badge,
+  Table,
+  Td,
+  EmptyState,
+  statusTone,
+} from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
+import { NewCampaignButton, CampaignRowActions } from "./CampaignToolbar";
+import type { TemplateOption } from "./CampaignBuilder";
 
 export default async function CampaignsPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
-  const [{ data: campaigns, error }, { data: templates }, { count: contactCount }] = await Promise.all([
-    supabase
-      .from("campaigns")
-      .select("id, status, scheduled_at, created_at, segment_filter, message_templates(name)")
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false })
-      .limit(50),
-    supabase
-      .from("message_templates")
-      .select("id, name, status")
-      .eq("org_id", orgId)
-      .eq("status", "approved"),
-    supabase.from("contacts").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-  ]);
+  const [{ data: campaigns, error }, { data: templates }, { data: contacts }, { data: groups }] =
+    await Promise.all([
+      supabase
+        .from("campaigns")
+        .select(
+          "id, name, status, scheduled_at, created_at, completed_at, is_drip, audience, last_error, message_templates(name)"
+        )
+        .eq("org_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("message_templates")
+        .select("id, name, language, category, body_text, header_text, footer_text")
+        .eq("org_id", orgId)
+        .eq("status", "approved")
+        .order("name"),
+      // Tags live on the contact rows, so the list of them is derived here
+      // rather than kept as a second table that can fall out of step.
+      supabase.from("contacts").select("tags").eq("org_id", orgId).limit(2000),
+      supabase.from("contact_groups").select("id, name").eq("org_id", orgId).order("name"),
+    ]);
 
-  const templateOptions = [
-    { value: "", label: templates?.length ? "No template" : "No approved templates yet" },
-    ...(templates ?? []).map((t) => ({ value: t.id, label: t.name })),
-  ];
+  const rows = campaigns ?? [];
+
+  const { data: progress } = rows.length
+    ? await supabase
+        .from("campaign_progress")
+        .select("campaign_id, total, sent, failed, pending")
+        .in(
+          "campaign_id",
+          rows.map((row) => row.id)
+        )
+    : { data: [] };
+
+  const byCampaign = new Map((progress ?? []).map((entry) => [entry.campaign_id, entry]));
+
+  const tags = [
+    ...new Set((contacts ?? []).flatMap((contact) => contact.tags ?? []).filter(Boolean)),
+  ].sort();
+
+  const options: TemplateOption[] = (templates ?? []) as TemplateOption[];
+
+  const live = rows.filter((row) => row.status === "running" || row.status === "scheduled").length;
+  const totalSent = (progress ?? []).reduce((sum, entry) => sum + Number(entry.sent), 0);
 
   return (
     <div className="p-6 md:p-8">
       <PageHeader
         title="Campaigns"
-        subtitle="Send an approved template to a segment of your contacts."
+        subtitle="Send an approved template to a list of people, once or as a drip."
+        action={<NewCampaignButton templates={options} tags={tags} groups={groups ?? []} />}
       />
 
-      <div className="grid lg:grid-cols-[1fr_340px] gap-6 items-start">
-        <div className="order-2 lg:order-1">
-          {error ? (
-            <EmptyState
-              title="Couldn't load campaigns"
-              description={`${error.message}. If this mentions a missing relation, the database migrations haven't been applied yet.`}
-            />
-          ) : campaigns && campaigns.length > 0 ? (
-            <Table head={["Template", "Segment", "Status", "Scheduled", "Created"]}>
-              {campaigns.map((c) => {
-                const tpl = c.message_templates as { name: string } | null;
-                const filter = c.segment_filter as { tags?: string[] };
-                return (
-                  <tr key={c.id} className="hover:bg-white/3 transition-colors">
-                    <Td className="font-medium">{tpl?.name ?? <span className="text-white/30">—</span>}</Td>
-                    <Td>
-                      {filter?.tags?.length ? (
-                        <Badge tone="blue">{filter.tags[0]}</Badge>
-                      ) : (
-                        <span className="text-white/40 text-xs">All contacts</span>
-                      )}
-                    </Td>
-                    <Td>
-                      <Badge tone={statusTone(c.status)}>{c.status}</Badge>
-                    </Td>
-                    <Td className="text-white/50 text-xs whitespace-nowrap">
-                      {formatDate(c.scheduled_at)}
-                    </Td>
-                    <Td className="text-white/40 text-xs whitespace-nowrap">{formatDate(c.created_at)}</Td>
-                  </tr>
-                );
-              })}
-            </Table>
-          ) : (
-            <EmptyState
-              title="No campaigns yet"
-              description="Create a campaign to send an approved WhatsApp template to a group of contacts."
-            />
-          )}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Campaigns" value={rows.length} />
+        <StatCard label="Live" value={live} hint="Running or scheduled" />
+        <StatCard label="Messages sent" value={totalSent.toLocaleString()} />
+        <StatCard label="Approved templates" value={options.length} />
+      </div>
 
-          <p className="text-xs text-white/35 mt-4">
-            Campaigns are created and scheduled here. The worker that actually dispatches
-            them to Meta is not built yet, so a scheduled campaign will stay in its
-            scheduled state.
-          </p>
-        </div>
+      {error ? (
+        <EmptyState
+          title="Couldn't load campaigns"
+          description={`${error.message}. If this mentions a missing relation, run supabase/setup.sql again.`}
+        />
+      ) : rows.length > 0 ? (
+        <Table head={["Campaign", "Template", "Audience", "Progress", "Status", "Created", ""]}>
+          {rows.map((campaign) => {
+            const template = campaign.message_templates as { name: string } | null;
+            const counts = byCampaign.get(campaign.id);
+            const total = Number(counts?.total ?? 0);
+            const sent = Number(counts?.sent ?? 0);
+            const failed = Number(counts?.failed ?? 0);
 
-        <Card className="order-1 lg:order-2">
-          <h2 className="font-semibold mb-1">New campaign</h2>
-          <p className="text-sm text-white/50 mb-5">
-            {contactCount ?? 0} contact{contactCount === 1 ? "" : "s"} available to target.
-          </p>
-          <ActionForm action={createCampaign} submitLabel="Create campaign" resetOnSuccess>
-            <div className="space-y-4">
-              <Field label="Campaign name" name="name" required placeholder="Diwali offer" />
-              <SelectField label="Template" name="template_id" options={templateOptions} />
-              <Field
-                label="Target tag"
-                name="tag"
-                placeholder="lead"
-                hint="Leave blank to target every contact"
-              />
-              <Field
-                label="Schedule for"
-                name="scheduled_at"
-                type="datetime-local"
-                hint="Leave blank to save as a draft"
-              />
-            </div>
-          </ActionForm>
-        </Card>
+            return (
+              <tr key={campaign.id} className="hover:bg-white/3 transition-colors align-top">
+                <Td>
+                  <span className="font-medium">{campaign.name ?? "Untitled"}</span>
+                  {campaign.is_drip && (
+                    <span className="ml-2 text-[10px] uppercase tracking-widest text-white/35">
+                      drip
+                    </span>
+                  )}
+                  {campaign.last_error && (
+                    <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
+                      {campaign.last_error}
+                    </div>
+                  )}
+                </Td>
+                <Td className="text-xs">
+                  {template ? (
+                    <code className="text-accent2-ink">{template.name}</code>
+                  ) : (
+                    <span className="text-white/30">—</span>
+                  )}
+                </Td>
+                <Td className="text-xs text-white/55">{describeAudience(campaign.audience)}</Td>
+                <Td>
+                  <ProgressBar sent={sent} failed={failed} total={total} />
+                </Td>
+                <Td>
+                  <Badge tone={statusTone(campaign.status)}>{campaign.status}</Badge>
+                </Td>
+                <Td className="text-white/40 text-xs whitespace-nowrap">
+                  {formatDate(campaign.scheduled_at ?? campaign.created_at)}
+                </Td>
+                <Td className="text-right">
+                  <CampaignRowActions id={campaign.id} status={campaign.status} />
+                </Td>
+              </tr>
+            );
+          })}
+        </Table>
+      ) : (
+        <EmptyState
+          title="No campaigns yet"
+          description="Pick an approved template, choose who gets it, and send now or on a schedule."
+        />
+      )}
+
+      <p className="text-xs text-white/35 mt-4 max-w-2xl leading-relaxed">
+        Recipients are queued, then sent by the dispatcher at{" "}
+        <code className="text-white/50">/api/cron/dispatch-campaigns</code>. If nothing is
+        sending, that endpoint isn&apos;t being called — see the README for the scheduler
+        setup.
+      </p>
+    </div>
+  );
+}
+
+/** A three-part bar: delivered, failed, still queued. */
+function ProgressBar({ sent, failed, total }: { sent: number; failed: number; total: number }) {
+  if (total === 0) return <span className="text-white/30 text-xs">—</span>;
+
+  const percent = (value: number) => `${(value / total) * 100}%`;
+
+  return (
+    <div className="min-w-[7rem]">
+      <div className="flex h-1.5 rounded-full overflow-hidden bg-white/8">
+        <div className="bg-accent" style={{ width: percent(sent) }} />
+        <div className="bg-[#F87171]" style={{ width: percent(failed) }} />
+      </div>
+      <div className="text-[11px] text-white/45 mt-1.5 tabular-nums">
+        {sent.toLocaleString()} / {total.toLocaleString()}
+        {failed > 0 && <span className="text-[#F87171]"> · {failed} failed</span>}
       </div>
     </div>
   );
+}
+
+function describeAudience(audience: unknown): string {
+  const value = audience as { kind?: string; value?: string; waIds?: string[] } | null;
+  switch (value?.kind) {
+    case "tag":
+      return `Tag: ${value.value}`;
+    case "group":
+      return "Contact group";
+    case "numbers":
+      return `${value.waIds?.length ?? 0} imported numbers`;
+    case "all":
+      return "All contacts";
+    default:
+      return "—";
+  }
 }

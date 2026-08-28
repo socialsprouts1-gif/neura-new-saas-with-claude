@@ -23,6 +23,7 @@ import type {
   AssistantKnowledge,
   Profile,
   ConversationNote,
+  CampaignStep,
   Meeting,
   Transaction,
   ConversationEvent,
@@ -48,7 +49,15 @@ export type ConversationStatus = "open" | "pending" | "resolved" | "closed";
 export type MessageDirection = "inbound" | "outbound";
 export type MessageStatus = "sent" | "delivered" | "read" | "failed";
 export type TemplateCategory = "MARKETING" | "UTILITY" | "AUTHENTICATION";
-export type TemplateStatus = "draft" | "pending" | "approved" | "rejected" | "disabled";
+// Meta reports paused and in_appeal too, and the column allows them.
+export type TemplateStatus =
+  | "draft"
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "disabled"
+  | "paused"
+  | "in_appeal";
 export type CampaignStatus = "draft" | "scheduled" | "running" | "completed" | "cancelled" | "failed";
 export type CampaignRecipientStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 
@@ -255,6 +264,16 @@ export interface Database {
           status: TemplateStatus;
           language: string;
           components_json: unknown[];
+          waba_template_id: string | null;
+          rejected_reason: string | null;
+          last_synced_at: string | null;
+          header_format: "NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+          header_text: string;
+          header_media_url: string;
+          body_text: string;
+          footer_text: string;
+          buttons: unknown[];
+          variable_samples: string[];
           created_at: string;
           updated_at: string;
         };
@@ -266,6 +285,16 @@ export interface Database {
           status?: TemplateStatus;
           language?: string;
           components_json?: unknown[];
+          waba_template_id?: string | null;
+          rejected_reason?: string | null;
+          last_synced_at?: string | null;
+          header_format?: "NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
+          header_text?: string;
+          header_media_url?: string;
+          body_text?: string;
+          footer_text?: string;
+          buttons?: unknown[];
+          variable_samples?: string[];
           created_at?: string;
           updated_at?: string;
         };
@@ -281,6 +310,13 @@ export interface Database {
           status: CampaignStatus;
           scheduled_at: string | null;
           created_at: string;
+          name: string;
+          variables: string[];
+          audience: Record<string, unknown>;
+          started_at: string | null;
+          completed_at: string | null;
+          last_error: string | null;
+          is_drip: boolean;
         };
         Insert: {
           id?: string;
@@ -290,6 +326,13 @@ export interface Database {
           status?: CampaignStatus;
           scheduled_at?: string | null;
           created_at?: string;
+          name?: string;
+          variables?: string[];
+          audience?: Record<string, unknown>;
+          started_at?: string | null;
+          completed_at?: string | null;
+          last_error?: string | null;
+          is_drip?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["campaigns"]["Insert"]>;
         Relationships: [
@@ -307,19 +350,29 @@ export interface Database {
           id: string;
           campaign_id: string;
           org_id: string;
-          contact_id: string;
+          contact_id: string | null;
           status: CampaignRecipientStatus;
           sent_at: string | null;
           created_at: string;
+          wa_id: string | null;
+          wa_message_id: string | null;
+          error: string | null;
+          step_index: number;
+          send_after: string | null;
         };
         Insert: {
           id?: string;
           campaign_id: string;
           org_id?: string;
-          contact_id: string;
+          contact_id?: string | null;
           status?: CampaignRecipientStatus;
           sent_at?: string | null;
           created_at?: string;
+          wa_id?: string | null;
+          wa_message_id?: string | null;
+          error?: string | null;
+          step_index?: number;
+          send_after?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["campaign_recipients"]["Insert"]>;
         Relationships: [];
@@ -492,6 +545,16 @@ export interface Database {
         Row: AiAssistant;
         Insert: Partial<AiAssistant> & { org_id: string; name: string };
         Update: Partial<AiAssistant>;
+        Relationships: [];
+      };
+      campaign_steps: {
+        Row: CampaignStep;
+        Insert: Partial<CampaignStep> & {
+          org_id: string;
+          campaign_id: string;
+          step_index: number;
+        };
+        Update: Partial<CampaignStep>;
         Relationships: [];
       };
       meetings: {
@@ -689,7 +752,19 @@ export interface Database {
         ];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      campaign_progress: {
+        Row: {
+          campaign_id: string;
+          org_id: string;
+          total: number;
+          sent: number;
+          failed: number;
+          pending: number;
+        };
+        Relationships: [];
+      };
+    };
     Functions: Record<string, never>;
   };
 }

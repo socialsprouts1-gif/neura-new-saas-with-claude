@@ -1,17 +1,36 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { PageHeader, Card, StatCard, Badge, Table, Td, EmptyState, statusTone } from "@/components/ui/primitives";
+import {
+  PageHeader,
+  Card,
+  StatCard,
+  Badge,
+  Table,
+  Td,
+  EmptyState,
+  statusTone,
+} from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
+import { variablesIn } from "@/lib/template-spec";
+import { TemplateToolbar, DeleteTemplateButton } from "./TemplateToolbar";
 
 export default async function TemplatesPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
-  const { data: templates, error } = await supabase
-    .from("message_templates")
-    .select("*")
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false });
+  const [{ data: templates, error }, { data: connection }] = await Promise.all([
+    supabase
+      .from("message_templates")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("waba_connections")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("status", "active")
+      .maybeSingle(),
+  ]);
 
   const all = templates ?? [];
 
@@ -19,38 +38,28 @@ export default async function TemplatesPage() {
     <div className="p-6 md:p-8">
       <PageHeader
         title="WhatsApp templates"
-        subtitle="Approved messages you can send outside the 24-hour window."
+        subtitle="Pre-approved messages you can send outside the 24-hour window."
+        action={<TemplateToolbar />}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Templates" value={all.length} />
         <StatCard label="Approved" value={all.filter((t) => t.status === "approved").length} />
-        <StatCard label="Pending" value={all.filter((t) => t.status === "pending").length} />
+        <StatCard label="In review" value={all.filter((t) => t.status === "pending").length} />
         <StatCard label="Rejected" value={all.filter((t) => t.status === "rejected").length} />
       </div>
 
-      {/* Templates are created and approved in Meta, not here. Saying so is
-          more useful than a form that would desync from the real thing. */}
-      <Card className="mb-6">
-        <h2 className="font-semibold mb-1">Templates are created in Meta</h2>
-        <p className="text-sm text-white/50 leading-relaxed mb-4">
-          Meta reviews and approves every template, so they are authored in the WhatsApp Manager
-          rather than here. This screen mirrors what your account holds so campaigns and the
-          chatbot&apos;s Send Template node can reference them by name.
-        </p>
-        <a
-          href="https://business.facebook.com/wa/manage/message-templates/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn-secondary text-sm"
-        >
-          Open WhatsApp Manager
-        </a>
-        <p className="text-xs text-white/35 mt-4">
-          Automatic sync from Meta is not built yet — this list reflects rows stored here, so a
-          template approved in Meta will not appear on its own.
-        </p>
-      </Card>
+      {/* Without a connected number there is no WhatsApp account to submit
+          to, so say that rather than letting the builder fail at the end. */}
+      {!connection && (
+        <Card className="mb-6 border-[#FACC15]/25">
+          <h2 className="font-semibold mb-1">Connect a WhatsApp number first</h2>
+          <p className="text-sm text-white/50 leading-relaxed">
+            Templates live on your WhatsApp Business account. Connect a number under
+            Integrations and this screen will submit templates to Meta for you.
+          </p>
+        </Card>
+      )}
 
       {error ? (
         <EmptyState
@@ -58,31 +67,59 @@ export default async function TemplatesPage() {
           description={`${error.message}. If this mentions a missing relation, run supabase/setup.sql again.`}
         />
       ) : all.length > 0 ? (
-        <Table head={["Name", "Category", "Language", "Status", "Created"]}>
-          {all.map((template) => (
-            <tr key={template.id} className="hover:bg-white/3 transition-colors">
-              <Td>
-                <code className="text-accent2-ink text-xs">{template.name}</code>
-              </Td>
-              <Td>
-                <Badge tone="purple">{template.category}</Badge>
-              </Td>
-              <Td className="text-white/60 text-xs">{template.language}</Td>
-              <Td>
-                <Badge tone={statusTone(template.status)}>{template.status}</Badge>
-              </Td>
-              <Td className="text-white/40 text-xs whitespace-nowrap">
-                {formatDate(template.created_at)}
-              </Td>
-            </tr>
-          ))}
+        <Table head={["Name", "Preview", "Category", "Language", "Status", "Created", ""]}>
+          {all.map((template) => {
+            const body = template.body_text ?? "";
+            return (
+              <tr key={template.id} className="hover:bg-white/3 transition-colors align-top">
+                <Td>
+                  <code className="text-accent2-ink text-xs">{template.name}</code>
+                  {template.rejected_reason && (
+                    <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
+                      {template.rejected_reason}
+                    </div>
+                  )}
+                </Td>
+                <Td className="text-white/55 text-xs max-w-sm">
+                  <span className="line-clamp-2">
+                    {body || <span className="text-white/25">Created in WhatsApp Manager</span>}
+                  </span>
+                  {variablesIn(body).length > 0 && (
+                    <span className="block text-[11px] text-white/35 mt-1">
+                      {variablesIn(body).length} variable
+                      {variablesIn(body).length === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </Td>
+                <Td>
+                  <Badge tone="purple">{template.category}</Badge>
+                </Td>
+                <Td className="text-white/60 text-xs">{template.language}</Td>
+                <Td>
+                  <Badge tone={statusTone(template.status)}>{template.status}</Badge>
+                </Td>
+                <Td className="text-white/40 text-xs whitespace-nowrap">
+                  {formatDate(template.created_at)}
+                </Td>
+                <Td className="text-right">
+                  <DeleteTemplateButton id={template.id} name={template.name} />
+                </Td>
+              </tr>
+            );
+          })}
         </Table>
       ) : (
         <EmptyState
-          title="No templates stored yet"
-          description="Create one in WhatsApp Manager, then reference it by name in a campaign or a Send Template node."
+          title="No templates yet"
+          description="Create one here and it goes to Meta for review. Approval usually takes a few minutes; marketing templates can take a day."
         />
       )}
+
+      <p className="text-xs text-white/35 mt-4 max-w-2xl leading-relaxed">
+        Meta reviews every template and does not notify us when the verdict lands — press
+        Sync with Meta to pull the current status, including templates created directly in
+        WhatsApp Manager.
+      </p>
     </div>
   );
 }
