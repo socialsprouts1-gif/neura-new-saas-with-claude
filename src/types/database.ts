@@ -24,6 +24,9 @@ import type {
   Profile,
   ConversationNote,
   CampaignStep,
+  WhatsappFlow,
+  FlowSend,
+  FlowResponse,
   Meeting,
   Transaction,
   ConversationEvent,
@@ -702,6 +705,24 @@ export interface Database {
         Row: CannedMessage;
         Insert: Partial<CannedMessage> & { org_id: string; shortcut: string; title: string; body: string };
         Update: Partial<CannedMessage>;
+        Relationships: [];
+      };
+      whatsapp_flows: {
+        Row: WhatsappFlow;
+        Insert: Partial<WhatsappFlow> & { org_id: string; name: string };
+        Update: Partial<WhatsappFlow>;
+        Relationships: [];
+      };
+      flow_sends: {
+        Row: FlowSend;
+        Insert: Partial<FlowSend> & { org_id: string; flow_id: string; wa_id: string; flow_token: string };
+        Update: Partial<FlowSend>;
+        Relationships: [];
+      };
+      flow_responses: {
+        Row: FlowResponse;
+        Insert: Partial<FlowResponse> & { org_id: string };
+        Update: Partial<FlowResponse>;
         Relationships: [];
       };
       contact_groups: {

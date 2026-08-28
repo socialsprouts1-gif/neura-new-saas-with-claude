@@ -7,7 +7,12 @@ import type { RunnerClient } from "@/lib/whatsapp-send";
 // and n8n all accept a signed POST on a catch hook, and so does any
 // backend the customer already runs.
 
-export const WEBHOOK_EVENTS = ["message.received", "message.status", "contact.created"] as const;
+export const WEBHOOK_EVENTS = [
+  "message.received",
+  "message.status",
+  "contact.created",
+  "form.submitted",
+] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
 // Deliveries run inside the webhook handler's `after()` callback. A target

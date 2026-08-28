@@ -74,7 +74,7 @@ const MAIN: NavItem[] = [
       { label: "Contacts", href: "/contacts" },
       { label: "Transactions", href: "/transactions" },
       { label: "Campaigns", href: "/campaigns" },
-      { label: "Whatsapp Forms", href: "/forms", soon: true },
+      { label: "Whatsapp Forms", href: "/forms" },
       { label: "Canned Messages", href: "/canned-messages" },
       { label: "Tags", href: "/tags" },
       { label: "Columns", href: "/columns" },

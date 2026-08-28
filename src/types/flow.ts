@@ -21,6 +21,7 @@ export type FlowNodeKind =
   | "send_media"
   | "send_template"
   | "send_cta"
+  | "send_form"
   | "send_product"
   // asking
   | "ask_question"
@@ -246,6 +247,21 @@ export const NODE_DEFS: NodeDef[] = [
     ],
     accent: "#00D4FF",
     defaults: { body: "", buttonText: "", url: "", footer: "" },
+  },
+  {
+    kind: "send_form",
+    label: "Send Form",
+    group: "Send",
+    description: "Opens a WhatsApp Form inside the chat and records the answers.",
+    runtime: "ready",
+    fields: [
+      { name: "formId", label: "Form name or id", kind: "text", placeholder: "Book an appointment" },
+      { name: "body", label: "Body text", kind: "textarea", maxLength: 1024 },
+      { name: "buttonText", label: "Button label", kind: "text", maxLength: 20, placeholder: "Open form" },
+      { name: "footer", label: "Footer (optional)", kind: "text", maxLength: 60 },
+    ],
+    accent: "#25D366",
+    defaults: { formId: "", body: "", buttonText: "Open form", footer: "" },
   },
   {
     kind: "send_product",

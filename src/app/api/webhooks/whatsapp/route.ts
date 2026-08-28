@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { notifyInboundMessage, runInboundMessage } from "@/lib/message-runner";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
+import { readFlowReply } from "@/lib/flow-reply";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
 
@@ -327,6 +328,18 @@ async function handleInboundMessages(
       });
     }
 
+    // A completed WhatsApp Form arrives as an ordinary interactive message.
+    // Recording it before the bot runs means a submission survives even if
+    // an automation later fails on the same message.
+    if (message.type === "interactive") {
+      await recordFlowSubmission(supabase, orgId, {
+        content,
+        waId,
+        contactId: contact.id,
+        conversationId: conversation.id,
+      });
+    }
+
     await notifyInboundMessage(supabase, orgId, {
       conversationId: conversation.id,
       contactId: contact.id,
@@ -383,6 +396,60 @@ async function handleStatusUpdates(
       });
     }
   }
+}
+
+/**
+ * Stores the answers from a completed WhatsApp Form.
+ *
+ * The flow token is the only thing tying a submission to the person who was
+ * sent the form — Meta echoes back what we generated at send time and
+ * nothing else identifies the send. A submission with an unknown token is
+ * still kept: losing a customer's answers because a row went missing is the
+ * worse failure.
+ */
+async function recordFlowSubmission(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  context: {
+    content: Record<string, unknown>;
+    waId: string;
+    contactId: string;
+    conversationId: string;
+  }
+) {
+  const reply = readFlowReply(context.content);
+  if (!reply) return;
+
+  const { data: send } = reply.token
+    ? await supabase
+        .from("flow_sends")
+        .select("flow_id")
+        .eq("org_id", orgId)
+        .eq("flow_token", reply.token)
+        .maybeSingle()
+    : { data: null };
+
+  const { error } = await supabase.from("flow_responses").insert({
+    org_id: orgId,
+    flow_id: send?.flow_id ?? null,
+    contact_id: context.contactId,
+    conversation_id: context.conversationId,
+    wa_id: context.waId,
+    flow_token: reply.token,
+    answers: reply.answers,
+  });
+
+  if (error) {
+    console.error("Failed to store flow submission", error);
+    return;
+  }
+
+  await dispatchWebhookEvent(supabase, orgId, "form.submitted", {
+    flow_id: send?.flow_id ?? null,
+    wa_id: context.waId,
+    contact_id: context.contactId,
+    answers: reply.answers,
+  });
 }
 
 function extractMessageContent(message: MetaInboundMessage): Record<string, unknown> {

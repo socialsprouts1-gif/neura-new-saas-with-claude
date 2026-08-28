@@ -46,6 +46,7 @@ import {
   StopCircle,
   Bot,
   type LucideIcon,
+  ClipboardList,
 } from "lucide-react";
 import {
   NODE_DEFS,
@@ -80,6 +81,7 @@ const NODE_ICONS: Record<FlowNodeKind, LucideIcon> = {
   send_media: ImageIcon,
   send_template: FileText,
   send_cta: Link2,
+  send_form: ClipboardList,
   send_product: ShoppingCart,
   ask_question: HelpCircle,
   ask_location: MapPin,

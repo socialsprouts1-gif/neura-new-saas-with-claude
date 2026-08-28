@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { FlowGraph, FlowNode } from "@/types/flow";
 import type { ChatbotFlow } from "@/types/portal";
 import {
@@ -22,6 +23,7 @@ import {
   describeMetaError,
   MetaApiError,
   sendCtaUrl,
+  sendFlowMessage,
   sendInteractiveButtons,
   sendInteractiveList,
   sendMediaMessage,
@@ -308,6 +310,69 @@ async function executeNode(
         { footer: text("footer") || undefined }
       );
       await logOutbound(context, "interactive", { body, url, buttonText }, result.messages[0]?.id ?? null);
+      return { variables, reply: body };
+    }
+
+    case "send_form": {
+      const formId = String(node.data.formId ?? "").trim();
+      const body = text("body");
+      if (!formId || !body) return { variables };
+
+      // Accept either the id shown on the Forms screen or the form's name,
+      // because nobody wants to paste a UUID into a chatbot node.
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formId);
+      const query = context.supabase
+        .from("whatsapp_flows")
+        .select("id, meta_flow_id, status, screens")
+        .eq("org_id", context.orgId);
+
+      const { data: form } = await (isUuid ? query.eq("id", formId) : query.eq("name", formId))
+        .maybeSingle();
+
+      if (!form) {
+        throw new Error(`No form called "${formId}" in this workspace.`);
+      }
+
+      if (!form?.meta_flow_id) {
+        throw new Error("That form hasn't been sent to WhatsApp yet — open it and press Update Flow.");
+      }
+
+      const screens = (form.screens ?? []) as Array<{ screenId?: string }>;
+      const firstScreen = screens[0]?.screenId;
+      if (!firstScreen) {
+        throw new Error("That form has no screens to open.");
+      }
+
+      // The token is what ties the answers back to this conversation; the
+      // webhook has nothing else to match a submission on.
+      const flowToken = randomUUID();
+
+      const result = await sendFlowMessage(
+        connection.phoneNumberId,
+        contactWaId,
+        connection.accessToken,
+        {
+          flowId: form.meta_flow_id,
+          flowToken,
+          cta: String(node.data.buttonText ?? "Open form").slice(0, 20) || "Open form",
+          body,
+          firstScreen,
+          footer: text("footer") || undefined,
+          draft: form.status !== "published",
+        }
+      );
+
+      await context.supabase.from("flow_sends").insert({
+        org_id: context.orgId,
+        flow_id: form.id,
+        contact_id: context.contactId,
+        conversation_id: context.conversationId,
+        wa_id: contactWaId,
+        flow_token: flowToken,
+        wa_message_id: result.messages[0]?.id ?? null,
+      });
+
+      await logOutbound(context, "interactive", { body, flow_id: form.meta_flow_id }, result.messages[0]?.id ?? null);
       return { variables, reply: body };
     }
 

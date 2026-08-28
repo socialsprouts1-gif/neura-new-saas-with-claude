@@ -396,3 +396,50 @@ export const COLUMN_TYPES: { value: ContactColumnType; label: string }[] = [
   { value: "select", label: "Choice" },
   { value: "boolean", label: "Yes / No" },
 ];
+
+// --- WhatsApp Flows -------------------------------------------------------
+
+export type FlowStatus = "draft" | "published" | "deprecated" | "blocked" | "throttled";
+
+/** A form as this app holds it, before it becomes Flow JSON at Meta. */
+export type WhatsappFlow = {
+  id: string;
+  org_id: string;
+  name: string;
+  meta_flow_id: string | null;
+  categories: string[];
+  status: FlowStatus;
+  screens: unknown;
+  validation_errors: unknown;
+  preview_url: string | null;
+  preview_expires_at: string | null;
+  last_synced_at: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One form handed to one person; the token is how the reply finds its way back. */
+export type FlowSend = {
+  id: string;
+  org_id: string;
+  flow_id: string;
+  contact_id: string | null;
+  conversation_id: string | null;
+  wa_id: string;
+  flow_token: string;
+  wa_message_id: string | null;
+  created_at: string;
+};
+
+export type FlowResponse = {
+  id: string;
+  org_id: string;
+  flow_id: string | null;
+  contact_id: string | null;
+  conversation_id: string | null;
+  wa_id: string | null;
+  flow_token: string | null;
+  answers: Record<string, unknown>;
+  created_at: string;
+};

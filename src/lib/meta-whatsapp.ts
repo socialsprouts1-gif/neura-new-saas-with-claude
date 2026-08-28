@@ -386,3 +386,171 @@ export async function deleteMessageTemplate(
     { method: "DELETE" }
   );
 }
+
+// --- flows ----------------------------------------------------------------
+
+export interface MetaFlowSummary {
+  id: string;
+  name: string;
+  status: string;
+  categories?: string[];
+  validation_errors?: MetaFlowValidationError[];
+  preview?: { preview_url: string; expires_at?: string };
+}
+
+export interface MetaFlowValidationError {
+  error: string;
+  error_type?: string;
+  message: string;
+  line_start?: number;
+  column_start?: number;
+  pointers?: Array<{ path?: string }>;
+}
+
+/**
+ * Creates a flow. It starts as a draft — a draft can be opened from the
+ * preview link and sent to a test number, but not sent to customers.
+ */
+export async function createFlow(
+  wabaId: string,
+  accessToken: string,
+  payload: { name: string; categories: string[] }
+): Promise<{ id: string; validation_errors?: MetaFlowValidationError[] }> {
+  return (await graph(`${wabaId}/flows`, accessToken, {
+    method: "POST",
+    body: payload,
+  })) as { id: string; validation_errors?: MetaFlowValidationError[] };
+}
+
+export async function updateFlowMetadata(
+  flowId: string,
+  accessToken: string,
+  payload: { name?: string; categories?: string[] }
+): Promise<void> {
+  await graph(flowId, accessToken, { method: "POST", body: payload });
+}
+
+/**
+ * Replaces a flow's JSON.
+ *
+ * This one endpoint is multipart rather than JSON — the document goes up as
+ * a file part — so it bypasses the graph() helper. Meta answers 200 with a
+ * `validation_errors` array even when it refuses the document, so the caller
+ * has to read that rather than trusting the status code.
+ */
+export async function updateFlowJson(
+  flowId: string,
+  accessToken: string,
+  flowJson: unknown
+): Promise<{ success: boolean; validation_errors?: MetaFlowValidationError[] }> {
+  assertUsableAccessToken(accessToken);
+
+  const body = new FormData();
+  body.append("name", "flow.json");
+  body.append("asset_type", "FLOW_JSON");
+  body.append("messaging_product", "whatsapp");
+  body.append(
+    "file",
+    new Blob([JSON.stringify(flowJson, null, 2)], { type: "application/json" }),
+    "flow.json"
+  );
+
+  const response = await fetch(`${META_GRAPH_BASE_URL}/${flowId}/assets`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new MetaApiError(response.status, data);
+  return data as { success: boolean; validation_errors?: MetaFlowValidationError[] };
+}
+
+/** Publishing is one-way: a published flow can be deprecated, never edited. */
+export async function publishFlow(flowId: string, accessToken: string): Promise<void> {
+  await graph(`${flowId}/publish`, accessToken, { method: "POST" });
+}
+
+export async function deprecateFlow(flowId: string, accessToken: string): Promise<void> {
+  await graph(`${flowId}/deprecate`, accessToken, { method: "POST" });
+}
+
+/** Only a draft can be deleted; a published flow has to be deprecated. */
+export async function deleteFlow(flowId: string, accessToken: string): Promise<void> {
+  await graph(flowId, accessToken, { method: "DELETE" });
+}
+
+const FLOW_FIELDS = "id,name,status,categories,validation_errors";
+
+export async function getFlow(
+  flowId: string,
+  accessToken: string,
+  options: { withPreview?: boolean } = {}
+): Promise<MetaFlowSummary> {
+  const fields = options.withPreview
+    ? `${FLOW_FIELDS},preview.invalidate(false)`
+    : FLOW_FIELDS;
+  return (await graph(`${flowId}?fields=${fields}`, accessToken)) as MetaFlowSummary;
+}
+
+export async function listFlows(
+  wabaId: string,
+  accessToken: string
+): Promise<MetaFlowSummary[]> {
+  const data = (await graph(`${wabaId}/flows?limit=200&fields=${FLOW_FIELDS}`, accessToken)) as {
+    data?: MetaFlowSummary[];
+  };
+  return data.data ?? [];
+}
+
+/**
+ * Sends the message that opens a flow.
+ *
+ * `mode: "draft"` is what makes an unpublished flow testable — Meta accepts
+ * it only for numbers on the account, which is exactly the audience you want
+ * while still building.
+ */
+export function sendFlowMessage(
+  phoneNumberId: string,
+  to: string,
+  accessToken: string,
+  options: {
+    flowId: string;
+    flowToken: string;
+    cta: string;
+    body: string;
+    firstScreen: string;
+    header?: string;
+    footer?: string;
+    draft?: boolean;
+    flowMessageVersion?: string;
+  }
+): Promise<MetaSendMessageResponse> {
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "flow",
+      ...(options.header ? { header: { type: "text", text: options.header } } : {}),
+      body: { text: options.body },
+      ...(options.footer ? { footer: { text: options.footer } } : {}),
+      action: {
+        name: "flow",
+        parameters: {
+          flow_message_version: options.flowMessageVersion ?? "3",
+          flow_token: options.flowToken,
+          flow_id: options.flowId,
+          flow_cta: options.cta,
+          flow_action: "navigate",
+          flow_action_payload: { screen: options.firstScreen },
+          ...(options.draft ? { mode: "draft" } : {}),
+        },
+      },
+    },
+  });
+}
+
+// Reading a flow submission is pure — no fetch, no env, no server-only —
+// which is what makes it testable. Re-exported here so call sites keep a
+// single Meta import.
+export { readFlowReply } from "@/lib/flow-reply";
