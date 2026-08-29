@@ -21,6 +21,7 @@ import {
 } from "@/lib/meta-whatsapp";
 import {
   buildFlowJson,
+  repairScreens,
   validateFlow,
   newScreen,
   newField,
@@ -124,12 +125,16 @@ export async function saveForm(input: {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
+  // Repaired here too, not only in the builder: an older client or a
+  // direct call could still send ids Meta will refuse.
+  const screens = repairScreens(input.screens);
+
   const { error: saveError } = await supabase
     .from("whatsapp_flows")
     .update({
       name: input.name.trim() || "Untitled form",
       categories: input.categories,
-      screens: input.screens as unknown as Record<string, unknown>,
+      screens: screens as unknown as Record<string, unknown>,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.id)
@@ -138,7 +143,7 @@ export async function saveForm(input: {
   if (saveError) return { ok: false, error: saveError.message };
   revalidatePath("/forms");
 
-  const check = validateFlow(input.screens);
+  const check = validateFlow(screens);
   if (!check.ok) {
     return { ok: false, error: check.errors.slice(0, 3).join(" ") };
   }
@@ -167,7 +172,7 @@ export async function saveForm(input: {
     };
   }
 
-  const document = buildFlowJson(input.screens);
+  const document = buildFlowJson(screens);
 
   try {
     let metaFlowId = flow.meta_flow_id;
@@ -234,7 +239,7 @@ export async function publishForm(id: string): Promise<ActionResult> {
     return { ok: false, error: "Press Update Flow first — this form hasn't reached WhatsApp yet." };
   }
 
-  const screens = flow.screens as unknown as FormScreen[];
+  const screens = repairScreens(flow.screens as unknown as FormScreen[]);
   const check = validateFlow(screens);
   if (!check.ok) return { ok: false, error: check.errors.slice(0, 3).join(" ") };
 

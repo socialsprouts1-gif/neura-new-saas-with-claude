@@ -159,7 +159,7 @@ export function newField(kind: ComponentKind, existing: FormField[] = []): FormF
 export function newScreen(index: number): FormScreen {
   return {
     key: localKey("s"),
-    screenId: index === 0 ? "SCREEN_1" : `SCREEN_${index + 1}`,
+    screenId: normaliseScreenId(`SCREEN_${index + 1}`),
     title: index === 0 ? "Basic" : `Screen ${index + 1}`,
     buttonLabel: "Continue",
     fields: [],
@@ -208,37 +208,132 @@ function defaultLabel(kind: ComponentKind): string {
   }
 }
 
-/** Answers are keyed by name, so a repeat would silently overwrite. */
+/**
+ * Answers are keyed by name, so a repeat would silently overwrite.
+ *
+ * The suffix goes through normaliseFieldName so it comes out as a word —
+ * "email_two", not "email_2", which Meta refuses.
+ */
 export function uniqueName(base: string, existing: FormField[]): string {
   const taken = new Set(existing.filter((field) => isAnswering(field.kind)).map((f) => f.name));
   if (!taken.has(base)) return base;
   for (let suffix = 2; suffix < 500; suffix += 1) {
-    if (!taken.has(`${base}_${suffix}`)) return `${base}_${suffix}`;
+    const candidate = normaliseFieldName(`${base}_${suffix}`);
+    if (!taken.has(candidate)) return candidate;
   }
-  return `${base}_${Date.now()}`;
+  return normaliseFieldName(`${base}_${Date.now()}`);
 }
 
-/** "Your Name" -> "your_name". Meta requires a JSON-safe identifier. */
+/**
+ * "Your Name" -> "your_name". Meta requires a JSON-safe identifier.
+ *
+ * Component names carry the same restriction as screen ids: letters and
+ * underscores only, no digits. Digits are spelled out rather than dropped
+ * so two fields that differ only by a number stay distinct.
+ */
 export function normaliseFieldName(input: string): string {
   const cleaned = input
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/\d/g, (digit) => DIGIT_WORDS[Number(digit)].toLowerCase())
+    .replace(/[^a-z]+/g, "_")
     .replace(/^_+|_+$/g, "")
-    .slice(0, 40);
-  // A name must start with a letter; "1st_choice" is rejected.
-  return /^[a-z]/.test(cleaned) ? cleaned : `field_${cleaned}` || "field";
+    .slice(0, 40)
+    .replace(/_+$/, "");
+  return cleaned && /^[a-z]/.test(cleaned) ? cleaned : `field_${cleaned}`.replace(/_+$/, "");
 }
 
-/** "Contact us" -> "CONTACT_US". Screen ids route the flow. */
+const DIGIT_WORDS = [
+  "ZERO",
+  "ONE",
+  "TWO",
+  "THREE",
+  "FOUR",
+  "FIVE",
+  "SIX",
+  "SEVEN",
+  "EIGHT",
+  "NINE",
+] as const;
+
+/**
+ * "Contact us" -> "CONTACT_US". Screen ids route the flow.
+ *
+ * Meta allows letters and underscores only — a digit anywhere in a screen
+ * id is rejected outright with "Property 'id' should only consist of
+ * alphabets and underscores". Digits are spelled out rather than dropped,
+ * so "SCREEN_2" and "SCREEN_3" stay distinct instead of collapsing into
+ * one id and silently merging two screens.
+ */
 export function normaliseScreenId(input: string): string {
   const cleaned = input
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/\d/g, (digit) => DIGIT_WORDS[Number(digit)])
+    .replace(/[^A-Z]+/g, "_")
     .replace(/^_+|_+$/g, "")
-    .slice(0, 40);
-  return /^[A-Z]/.test(cleaned) ? cleaned : `SCREEN_${cleaned}` || "SCREEN";
+    .slice(0, 40)
+    // A trailing underscore can survive the slice above.
+    .replace(/_+$/, "");
+  return cleaned && /^[A-Z]/.test(cleaned) ? cleaned : `SCREEN_${cleaned}`.replace(/_+$/, "");
+}
+
+/**
+ * Brings a stored form back within Meta's rules.
+ *
+ * Forms saved before screen ids were known to reject digits carry ids like
+ * SCREEN_1, which Meta refuses on every upload. Repairing on load fixes
+ * them in place rather than leaving the author with a form that can never
+ * be published and no way to see why. Navigation is derived from screen
+ * order, not from stored references, so renaming an id breaks nothing.
+ */
+export function repairScreens(screens: FormScreen[]): FormScreen[] {
+  const taken = new Set<string>();
+
+  return repairNames(screens).map((screen) => {
+    let id = normaliseScreenId(screen.screenId || "SCREEN");
+    // SUCCESS is Meta's own end state and cannot be claimed by a screen.
+    if (id === "SUCCESS") id = "SUCCESS_SCREEN";
+
+    if (taken.has(id)) {
+      let suffix = 2;
+      while (taken.has(normaliseScreenId(`${id}_${suffix}`))) suffix += 1;
+      id = normaliseScreenId(`${id}_${suffix}`);
+    }
+    taken.add(id);
+
+    return { ...screen, screenId: id, fields: screen.fields };
+  });
+}
+
+/**
+ * Brings stored field names back within Meta's rules, keeping them unique
+ * across the whole form — answers land in one object keyed by name, so a
+ * repeat anywhere loses one of the two.
+ */
+function repairNames(screens: FormScreen[]): FormScreen[] {
+  const taken = new Set<string>();
+
+  return screens.map((screen) => ({
+    ...screen,
+    fields: screen.fields.map((field) => {
+      if (!isAnswering(field.kind)) return field;
+
+      let name = normaliseFieldName(field.name || defaultName(field.kind));
+      if (taken.has(name)) {
+        for (let suffix = 2; suffix < 500; suffix += 1) {
+          const candidate = normaliseFieldName(`${name}_${suffix}`);
+          if (!taken.has(candidate)) {
+            name = candidate;
+            break;
+          }
+        }
+      }
+      taken.add(name);
+
+      return name === field.name ? field : { ...field, name };
+    }),
+  }));
 }
 
 // --- validation -----------------------------------------------------------
@@ -261,7 +356,15 @@ export function validateFlow(screens: FormScreen[]): Validation {
   for (const [index, screen] of screens.entries()) {
     const where = screen.title || `Screen ${index + 1}`;
 
-    if (!screen.screenId) errors.push(`${where} has no screen id.`);
+    if (!screen.screenId) {
+      errors.push(`${where} has no screen id.`);
+    } else if (!/^[A-Z_]+$/i.test(screen.screenId)) {
+      // Meta's rule, and its error names only a JSON path, so it is worth
+      // saying plainly here instead.
+      errors.push(
+        `${where}: the screen id "${screen.screenId}" must be letters and underscores only — no numbers.`
+      );
+    }
     // SUCCESS is reserved by Meta as the implicit end state.
     if (screen.screenId === "SUCCESS") {
       errors.push(`"SUCCESS" is reserved by WhatsApp and can't be a screen id.`);
@@ -310,9 +413,10 @@ function validateField(field: FormField, where: string, seenNames: Set<string>):
 
   if (!field.name) {
     errors.push(`${where}: a question has no field name.`);
-  } else if (!/^[a-z][a-z0-9_]*$/.test(field.name)) {
+  } else if (!/^[a-z][a-z_]*$/.test(field.name)) {
+    // Same rule as screen ids: WhatsApp allows letters and underscores only.
     errors.push(
-      `${where}: "${field.name}" must be lowercase letters, numbers and underscores, starting with a letter.`
+      `${where}: the field name "${field.name}" must be lowercase letters and underscores only — no numbers.`
     );
   } else if (seenNames.has(field.name)) {
     // Answers are collected into one object keyed by name, so a repeat

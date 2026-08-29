@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { EmptyState } from "@/components/ui/primitives";
 import FlowBuilder from "./FlowBuilder";
-import type { FormScreen } from "@/lib/flow-json";
+import { repairScreens, type FormScreen } from "@/lib/flow-json";
 
 export default async function FormBuilderPage({
   params,
@@ -23,7 +23,10 @@ export default async function FormBuilderPage({
 
   if (!flow) notFound();
 
-  const screens = (flow.screens ?? []) as unknown as FormScreen[];
+  // Forms saved before screen ids were known to reject digits carry ids
+  // Meta refuses on every upload. Repairing on the way in fixes them the
+  // next time the author presses Update Flow.
+  const screens = repairScreens((flow.screens ?? []) as unknown as FormScreen[]);
 
   // A form imported from WhatsApp Manager has no editable screens here.
   // Opening it in an empty builder would overwrite the real thing on the

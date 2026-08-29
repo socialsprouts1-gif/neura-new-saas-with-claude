@@ -9,6 +9,7 @@ import {
   normaliseScreenId,
   uniqueName,
   validateFlow,
+  repairScreens,
   answerKeys,
   type FormField,
   type FormScreen,
@@ -32,7 +33,7 @@ function field(over: Partial<FormField> = {}): FormField {
 function screen(over: Partial<FormScreen> = {}): FormScreen {
   return {
     key: "s",
-    screenId: "SCREEN_1",
+    screenId: "SCREEN_ONE",
     title: "Basic",
     buttonLabel: "Continue",
     fields: [field()],
@@ -211,21 +212,54 @@ test("an empty screen and a choice with no options are both refused", () => {
   );
 });
 
-test("normaliseFieldName produces an identifier", () => {
+test("normaliseFieldName produces an identifier with no digits", () => {
   assert.equal(normaliseFieldName("Your Name"), "your_name");
   assert.equal(normaliseFieldName("  E-mail Address! "), "e_mail_address");
-  // Must start with a letter.
-  assert.equal(normaliseFieldName("1st choice"), "field_1st_choice");
+  // WhatsApp refuses digits in a component name, so they are spelled out.
+  assert.equal(normaliseFieldName("1st choice"), "onest_choice");
+  assert.equal(normaliseFieldName("address 2"), "address_two");
+});
+
+test("a field name with a digit is refused by validation", () => {
+  const result = validateFlow([screen({ fields: [field({ name: "address_2" })] })]);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes("no numbers")));
+});
+
+test("uniqueName suffixes with a word, not a digit", () => {
+  const existing = [field({ name: "email" })];
+  assert.equal(uniqueName("email", existing), "email_two");
+  assert.match(uniqueName("email", existing), /^[a-z_]+$/);
+});
+
+test("repairScreens fixes field names and keeps them unique flow-wide", () => {
+  const repaired = repairScreens([
+    screen({ screenId: "SCREEN_1", fields: [field({ name: "address_2" })] }),
+    screen({ screenId: "SCREEN_2", fields: [field({ name: "address_two" })] }),
+  ]);
+
+  const names = repaired.flatMap((entry) => entry.fields.map((f) => f.name));
+  assert.equal(new Set(names).size, names.length);
+  for (const name of names) assert.match(name, /^[a-z][a-z_]*$/);
+});
+
+test("repair leaves display-only components alone", () => {
+  const repaired = repairScreens([
+    screen({ fields: [field({ kind: "TextHeading", text: "Hi", name: "" })] }),
+  ]);
+  assert.equal(repaired[0].fields[0].text, "Hi");
 });
 
 test("normaliseScreenId shouts and starts with a letter", () => {
   assert.equal(normaliseScreenId("Contact us"), "CONTACT_US");
-  assert.equal(normaliseScreenId("2nd step"), "SCREEN_2ND_STEP");
+  // The leading digit becomes a word, which is already a letter, so no
+  // SCREEN_ prefix is needed.
+  assert.equal(normaliseScreenId("2nd step"), "TWOND_STEP");
 });
 
 test("uniqueName only counts answering fields", () => {
   const existing = [field({ name: "email" }), field({ kind: "TextBody", name: "email" })];
-  assert.equal(uniqueName("email", existing), "email_2");
+  assert.equal(uniqueName("email", existing), "email_two");
   assert.equal(uniqueName("phone", existing), "phone");
 });
 
@@ -246,4 +280,79 @@ test("answerKeys lists the submission shape in order", () => {
       { name: "email", label: "Email" },
     ]
   );
+});
+
+
+// Meta rejects a digit anywhere in a screen id with a message that names
+// only a JSON path, so these are the rules worth pinning down.
+
+test("generated screen ids carry no digits", () => {
+  for (let index = 0; index < 15; index += 1) {
+    const id = newScreen(index).screenId;
+    assert.match(id, /^[A-Z_]+$/, `${id} must be letters and underscores only`);
+  }
+});
+
+test("generated screen ids stay unique", () => {
+  const ids = Array.from({ length: 15 }, (_, index) => newScreen(index).screenId);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test("normaliseScreenId spells digits out rather than dropping them", () => {
+  assert.equal(normaliseScreenId("SCREEN_1"), "SCREEN_ONE");
+  assert.equal(normaliseScreenId("SCREEN_2"), "SCREEN_TWO");
+  // Dropping would collapse these two into the same id and merge screens.
+  assert.notEqual(normaliseScreenId("SCREEN_2"), normaliseScreenId("SCREEN_3"));
+  assert.equal(normaliseScreenId("step 42"), "STEP_FOURTWO");
+});
+
+test("a screen id with a digit is refused by validation", () => {
+  const result = validateFlow([screen({ screenId: "SCREEN_1" })]);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => error.includes("no numbers")));
+});
+
+test("repairScreens fixes forms saved before the digit rule was known", () => {
+  const repaired = repairScreens([
+    screen({ screenId: "SCREEN_1" }),
+    screen({ screenId: "SCREEN_2" }),
+  ]);
+  assert.deepEqual(
+    repaired.map((entry) => entry.screenId),
+    ["SCREEN_ONE", "SCREEN_TWO"]
+  );
+});
+
+test("repairScreens breaks ties rather than producing duplicates", () => {
+  const repaired = repairScreens([
+    screen({ screenId: "SCREEN_1" }),
+    screen({ screenId: "SCREEN_ONE" }),
+    screen({ screenId: "SCREEN_ONE" }),
+  ]);
+  assert.equal(new Set(repaired.map((entry) => entry.screenId)).size, 3);
+  for (const entry of repaired) assert.match(entry.screenId, /^[A-Z_]+$/);
+});
+
+test("repairScreens frees Meta's reserved SUCCESS id", () => {
+  assert.equal(repairScreens([screen({ screenId: "SUCCESS" })])[0].screenId, "SUCCESS_SCREEN");
+});
+
+test("a repaired form passes validation and builds", () => {
+  const repaired = repairScreens([screen({ screenId: "SCREEN_1" })]);
+  assert.equal(validateFlow(repaired).ok, true);
+  assert.equal(buildFlowJson(repaired).screens[0].id, "SCREEN_ONE");
+});
+
+test("repaired navigation still points at the renamed screen", () => {
+  const repaired = repairScreens([
+    screen({ screenId: "SCREEN_1", fields: [field({ name: "a" })] }),
+    screen({ screenId: "SCREEN_2", fields: [field({ name: "b" })] }),
+  ]);
+  const footer = (
+    (buildFlowJson(repaired).screens[0].layout as {
+      children: Array<{ children: Array<Record<string, unknown>> }>;
+    }).children[0].children
+  ).at(-1)!;
+  const action = footer["on-click-action"] as { next: { name: string } };
+  assert.equal(action.next.name, "SCREEN_TWO");
 });
