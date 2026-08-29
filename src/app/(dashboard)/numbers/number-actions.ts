@@ -52,8 +52,15 @@ export async function refreshNumber(id: string): Promise<ActionResult> {
     // number can send: a number sitting on the account unregistered
     // answers every other field normally, which is exactly how a dead
     // number goes unnoticed until a customer says nothing arrived.
-    const connected = (number.status ?? "").toUpperCase() === "CONNECTED";
-    const problem = connected ? null : describeNumberStatus(number.status);
+    // Absence is not a failure. Meta omits `status` for some tokens and
+    // number types, and treating a missing field as "cannot send" paints a
+    // healthy number red — a false alarm here is worse than none, because
+    // it sends someone to re-register a number that was never broken.
+    const reported = number.status?.trim();
+    const problem =
+      reported && reported.toUpperCase() !== "CONNECTED"
+        ? describeNumberStatus(reported)
+        : null;
 
     await supabase
       .from("waba_connections")
@@ -233,14 +240,16 @@ export async function setAutomationNumber(
 /** Meta's status for a number, in words that name the next step. */
 function describeNumberStatus(status: string | undefined): string {
   switch ((status ?? "").toUpperCase()) {
-    case "":
     case "UNKNOWN":
-      return "Meta did not report a status for this number. It may not be registered for the Cloud API yet.";
+      return "Meta reports this number's status as unknown. Check it in Meta Business Suite → WhatsApp accounts.";
     case "PENDING":
       return "Meta is still setting this number up. It cannot send or receive until that finishes.";
     case "DISCONNECTED":
     case "UNVERIFIED":
+    case "DELETED":
       return "This number is not registered for the Cloud API, so WhatsApp treats it as not on WhatsApp and nothing reaches it. Register it below.";
+    case "MIGRATED":
+      return "This number has been migrated to another WhatsApp Business Account and can no longer send from this one.";
     case "FLAGGED":
       return "Meta has flagged this number for low quality. It can still send, but its messaging limit will not increase while flagged.";
     case "RESTRICTED":
