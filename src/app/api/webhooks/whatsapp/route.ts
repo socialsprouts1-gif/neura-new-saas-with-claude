@@ -278,30 +278,16 @@ async function handleInboundMessages(
     const timestampMs = Number(message.timestamp) * 1000;
     const receivedAt = new Date(timestampMs).toISOString();
 
-    const { data: conversation, error: conversationError } = await supabase
-      .from("conversations")
-      .upsert(
-        {
-          org_id: orgId,
-          contact_id: contact.id,
-          // Which of the workspace's numbers this arrived on. Replies read
-          // it back, so an answer always leaves from the number the
-          // customer wrote to.
-          connection_id: connectionId,
-          last_message_at: receivedAt,
-          // Stamped on every inbound message: it is what the send helper
-          // reads to decide whether WhatsApp's 24-hour service window is
-          // still open.
-          last_inbound_at: receivedAt,
-          status: "open",
-        },
-        { onConflict: "org_id,contact_id,connection_id" }
-      )
-      .select("id")
-      .single();
+    const conversation = await upsertConversation(supabase, {
+      orgId,
+      contactId: contact.id,
+      connectionId,
+      receivedAt,
+    });
 
-    if (conversationError || !conversation) {
-      console.error("Failed to upsert conversation", conversationError);
+    if (!conversation) {
+      // Nothing else in this loop can run without a thread to hang the
+      // message on, and dropping it here at least leaves a log line.
       continue;
     }
 
@@ -455,6 +441,62 @@ async function recordFlowSubmission(
     contact_id: context.contactId,
     answers: reply.answers,
   });
+}
+
+/**
+ * Finds or creates the thread this message belongs to.
+ *
+ * Tried with the connection, then without. A customer's message must never
+ * be dropped because a migration has not been applied yet: this used to
+ * fail outright on a database with no `connection_id`, and since the only
+ * handling was `continue`, Meta delivered the message, the webhook logged
+ * the delivery as valid, and the message vanished. Inbound has to survive
+ * a schema that is behind the code.
+ */
+async function upsertConversation(
+  supabase: ReturnType<typeof createAdminClient>,
+  input: { orgId: string; contactId: string; connectionId: string; receivedAt: string }
+): Promise<{ id: string } | null> {
+  const base = {
+    org_id: input.orgId,
+    contact_id: input.contactId,
+    last_message_at: input.receivedAt,
+    // Stamped on every inbound message: it is what the send helper reads
+    // to decide whether WhatsApp's 24-hour service window is still open.
+    last_inbound_at: input.receivedAt,
+    status: "open" as const,
+  };
+
+  // Which of the workspace's numbers this arrived on. Replies read it back,
+  // so an answer always leaves from the number the customer wrote to.
+  const withConnection = await supabase
+    .from("conversations")
+    .upsert(
+      { ...base, connection_id: input.connectionId },
+      { onConflict: "org_id,contact_id,connection_id" }
+    )
+    .select("id")
+    .maybeSingle();
+
+  if (!withConnection.error && withConnection.data) return withConnection.data;
+
+  const fallback = await supabase
+    .from("conversations")
+    .upsert(base, { onConflict: "org_id,contact_id" })
+    .select("id")
+    .maybeSingle();
+
+  if (fallback.error || !fallback.data) {
+    console.error("Failed to upsert conversation", fallback.error ?? withConnection.error);
+    return null;
+  }
+
+  // Worth knowing about: every reply will pick a number by the default
+  // rather than by the thread until the migration lands.
+  console.warn(
+    "Stored an inbound message without its WhatsApp number — run the multi-number migration."
+  );
+  return fallback.data;
 }
 
 function extractMessageContent(message: MetaInboundMessage): Record<string, unknown> {
