@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import { decryptToken } from "@/lib/crypto";
+import { resolveConnection } from "@/lib/connections";
 import {
   MetaApiError,
   InvalidAccessTokenError,
@@ -47,31 +47,24 @@ export type SendOutcome =
  */
 export async function loadOrgConnection(
   supabase: RunnerClient,
-  orgId: string
+  orgId: string,
+  options: { conversationId?: string | null; connectionId?: string | null } = {}
 ): Promise<OrgConnection | null> {
-  const { data, error } = await supabase
-    .from("waba_connections")
-    .select("id, phone_number_id, access_token_encrypted, last_error")
-    .eq("org_id", orgId)
-    .eq("status", "active")
-    .limit(1)
-    .maybeSingle();
+  // A workspace can have several numbers. An automation reply has to go out
+  // on the one the customer actually wrote to, or the answer arrives from a
+  // number they have never messaged.
+  const resolved = await resolveConnection(supabase, orgId, options);
 
-  if (error || !data) return null;
+  // Null rather than the reason: an org part-way through onboarding is an
+  // ordinary state, not something worth aborting webhook processing over.
+  if ("error" in resolved) return null;
 
-  try {
-    return {
-      id: data.id,
-      phoneNumberId: data.phone_number_id,
-      accessToken: decryptToken(data.access_token_encrypted),
-      lastError: data.last_error,
-    };
-  } catch (err) {
-    // A key rotation without re-encrypting stored tokens lands here. Say so
-    // in the log: "send failed" alone sends people hunting in Meta.
-    console.error(`Failed to decrypt the access token for org ${orgId}`, err);
-    return null;
-  }
+  return {
+    id: resolved.id,
+    phoneNumberId: resolved.phoneNumberId,
+    accessToken: resolved.accessToken,
+    lastError: resolved.lastError,
+  };
 }
 
 export function isWithinServiceWindow(

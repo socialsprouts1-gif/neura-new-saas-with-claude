@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { decryptToken } from "@/lib/crypto";
+import { resolveConnection } from "@/lib/connections";
 import {
   createMessageTemplate,
   deleteMessageTemplate,
@@ -30,28 +30,25 @@ import type { TemplateCategory, TemplateStatus } from "@/types/database";
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
-/** The connected number's WABA id and a usable token, or a reason why not. */
+/**
+ * The number to act on, and a usable token.
+ *
+ * Templates live on a WhatsApp Business Account, so which number is chosen
+ * decides which account the template lands in. Callers pass a connection id
+ * where the operator picked one; otherwise the workspace default wins.
+ */
 async function wabaCredentials(
   supabase: Client,
-  orgId: string
-): Promise<{ wabaId: string; token: string } | { error: string }> {
-  const { data } = await supabase
-    .from("waba_connections")
-    .select("waba_id, access_token_encrypted")
-    .eq("org_id", orgId)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (!data) {
-    return { error: "Connect a WhatsApp number first — templates live on your WhatsApp account." };
-  }
-  try {
-    return { wabaId: data.waba_id, token: decryptToken(data.access_token_encrypted) };
-  } catch {
-    return {
-      error: "The stored access token could not be decrypted. Update it under Integrations.",
-    };
-  }
+  orgId: string,
+  connectionId?: string | null
+): Promise<{ wabaId: string; phoneNumberId: string; token: string } | { error: string }> {
+  const connection = await resolveConnection(supabase, orgId, { connectionId });
+  if ("error" in connection) return { error: connection.error };
+  return {
+    wabaId: connection.wabaId,
+    phoneNumberId: connection.phoneNumberId,
+    token: connection.accessToken,
+  };
 }
 
 function readButtons(raw: string): ButtonSpec[] {
@@ -291,6 +288,8 @@ export async function createCampaign(input: {
   templateId: string;
   variables: string[];
   audience: Audience;
+  /** Which number to send from; null uses the workspace default. */
+  connectionId?: string | null;
   scheduledAt: string | null;
   steps: Array<{ templateId: string; delayHours: number; variables: string[] }>;
 }): Promise<ActionResult & { id?: string; queued?: number }> {
@@ -342,6 +341,7 @@ export async function createCampaign(input: {
       template_id: input.templateId,
       variables: input.variables,
       audience: input.audience as unknown as Record<string, unknown>,
+      connection_id: input.connectionId ?? null,
       status: scheduled ? "scheduled" : "running",
       scheduled_at: scheduled?.toISOString() ?? null,
       started_at: scheduled ? null : new Date().toISOString(),

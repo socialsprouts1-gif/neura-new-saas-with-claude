@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
 import {
   PageHeader,
   StatCard,
@@ -16,6 +17,11 @@ import type { TemplateOption } from "./CampaignBuilder";
 export default async function CampaignsPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
+
+  const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+  }));
 
   const [{ data: campaigns, error }, { data: templates }, { data: contacts }, { data: groups }] =
     await Promise.all([
@@ -67,7 +73,12 @@ export default async function CampaignsPage() {
       <PageHeader
         title="Campaigns"
         subtitle="Send an approved template to a list of people, once or as a drip."
-        action={<NewCampaignButton templates={options} tags={tags} groups={groups ?? []} />}
+        action={<NewCampaignButton
+            templates={options}
+            tags={tags}
+            groups={groups ?? []}
+            numbers={numbers}
+          />}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

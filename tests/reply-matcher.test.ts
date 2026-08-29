@@ -31,6 +31,7 @@ function flow(
 ): ChatbotFlow {
   return {
     org_id: "org",
+    connection_id: null,
     description: null,
     trigger_type: "keyword",
     trigger_value: null,
@@ -64,6 +65,7 @@ function faq(overrides: Partial<FaqEntry> & { id: string; question: string; answ
 function assistant(overrides: Partial<AiAssistant> & { id: string; name: string }): AiAssistant {
   return {
     org_id: "org",
+    connection_id: null,
     role: "Support agent",
     provider: "anthropic",
     model: "claude-sonnet-5",
@@ -99,6 +101,7 @@ function automation(
 ): AutomationFlow {
   return {
     org_id: "org",
+    connection_id: null,
     trigger_type: "keyword",
     trigger_config: {},
     actions_json: [],

@@ -9,6 +9,8 @@
 export type AiAssistant = {
   id: string;
   org_id: string;
+  /** Pin this to one WhatsApp number; null means any of them. */
+  connection_id: string | null;
   name: string;
   role: string;
   /** ProviderId from @/lib/ai-providers. Widened to string because the DB
@@ -194,6 +196,8 @@ export type LegacyChatbotNode = {
 export type ChatbotFlow = {
   id: string;
   org_id: string;
+  /** Pin this to one WhatsApp number; null means any of them. */
+  connection_id: string | null;
   name: string;
   description: string | null;
   trigger_type: ChatbotTrigger;

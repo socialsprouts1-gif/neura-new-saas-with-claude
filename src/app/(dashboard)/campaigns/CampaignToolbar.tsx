@@ -10,10 +10,12 @@ export function NewCampaignButton({
   templates,
   tags,
   groups,
+  numbers,
 }: {
   templates: TemplateOption[];
   tags: string[];
   groups: Array<{ id: string; name: string }>;
+  numbers: Array<{ id: string; label: string }>;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -28,6 +30,7 @@ export function NewCampaignButton({
           templates={templates}
           tags={tags}
           groups={groups}
+          numbers={numbers}
           onClose={() => setOpen(false)}
         />
       )}

@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { decryptToken } from "@/lib/crypto";
+import { resolveConnection } from "@/lib/connections";
 import {
   createFlow,
   updateFlowJson,
@@ -39,27 +39,16 @@ type Client = Awaited<ReturnType<typeof createClient>>;
 
 async function wabaCredentials(
   supabase: Client,
-  orgId: string
+  orgId: string,
+  connectionId?: string | null
 ): Promise<{ wabaId: string; phoneNumberId: string; token: string } | { error: string }> {
-  const { data } = await supabase
-    .from("waba_connections")
-    .select("waba_id, phone_number_id, access_token_encrypted")
-    .eq("org_id", orgId)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (!data) {
-    return { error: "Connect a WhatsApp number first — forms live on your WhatsApp account." };
-  }
-  try {
-    return {
-      wabaId: data.waba_id,
-      phoneNumberId: data.phone_number_id,
-      token: decryptToken(data.access_token_encrypted),
-    };
-  } catch {
-    return { error: "The stored access token could not be decrypted. Update it under Integrations." };
-  }
+  const connection = await resolveConnection(supabase, orgId, { connectionId });
+  if ("error" in connection) return { error: connection.error };
+  return {
+    wabaId: connection.wabaId,
+    phoneNumberId: connection.phoneNumberId,
+    token: connection.accessToken,
+  };
 }
 
 function metaReason(error: unknown, fallback: string): string {

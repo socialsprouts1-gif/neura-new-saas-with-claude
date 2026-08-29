@@ -16,6 +16,10 @@ type Connection = {
   meta_app_id: string;
   webhook_verify_token: string;
   status: string;
+  display_phone_number: string | null;
+  verified_name: string | null;
+  label: string | null;
+  is_default: boolean;
   last_error: string | null;
   last_error_at: string | null;
 };
@@ -95,11 +99,19 @@ export default function WhatsAppCard({
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="font-mono text-sm">{c.phone_number_id}</span>
+                  {/* The number people recognise, with the id kept below —
+                      Meta asks for the id, humans read the number. */}
+                  <span className="font-semibold text-sm tabular-nums">
+                    {c.display_phone_number ?? c.phone_number_id}
+                  </span>
+                  {(c.label ?? c.verified_name) && (
+                    <span className="text-sm text-white/50">{c.label ?? c.verified_name}</span>
+                  )}
                   <Badge tone={statusTone(c.status)}>{c.status}</Badge>
+                  {c.is_default && <Badge tone="blue">default</Badge>}
                 </div>
-                <div className="text-xs text-white/40">
-                  WABA {c.waba_id} · App {c.meta_app_id}
+                <div className="text-xs text-white/40 font-mono">
+                  WABA {c.waba_id} · Number ID {c.phone_number_id}
                 </div>
               </div>
 

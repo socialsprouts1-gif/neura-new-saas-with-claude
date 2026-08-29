@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { decryptToken } from "@/lib/crypto";
+import { resolveConnection } from "@/lib/connections";
 import {
   sendTemplateMessage,
   describeMetaError,
@@ -151,7 +151,7 @@ async function markFailed(supabase: Admin, id: string, reason: string) {
 async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: number) {
   const { data: campaign } = await supabase
     .from("campaigns")
-    .select("id, org_id, status, template_id, variables")
+    .select("id, org_id, status, template_id, variables, connection_id")
     .eq("id", campaignId)
     .maybeSingle();
 
@@ -185,21 +185,13 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
     return { ok: false as const, error: `The template is ${template.status}, not approved` };
   }
 
-  const { data: connection } = await supabase
-    .from("waba_connections")
-    .select("phone_number_id, access_token_encrypted")
-    .eq("org_id", campaign.org_id)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (!connection) return { ok: false as const, error: "No active WhatsApp connection" };
-
-  let accessToken: string;
-  try {
-    accessToken = decryptToken(connection.access_token_encrypted);
-  } catch {
-    return { ok: false as const, error: "The stored access token could not be decrypted" };
-  }
+  // The campaign's own number when it names one, otherwise the workspace
+  // default. A campaign must not change sender between batches.
+  const connection = await resolveConnection(supabase, campaign.org_id, {
+    connectionId: campaign.connection_id,
+  });
+  if ("error" in connection) return { ok: false as const, error: connection.error };
+  const accessToken = connection.accessToken;
 
   // Contacts are looked up in one query; a per-recipient join would be a
   // round trip per message.
@@ -222,7 +214,7 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
   return {
     ok: true as const,
     campaignStatus: campaign.status,
-    phoneNumberId: connection.phone_number_id,
+    phoneNumberId: connection.phoneNumberId,
     accessToken,
     templateName: template.name,
     language: template.language,

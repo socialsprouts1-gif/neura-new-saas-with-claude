@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured, SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/env";
-import { decryptToken } from "@/lib/crypto";
+import { resolveConnection } from "@/lib/connections";
 import {
   sendTemplateMessage,
   sendTextMessage,
@@ -14,6 +14,10 @@ import {
 interface SendRequestBody {
   orgId?: string;
   contactId?: string;
+  /** Send on a specific number. Omit and the conversation's own is used. */
+  connectionId?: string;
+  /** Lets the reply go out on the number the customer wrote to. */
+  conversationId?: string;
   body?: string;
   templateName?: string;
   language?: string;
@@ -61,18 +65,15 @@ export async function POST(request: NextRequest) {
 
   // RLS scopes every query below to orgs the caller is a member of — an
   // orgId the user doesn't belong to simply matches no rows.
-  const { data: connection, error: connectionError } = await supabase
-    .from("waba_connections")
-    .select("phone_number_id, access_token_encrypted")
-    .eq("org_id", body.orgId)
-    .eq("status", "active")
-    .maybeSingle();
+  // Reply on the number the customer actually wrote to. Replying from a
+  // different one shows the customer a new sender mid-conversation.
+  const connection = await resolveConnection(supabase, body.orgId, {
+    connectionId: body.connectionId ?? null,
+    conversationId: body.conversationId ?? null,
+  });
 
-  if (connectionError || !connection) {
-    return NextResponse.json(
-      { error: "No active WhatsApp connection for this organization" },
-      { status: 404 }
-    );
+  if ("error" in connection) {
+    return NextResponse.json({ error: connection.error }, { status: 404 });
   }
 
   const { data: contact, error: contactError } = await supabase
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to resolve conversation" }, { status: 500 });
   }
 
-  const accessToken = decryptToken(connection.access_token_encrypted);
+  const accessToken = connection.accessToken;
 
   try {
     const messageType = isTemplate ? "template" : "text";
@@ -109,14 +110,14 @@ export async function POST(request: NextRequest) {
 
     const result = isTemplate
       ? await sendTemplateMessage(
-          connection.phone_number_id,
+          connection.phoneNumberId,
           contact.wa_id,
           body.templateName!,
           body.language!,
           body.components ?? [],
           accessToken
         )
-      : await sendTextMessage(connection.phone_number_id, contact.wa_id, body.body!, accessToken);
+      : await sendTextMessage(connection.phoneNumberId, contact.wa_id, body.body!, accessToken);
 
     const waMessageId = result.messages[0]?.id ?? null;
 

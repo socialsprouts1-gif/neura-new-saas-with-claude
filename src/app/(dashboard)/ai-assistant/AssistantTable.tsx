@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import NumberPicker, { type NumberOption } from "../numbers/NumberPicker";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
@@ -8,6 +9,7 @@ import { createAiAssistant, deleteAiAssistant } from "../portal-actions";
 import { providerById } from "@/lib/ai-providers";
 
 export interface AssistantRow {
+  connection_id: string | null;
   id: string;
   name: string;
   role: string;
@@ -16,7 +18,13 @@ export interface AssistantRow {
   is_active: boolean;
 }
 
-export default function AssistantTable({ assistants }: { assistants: AssistantRow[] }) {
+export default function AssistantTable({
+  assistants,
+  numbers,
+}: {
+  assistants: AssistantRow[];
+  numbers: NumberOption[];
+}) {
   const [creating, setCreating] = useState(false);
 
   return (
@@ -38,12 +46,14 @@ export default function AssistantTable({ assistants }: { assistants: AssistantRo
                 <th className="px-5 py-4">Name</th>
                 <th className="px-5 py-4">Role</th>
                 <th className="px-5 py-4">Model</th>
+                {/* Only earns a column once the workspace has a choice. */}
+                {numbers.length > 1 && <th className="px-5 py-4">Number</th>}
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {assistants.map((assistant) => (
-                <AssistantRowView key={assistant.id} assistant={assistant} />
+                <AssistantRowView key={assistant.id} assistant={assistant} numbers={numbers} />
               ))}
             </tbody>
           </table>
@@ -64,7 +74,13 @@ export default function AssistantTable({ assistants }: { assistants: AssistantRo
   );
 }
 
-function AssistantRowView({ assistant }: { assistant: AssistantRow }) {
+function AssistantRowView({
+  assistant,
+  numbers,
+}: {
+  assistant: AssistantRow;
+  numbers: NumberOption[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -101,6 +117,18 @@ function AssistantRowView({ assistant }: { assistant: AssistantRow }) {
           {providerById(assistant.provider)?.name ?? assistant.provider}
         </span>
       </td>
+
+      {numbers.length > 1 && (
+        <td className="px-5 py-3.5">
+          <NumberPicker
+            kind="assistant"
+            id={assistant.id}
+            value={assistant.connection_id}
+            options={numbers}
+            compact
+          />
+        </td>
+      )}
 
       <td className="px-5 py-3.5">
         <div className="flex items-center justify-end gap-1.5">

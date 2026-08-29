@@ -39,12 +39,15 @@ export default function Thread({
   assignedTo,
   unread,
   teammates,
+  viaNumber,
   messages,
   canned,
   templates,
   media,
   customer,
 }: {
+  /** Which of your numbers this conversation is on. */
+  viaNumber: string | null;
   orgId: string;
   conversationId: string;
   contactId: string;
@@ -104,6 +107,7 @@ export default function Thread({
           windowOpen={windowOpen}
           assignedTo={assignedTo}
           teammates={teammates}
+          viaNumber={viaNumber}
           onOpenPanel={() => setDrawer(true)}
         />
 

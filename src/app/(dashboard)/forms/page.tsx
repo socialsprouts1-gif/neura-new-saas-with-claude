@@ -30,6 +30,7 @@ export default async function FormsPage() {
       .select("id")
       .eq("org_id", orgId)
       .eq("status", "active")
+      .limit(1)
       .maybeSingle(),
     supabase
       .from("flow_responses")

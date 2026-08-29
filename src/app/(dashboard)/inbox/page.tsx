@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { listConnections, optionLabel } from "@/lib/connections";
 import { EmptyState } from "@/components/ui/primitives";
 import ConversationList, {
   type ConversationRow,
@@ -57,10 +58,18 @@ export default async function InboxPage({
   const { c: selectedId } = await searchParams;
   const supabase = await createClient();
 
+  // Only worth naming the receiving number when there is more than one to
+  // confuse it with; a single-number workspace does not need the noise.
+  const connections = await listConnections(supabase, orgId);
+  const numberById = new Map(
+    connections.map((connection) => [connection.id, optionLabel(connection)])
+  );
+  const showNumbers = connections.length > 1;
+
   const { data: conversations, error } = await supabase
     .from("conversations")
     .select(
-      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, bot_enabled, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
+      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, connection_id, bot_enabled, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
     )
     .eq("org_id", orgId)
     // Closed threads leave the active inbox; the "closed" view brings them
@@ -292,6 +301,11 @@ export default async function InboxPage({
           contactId={activeContact.id}
           name={activeContact.name ?? ""}
           waId={activeContact.wa_id}
+          viaNumber={
+            showNumbers && active.connection_id
+              ? (numberById.get(active.connection_id) ?? null)
+              : null
+          }
           optedIn={!activeContact.opted_out}
           aiMode={active.ai_mode}
           botEnabled={active.bot_enabled}

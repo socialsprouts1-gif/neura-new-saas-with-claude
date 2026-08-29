@@ -29,6 +29,7 @@ export default async function TemplatesPage() {
       .select("id")
       .eq("org_id", orgId)
       .eq("status", "active")
+      .limit(1)
       .maybeSingle(),
   ]);
 

@@ -100,6 +100,12 @@ export interface Database {
           access_token_encrypted: string;
           webhook_verify_token: string;
           status: WabaStatus;
+          display_phone_number: string | null;
+          verified_name: string | null;
+          quality_rating: string | null;
+          label: string | null;
+          is_default: boolean;
+          last_checked_at: string | null;
           last_error: string | null;
           last_error_at: string | null;
           created_at: string;
@@ -114,6 +120,12 @@ export interface Database {
           access_token_encrypted: string;
           webhook_verify_token: string;
           status?: WabaStatus;
+          display_phone_number?: string | null;
+          verified_name?: string | null;
+          quality_rating?: string | null;
+          label?: string | null;
+          is_default?: boolean;
+          last_checked_at?: string | null;
           last_error?: string | null;
           last_error_at?: string | null;
           created_at?: string;
@@ -169,6 +181,7 @@ export interface Database {
           id: string;
           org_id: string;
           contact_id: string;
+          connection_id: string | null;
           last_message_at: string | null;
           status: ConversationStatus;
           created_at: string;
@@ -197,6 +210,7 @@ export interface Database {
           id?: string;
           org_id: string;
           contact_id: string;
+          connection_id?: string | null;
           last_message_at?: string | null;
           status?: ConversationStatus;
           created_at?: string;
@@ -308,6 +322,7 @@ export interface Database {
         Row: {
           id: string;
           org_id: string;
+          connection_id: string | null;
           template_id: string | null;
           segment_filter: Record<string, unknown>;
           status: CampaignStatus;
@@ -336,6 +351,7 @@ export interface Database {
           completed_at?: string | null;
           last_error?: string | null;
           is_drip?: boolean;
+          connection_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["campaigns"]["Insert"]>;
         Relationships: [
@@ -384,6 +400,7 @@ export interface Database {
         Row: {
           id: string;
           org_id: string;
+          connection_id: string | null;
           name: string;
           trigger_type: string;
           trigger_config: Record<string, unknown>;

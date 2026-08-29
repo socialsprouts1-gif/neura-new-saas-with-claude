@@ -25,6 +25,7 @@ import {
   ChevronRight,
   DollarSign,
   Wallet,
+  Phone,
 } from "lucide-react";
 
 // The navigation, in the order the product presents it. One heading, then
@@ -49,6 +50,7 @@ interface NavItem {
 const PLATFORM: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/overview" },
   { icon: MessageCircle, label: "Inbox", href: "/inbox" },
+  { icon: Phone, label: "WhatsApp Numbers", href: "/numbers" },
   {
     icon: Users,
     label: "Leads",

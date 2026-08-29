@@ -128,7 +128,9 @@ async function resumeOne(
   // The node was deleted while the conversation waited. Nothing to send.
   if (!start) return false;
 
-  const connection = await loadOrgConnection(supabase, conversation.org_id);
+  const connection = await loadOrgConnection(supabase, conversation.org_id, {
+    conversationId: conversation.id,
+  });
   if (!connection) return false;
 
   const context: FlowContext = {

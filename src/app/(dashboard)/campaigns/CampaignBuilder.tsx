@@ -52,11 +52,13 @@ export default function CampaignBuilder({
   templates,
   tags,
   groups,
+  numbers,
   onClose,
 }: {
   templates: TemplateOption[];
   tags: string[];
   groups: Array<{ id: string; name: string }>;
+  numbers: Array<{ id: string; label: string }>;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -65,6 +67,7 @@ export default function CampaignBuilder({
 
   const [name, setName] = useState("");
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? "");
+  const [connectionId, setConnectionId] = useState<string>("");
   const [variables, setVariables] = useState<string[]>([]);
 
   const [mode, setMode] = useState<Mode>("all");
@@ -168,6 +171,7 @@ export default function CampaignBuilder({
         templateId,
         variables,
         audience,
+        connectionId: connectionId || null,
         scheduledAt: when === "later" ? scheduledAt : null,
         steps: steps.filter((step) => step.templateId),
       });
@@ -233,6 +237,25 @@ export default function CampaignBuilder({
                     className={input}
                   />
                 </Field>
+                {numbers.length > 1 && (
+                  <Field label="Send from" hint="Which of your numbers customers will see.">
+                    <select
+                      value={connectionId}
+                      onChange={(event) => setConnectionId(event.target.value)}
+                      className={input}
+                    >
+                      <option value="" className="bg-[var(--surface-3)]">
+                        Default number
+                      </option>
+                      {numbers.map((number) => (
+                        <option key={number.id} value={number.id} className="bg-[var(--surface-3)]">
+                          {number.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
                 <Field label="Template">
                   <select
                     value={templateId}

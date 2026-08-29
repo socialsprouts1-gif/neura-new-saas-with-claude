@@ -194,7 +194,7 @@ async function processChangeValue(
 
   const { data: connection, error: connectionError } = await supabase
     .from("waba_connections")
-    .select("org_id")
+    .select("org_id, id")
     .eq("phone_number_id", phoneNumberId)
     .maybeSingle();
 
@@ -225,7 +225,7 @@ async function processChangeValue(
   });
 
   if (value.messages?.length) {
-    await handleInboundMessages(supabase, connection.org_id, value);
+    await handleInboundMessages(supabase, connection.org_id, connection.id, value);
   }
   if (value.statuses?.length) {
     await handleStatusUpdates(supabase, value.statuses);
@@ -235,6 +235,7 @@ async function processChangeValue(
 async function handleInboundMessages(
   supabase: ReturnType<typeof createAdminClient>,
   orgId: string,
+  connectionId: string,
   value: MetaWebhookValue
 ) {
   const nameByWaId = new Map(
@@ -283,6 +284,10 @@ async function handleInboundMessages(
         {
           org_id: orgId,
           contact_id: contact.id,
+          // Which of the workspace's numbers this arrived on. Replies read
+          // it back, so an answer always leaves from the number the
+          // customer wrote to.
+          connection_id: connectionId,
           last_message_at: receivedAt,
           // Stamped on every inbound message: it is what the send helper
           // reads to decide whether WhatsApp's 24-hour service window is
@@ -290,7 +295,7 @@ async function handleInboundMessages(
           last_inbound_at: receivedAt,
           status: "open",
         },
-        { onConflict: "org_id,contact_id" }
+        { onConflict: "org_id,contact_id,connection_id" }
       )
       .select("id")
       .single();

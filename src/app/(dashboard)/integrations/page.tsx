@@ -130,7 +130,8 @@ async function loadWabaConnections(
   supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string
 ) {
-  const BASE = "id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status";
+  const BASE =
+    "id, waba_id, phone_number_id, meta_app_id, webhook_verify_token, status, display_phone_number, verified_name, label, is_default";
 
   const full = await supabase
     .from("waba_connections")

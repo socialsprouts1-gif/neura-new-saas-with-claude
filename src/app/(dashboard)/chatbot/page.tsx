@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
 import BotToolbar from "./BotToolbar";
 import ChatbotTable, { type BotRow } from "./ChatbotTable";
 import { HeroHeader, EmptyState } from "@/components/ui/primitives";
@@ -8,6 +9,11 @@ import type { FlowNode } from "@/types/flow";
 export default async function ChatbotPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
+
+  const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+  }));
 
   const { data: flows, error } = await supabase
     .from("chatbot_flows")
@@ -24,6 +30,7 @@ export default async function ChatbotPage() {
     nodes: (Array.isArray(flow.nodes) ? flow.nodes : []) as FlowNode[],
     edges: Array.isArray(flow.edges) ? flow.edges : [],
     version: flow.version,
+    connection_id: flow.connection_id,
   }));
 
   return (
@@ -43,7 +50,7 @@ export default async function ChatbotPage() {
           description={`${error.message}. If this mentions a missing relation or column, run supabase/setup.sql again — the flow builder added columns.`}
         />
       ) : rows.length > 0 ? (
-        <ChatbotTable bots={rows} />
+        <ChatbotTable bots={rows} numbers={numbers} />
       ) : (
         <EmptyState
           title="No chatbots yet"

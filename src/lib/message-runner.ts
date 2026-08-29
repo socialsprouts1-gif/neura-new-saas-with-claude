@@ -111,7 +111,7 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
     // from where it stopped rather than being re-matched from scratch, and a
     // flow with a trigger node owns its own matching — planReply knows
     // nothing about either.
-    const connectionForFlow = await loadOrgConnection(supabase, orgId);
+    const connectionForFlow = await loadOrgConnection(supabase, orgId, { conversationId: event.conversationId });
     if (connectionForFlow) {
       const flowResult = await tryGraphFlow({
         supabase,
@@ -148,7 +148,7 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
       return;
     }
 
-    const connection = await loadOrgConnection(supabase, orgId);
+    const connection = await loadOrgConnection(supabase, orgId, { conversationId: event.conversationId });
     if (!connection) {
       await finish({
         matched_kind: plan.kind,
@@ -392,6 +392,8 @@ async function applyFlowState(
 // --- loading --------------------------------------------------------------
 
 type ConversationState = {
+  /** Which of the workspace's numbers this thread is on. */
+  connectionId: string | null;
   bot_enabled: boolean;
   bot_flow_id: string | null;
   bot_node_id: string | null;
@@ -404,12 +406,12 @@ async function loadConversation(
 ): Promise<ConversationState | null> {
   const { data, error } = await supabase
     .from("conversations")
-    .select("bot_enabled, bot_flow_id, bot_node_id, bot_variables")
+    .select("bot_enabled, bot_flow_id, bot_node_id, bot_variables, connection_id")
     .eq("id", conversationId)
     .maybeSingle();
 
   if (error || !data) return null;
-  return data;
+  return { ...data, connectionId: data.connection_id };
 }
 
 async function loadResources(
@@ -426,18 +428,28 @@ async function loadResources(
     orgResult,
     inboundCount,
   ] = await Promise.all([
-      supabase.from("chatbot_flows").select("*").eq("org_id", event.orgId).eq("is_active", true),
+      // A bot pinned to one number must not answer a message that arrived
+      // on another. `connection_id is null` is "any number", which is what
+      // every bot created before numbers were a concept means.
+      supabase
+        .from("chatbot_flows")
+        .select("*")
+        .eq("org_id", event.orgId)
+        .eq("is_active", true)
+        .or(scopedToNumber(conversation.connectionId)),
       supabase.from("faq_entries").select("*").eq("org_id", event.orgId).eq("is_active", true),
       supabase
         .from("automation_flows")
         .select("*")
         .eq("org_id", event.orgId)
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .or(scopedToNumber(conversation.connectionId)),
       supabase
         .from("ai_assistants")
         .select("*")
         .eq("org_id", event.orgId)
         .eq("is_active", true)
+        .or(scopedToNumber(conversation.connectionId))
         .order("created_at"),
       supabase
         .from("assistant_knowledge")
@@ -596,4 +608,17 @@ export async function notifyInboundMessage(
       content: payload.content,
     },
   });
+}
+
+/**
+ * The PostgREST filter for "runs on any number, or on this one".
+ *
+ * A conversation with no number recorded — one that predates numbers being
+ * tracked — matches only the unpinned rows, which is the safe reading:
+ * better a general bot answers than a bot for the wrong number.
+ */
+function scopedToNumber(connectionId: string | null): string {
+  return connectionId
+    ? `connection_id.is.null,connection_id.eq.${connectionId}`
+    : "connection_id.is.null";
 }

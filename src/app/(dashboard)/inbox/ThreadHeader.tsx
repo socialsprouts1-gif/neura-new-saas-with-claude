@@ -45,12 +45,15 @@ export default function ThreadHeader({
   windowOpen,
   assignedTo,
   teammates,
+  viaNumber,
   onOpenPanel,
 }: {
   conversationId: string;
   contactId: string;
   name: string;
   waId: string;
+  /** Which of your numbers this thread is on — replies go out on it. */
+  viaNumber: string | null;
   optedIn: boolean;
   aiMode: AiMode;
   /** What the message runner actually checks before replying to anything. */
@@ -160,7 +163,17 @@ export default function ThreadHeader({
               )}
             </div>
           )}
-          <div className="text-xs text-white/45 font-mono truncate">{waId}</div>
+          <div className="text-xs text-white/45 font-mono truncate flex items-center gap-1.5">
+            <span>{waId}</span>
+            {/* Which of your numbers they wrote to. Only worth the space
+                once there is more than one to confuse them with. */}
+            {viaNumber && (
+              <>
+                <span className="text-white/20">·</span>
+                <span className="text-white/35 font-sans">via {viaNumber}</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* AI mode — the one control an agent reaches for most. */}

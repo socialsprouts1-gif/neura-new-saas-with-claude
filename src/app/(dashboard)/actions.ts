@@ -463,12 +463,22 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
   try {
     const number = await getPhoneNumber(connection.phone_number_id, accessToken);
 
-    // Proof the credentials work, so any recorded failure is stale.
+    // Proof the credentials work, so any recorded failure is stale — and
+    // keep what Meta said, so every screen can show +91 92724 47307 rather
+    // than the 15-digit id nobody recognises.
     await supabase
       .from("waba_connections")
-      .update({ last_error: null, last_error_at: null })
+      .update({
+        display_phone_number: number.display_phone_number ?? null,
+        verified_name: number.verified_name ?? null,
+        quality_rating: number.quality_rating ?? null,
+        last_checked_at: new Date().toISOString(),
+        last_error: null,
+        last_error_at: null,
+      })
       .eq("id", connection.id);
     revalidatePath("/integrations");
+    revalidatePath("/numbers");
 
     const name = number.verified_name ? ` as "${number.verified_name}"` : "";
     const shown = number.display_phone_number ? ` (${number.display_phone_number})` : "";

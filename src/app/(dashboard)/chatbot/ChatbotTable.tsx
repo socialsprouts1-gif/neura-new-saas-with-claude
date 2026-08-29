@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toggleChatbotFlow, deleteChatbotFlow } from "../portal-actions";
 import type { FlowNode } from "@/types/flow";
+import NumberPicker, { type NumberOption } from "../numbers/NumberPicker";
 
 export interface BotRow {
   id: string;
@@ -25,13 +26,20 @@ export interface BotRow {
   nodes: FlowNode[];
   edges: unknown[];
   version: number;
+  connection_id: string | null;
 }
 
 // A table rather than cards: once there is more than a handful of bots the
 // thing people do here is scan for one by name and flip it on or off, and
 // cards make you hunt for the switch in a different place on every row.
 
-export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
+export default function ChatbotTable({
+  bots,
+  numbers,
+}: {
+  bots: BotRow[];
+  numbers: NumberOption[];
+}) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -70,13 +78,15 @@ export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
               <tr className="text-left text-sm font-semibold bg-accent/8 border-b border-accent/15">
                 <th className="px-5 py-4">Name</th>
                 <th className="px-5 py-4">Chatbot ID</th>
+                {/* Only earns a column once the workspace has a choice. */}
+                {numbers.length > 1 && <th className="px-5 py-4">Number</th>}
                 <th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((bot) => (
-                <BotTableRow key={bot.id} bot={bot} />
+                <BotTableRow key={bot.id} bot={bot} numbers={numbers} />
               ))}
             </tbody>
           </table>
@@ -92,7 +102,7 @@ export default function ChatbotTable({ bots }: { bots: BotRow[] }) {
   );
 }
 
-function BotTableRow({ bot }: { bot: BotRow }) {
+function BotTableRow({ bot, numbers }: { bot: BotRow; numbers: NumberOption[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +135,18 @@ function BotTableRow({ bot }: { bot: BotRow }) {
       <td className="px-5 py-3.5">
         <CopyableId id={bot.id} />
       </td>
+
+      {numbers.length > 1 && (
+        <td className="px-5 py-3.5">
+          <NumberPicker
+            kind="chatbot"
+            id={bot.id}
+            value={bot.connection_id}
+            options={numbers}
+            compact
+          />
+        </td>
+      )}
 
       <td className="px-5 py-3.5">
         <button

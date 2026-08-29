@@ -69,7 +69,10 @@ export default function Composer({
       const response = await fetch("/api/messages/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId, contactId, ...payload }),
+        // conversationId is what tells the server which of the
+        // workspace's numbers to reply from — the one the customer wrote
+        // to, not whichever happens to be default.
+        body: JSON.stringify({ orgId, contactId, conversationId, ...payload }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {

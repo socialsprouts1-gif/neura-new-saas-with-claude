@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
 import { HeroHeader, EmptyState } from "@/components/ui/primitives";
 import AssistantTable, { type AssistantRow } from "./AssistantTable";
 import type { AiAssistant } from "@/types/portal";
@@ -7,6 +8,11 @@ import type { AiAssistant } from "@/types/portal";
 export default async function AiAssistantPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
+
+  const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+  }));
 
   const { data, error } = await supabase
     .from("ai_assistants")
@@ -21,6 +27,7 @@ export default async function AiAssistantPage() {
     provider: assistant.provider,
     model: assistant.model,
     is_active: assistant.is_active,
+    connection_id: assistant.connection_id,
   }));
 
   return (
@@ -36,7 +43,7 @@ export default async function AiAssistantPage() {
           description={`${error.message}. If this mentions a missing column, run the latest migration in supabase/setup.sql.`}
         />
       ) : (
-        <AssistantTable assistants={assistants} />
+        <AssistantTable assistants={assistants} numbers={numbers} />
       )}
     </div>
   );
