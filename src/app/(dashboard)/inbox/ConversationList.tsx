@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, Filter, Search, Tag, Users } from "lucide-react";
+import { Check, ChevronRight, Filter, Phone, Search, Tag, Users } from "lucide-react";
 import NewMessageAlert from "./NewMessageAlert";
 
 export interface ConversationRow {
@@ -22,6 +22,8 @@ export interface ConversationRow {
   needsHuman: boolean;
   hasReminder: boolean;
   priority: string;
+  /** Which of your numbers this thread is on. */
+  connectionId: string | null;
 }
 
 export interface Teammate {
@@ -76,6 +78,7 @@ export default function ConversationList({
   allTags,
   currentUserId,
   orgId,
+  numbers,
 }: {
   rows: ConversationRow[];
   activeId: string | null;
@@ -83,6 +86,8 @@ export default function ConversationList({
   allTags: string[];
   currentUserId: string;
   orgId: string;
+  /** Every active number, so the list can be narrowed to one of them. */
+  numbers: Array<{ id: string; label: string }>;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -91,12 +96,14 @@ export default function ConversationList({
   const [descending, setDescending] = useState(true);
   const [tag, setTag] = useState<string | null>(null);
   const [view, setView] = useState<View>("all");
+  const [numberId, setNumberId] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
     const filtered = rows.filter((row) => {
       if (!inView(row, view, currentUserId)) return false;
+      if (numberId && row.connectionId !== numberId) return false;
       if (scope === "unread" && !row.unread) return false;
       if (scope === "assigned" && !row.assignedTo) return false;
       if (scope === "unassigned" && row.assignedTo) return false;
@@ -127,7 +134,7 @@ export default function ConversationList({
       const right = b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0;
       return direction * (left - right);
     });
-  }, [rows, query, scope, sort, descending, tag, view, currentUserId]);
+  }, [rows, query, scope, sort, descending, tag, view, numberId, currentUserId]);
 
   const scopeLabel =
     scope === "all"
@@ -139,6 +146,33 @@ export default function ConversationList({
   return (
     <aside className="w-80 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0">
       <div className="flex items-center gap-2 px-3 h-14 border-b border-white/8 flex-shrink-0">
+        {/* Which number's conversations to show. Hidden on a one-number
+            workspace, where every thread is on the same number anyway. */}
+        {numbers.length > 1 && (
+          <Menu
+            label={numberId ? (numbers.find((n) => n.id === numberId)?.label ?? "Number") : "Number"}
+            icon={<Phone className="w-4 h-4" />}
+            active={numberId !== null}
+            width="w-64"
+          >
+            <>
+              <MenuHeading>Show conversations on</MenuHeading>
+              <MenuItem checked={numberId === null} onClick={() => setNumberId(null)}>
+                All numbers
+              </MenuItem>
+              {numbers.map((number) => (
+                <MenuItem
+                  key={number.id}
+                  checked={numberId === number.id}
+                  onClick={() => setNumberId(number.id)}
+                >
+                  {number.label}
+                </MenuItem>
+              ))}
+            </>
+          </Menu>
+        )}
+
         <Menu
           label="Tags"
           icon={<Tag className="w-4 h-4" />}
@@ -336,6 +370,11 @@ export default function ConversationList({
           <div className="flex flex-wrap gap-1.5 mt-2">
             {scopeLabel && (
               <Chip onClear={() => setScope("all")}>{scopeLabel}</Chip>
+            )}
+            {numberId && (
+              <Chip onClear={() => setNumberId(null)}>
+                {numbers.find((n) => n.id === numberId)?.label ?? "Number"}
+              </Chip>
             )}
             {tag && <Chip onClear={() => setTag(null)}>#{tag}</Chip>}
           </div>

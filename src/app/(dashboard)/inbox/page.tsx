@@ -202,6 +202,7 @@ export default async function InboxPage({
       waId: contact?.wa_id ?? "",
       tags: contact?.tags ?? [],
       preview: previews.get(row.id) ?? "",
+      connectionId: row.connection_id,
       lastMessageAt: row.last_message_at,
       // Never read, or a message arrived since it was last opened.
       unread:
@@ -292,6 +293,9 @@ export default async function InboxPage({
         allTags={allTags}
         currentUserId={user.id}
         orgId={orgId}
+        numbers={connections
+          .filter((connection) => connection.status === "active")
+          .map((connection) => ({ id: connection.id, label: optionLabel(connection) }))}
       />
 
       {active && activeContact ? (

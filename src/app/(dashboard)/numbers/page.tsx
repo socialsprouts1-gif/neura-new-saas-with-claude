@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { listConnections } from "@/lib/connections";
+import { listConnections, hasNumberColumns } from "@/lib/connections";
 import {
   PageHeader,
   Card,
@@ -23,6 +23,7 @@ export default async function NumbersPage() {
   const supabase = await createClient();
 
   const connections = await listConnections(supabase, orgId);
+  const migrated = await hasNumberColumns(supabase);
 
   // How busy each number is, so the list says something beyond "connected".
   const { data: conversations } = await supabase
@@ -56,6 +57,24 @@ export default async function NumbersPage() {
         />
         <StatCard label="Conversations" value={conversations?.length ?? 0} />
       </div>
+
+      {/* Without the migration the page still lists numbers, but naming,
+          defaults and quality ratings have nowhere to be stored — so say
+          that plainly rather than letting the controls fail silently. */}
+      {!migrated && (
+        <Card className="mb-6 border-[#FACC15]/25">
+          <h2 className="font-semibold mb-1">One migration still to run</h2>
+          <p className="text-sm text-white/50 leading-relaxed mb-3">
+            Naming a number, choosing a default and pinning a chatbot to one number all need
+            the <code className="text-white/70">20260905090000_multi_number</code> migration.
+            Until it runs, this screen is read-only and the number pickers stay hidden.
+          </p>
+          <p className="text-xs text-white/40">
+            Run <code className="text-white/60">supabase/setup.sql</code> in the Supabase SQL
+            editor — it is safe to re-run and ends by reloading the schema cache.
+          </p>
+        </Card>
+      )}
 
       {connections.length === 0 ? (
         <EmptyState
