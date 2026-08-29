@@ -118,3 +118,5 @@ create policy flow_responses_delete on public.flow_responses
 -- No insert policy for members: responses are written by the webhook with
 -- the service role. A member forging a submission would corrupt the record
 -- of what a customer actually said.
+
+notify pgrst, 'reload schema';

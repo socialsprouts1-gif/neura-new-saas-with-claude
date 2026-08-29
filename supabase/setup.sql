@@ -2491,3 +2491,14 @@ create policy flow_responses_delete on public.flow_responses
 -- No insert policy for members: responses are written by the webhook with
 -- the service role. A member forging a submission would corrupt the record
 -- of what a customer actually said.
+
+-- =========================================================================
+-- Tell PostgREST to re-read the schema.
+--
+-- Supabase serves the API through PostgREST, which caches the table list.
+-- It usually reloads on its own after DDL, but not always — and when it
+-- doesn't, every query fails with "Could not find the table '...' in the
+-- schema cache" even though the table is right there. This makes it
+-- certain rather than likely.
+-- =========================================================================
+notify pgrst, 'reload schema';

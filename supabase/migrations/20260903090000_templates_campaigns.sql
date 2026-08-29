@@ -151,3 +151,5 @@ from public.campaign_recipients
 group by campaign_id, org_id;
 
 grant select on public.campaign_progress to authenticated;
+
+notify pgrst, 'reload schema';
