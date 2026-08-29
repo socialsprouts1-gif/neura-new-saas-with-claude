@@ -134,3 +134,13 @@ test("code 100 without that subcode keeps the generic field wording", () => {
   });
   assert.match(message, /rejected one of the message's fields/);
 });
+
+test("an integrity block says it is the account, not the message", () => {
+  const text = describeMetaError(400, {
+    error: { code: 139000, message: "Blocked by Integrity" },
+  });
+  // The operator's first instinct is to retry or reword; the text has to
+  // head that off.
+  assert.match(text, /not on this message/);
+  assert.match(text, /Account Quality/);
+});

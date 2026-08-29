@@ -90,6 +90,13 @@ const META_ERROR_HELP: Record<number, string> = {
   132015: "That template is paused by Meta because of poor delivery quality and cannot be sent right now.",
   132016: "That template has been disabled by Meta and can no longer be sent.",
   133010: "This phone number is not registered for the Cloud API. Register it under Meta → WhatsApp → API Setup before sending.",
+  // Integrity blocks are account-level, not message-level. Retrying the
+  // same send, or editing the message, changes nothing — which is exactly
+  // what an operator will try first unless the text says otherwise.
+  139000:
+    "Meta has restricted this WhatsApp Business Account (\"Blocked by Integrity\"). This is a block on the account, not on this message — retrying or editing it will not help. Open Meta Business Suite → Account Quality to see the restriction and request a review. Unverified businesses and accounts that have sent unsolicited messages are the usual triggers.",
+  139001:
+    "Meta has restricted this WhatsApp Business Account. Check Meta Business Suite → Account Quality for the restriction and how to appeal it.",
 };
 
 // Some codes only mean something with their subcode. Meta reuses code 100
