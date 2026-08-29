@@ -89,7 +89,10 @@ const META_ERROR_HELP: Record<number, string> = {
   132001: "That template does not exist in this WhatsApp Business Account, or is not approved in the language requested.",
   132015: "That template is paused by Meta because of poor delivery quality and cannot be sent right now.",
   132016: "That template has been disabled by Meta and can no longer be sent.",
-  133010: "This phone number is not registered for the Cloud API. Register it under Meta → WhatsApp → API Setup before sending.",
+  133010: "This phone number is not registered for the Cloud API. Register it from the WhatsApp Numbers screen, or under Meta → WhatsApp → API Setup, before sending.",
+  133005: "That two-step verification PIN is wrong. It is set in Meta under WhatsApp → Two-step verification, and is not your login password.",
+  133016:
+    "Meta has locked registration for this number — ten attempts in 72 hours. Wait for the window to pass before trying again.",
   // Integrity blocks are account-level, not message-level. Retrying the
   // same send, or editing the message, changes nothing — which is exactly
   // what an operator will try first unless the text says otherwise.

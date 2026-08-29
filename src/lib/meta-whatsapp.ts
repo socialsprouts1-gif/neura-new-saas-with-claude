@@ -246,6 +246,14 @@ export interface MetaPhoneNumber {
   quality_rating?: string;
   code_verification_status?: string;
   platform_type?: string;
+  /**
+   * Meta's own word for whether the number can send: CONNECTED,
+   * PENDING, FLAGGED, RESTRICTED, DISCONNECTED… A number that is present
+   * on the account but not CONNECTED looks perfectly connected in every
+   * other field, which is exactly how a dead number goes unnoticed.
+   */
+  status?: string;
+  name_status?: string;
 }
 
 /**
@@ -262,7 +270,8 @@ export async function getPhoneNumber(
 ): Promise<MetaPhoneNumber> {
   assertUsableAccessToken(accessToken);
 
-  const fields = "id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type";
+  const fields =
+    "id,display_phone_number,verified_name,quality_rating,code_verification_status,platform_type,status,name_status";
   const response = await fetch(
     `${META_GRAPH_BASE_URL}/${phoneNumberId}?fields=${fields}`,
     { headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store" }
@@ -554,3 +563,27 @@ export function sendFlowMessage(
 // which is what makes it testable. Re-exported here so call sites keep a
 // single Meta import.
 export { readFlowReply } from "@/lib/flow-reply";
+
+
+/**
+ * Registers a business number for the Cloud API.
+ *
+ * A number can sit on a WhatsApp Business Account, show every credential
+ * as valid, and still be unregistered — in which case WhatsApp tells
+ * everyone who opens the chat that the person is "not on WhatsApp", and no
+ * message reaches it. Registration is what turns the number on.
+ *
+ * The PIN is the account's two-step verification PIN, set in Meta under
+ * WhatsApp → Two-step verification. Meta allows ten attempts per number
+ * per 72 hours and then locks registration for the rest of the window.
+ */
+export async function registerPhoneNumber(
+  phoneNumberId: string,
+  accessToken: string,
+  pin: string
+): Promise<void> {
+  await graph(`${phoneNumberId}/register`, accessToken, {
+    method: "POST",
+    body: { messaging_product: "whatsapp", pin },
+  });
+}

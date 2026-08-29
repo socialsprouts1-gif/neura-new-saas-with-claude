@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { resolveConnection, listConnections } from "@/lib/connections";
-import { getPhoneNumber, describeMetaError, MetaApiError } from "@/lib/meta-whatsapp";
+import {
+  getPhoneNumber,
+  registerPhoneNumber,
+  describeMetaError,
+  MetaApiError,
+} from "@/lib/meta-whatsapp";
 import type { ActionResult } from "../actions";
 
 // Managing the set of WhatsApp numbers in a workspace.
@@ -43,6 +48,13 @@ export async function refreshNumber(id: string): Promise<ActionResult> {
   try {
     const number = await getPhoneNumber(connection.phoneNumberId, connection.accessToken);
 
+    // Reaching Meta proves the credentials work. It does not prove the
+    // number can send: a number sitting on the account unregistered
+    // answers every other field normally, which is exactly how a dead
+    // number goes unnoticed until a customer says nothing arrived.
+    const connected = (number.status ?? "").toUpperCase() === "CONNECTED";
+    const problem = connected ? null : describeNumberStatus(number.status);
+
     await supabase
       .from("waba_connections")
       .update({
@@ -50,20 +62,21 @@ export async function refreshNumber(id: string): Promise<ActionResult> {
         verified_name: number.verified_name ?? null,
         quality_rating: number.quality_rating ?? null,
         last_checked_at: new Date().toISOString(),
-        // Reaching Meta at all proves the credentials work, so any
-        // recorded failure is stale.
-        last_error: null,
-        last_error_at: null,
+        last_error: problem,
+        last_error_at: problem ? new Date().toISOString() : null,
       })
       .eq("id", id)
       .eq("org_id", orgId);
 
     refreshScreens();
+
+    if (problem) return { ok: false, error: problem };
+
     return {
       ok: true,
-      message: `${number.display_phone_number ?? "This number"} is live${
+      message: `${number.display_phone_number ?? "This number"} is connected${
         number.verified_name ? ` as "${number.verified_name}"` : ""
-      }.`,
+      } and can send.`,
     };
   } catch (error) {
     const reason =
@@ -214,4 +227,80 @@ export async function setAutomationNumber(
 
   refreshScreens();
   return { ok: true, message: connectionId ? "Number set." : "Now runs on any number." };
+}
+
+
+/** Meta's status for a number, in words that name the next step. */
+function describeNumberStatus(status: string | undefined): string {
+  switch ((status ?? "").toUpperCase()) {
+    case "":
+    case "UNKNOWN":
+      return "Meta did not report a status for this number. It may not be registered for the Cloud API yet.";
+    case "PENDING":
+      return "Meta is still setting this number up. It cannot send or receive until that finishes.";
+    case "DISCONNECTED":
+    case "UNVERIFIED":
+      return "This number is not registered for the Cloud API, so WhatsApp treats it as not on WhatsApp and nothing reaches it. Register it below.";
+    case "FLAGGED":
+      return "Meta has flagged this number for low quality. It can still send, but its messaging limit will not increase while flagged.";
+    case "RESTRICTED":
+      return "This number has hit its messaging limit for the last 24 hours. Sending resumes when the window rolls over.";
+    case "RATE_LIMITED":
+      return "Meta is rate limiting this number. Sending resumes shortly.";
+    case "BANNED":
+      return "Meta has banned this number. Appeal from Meta Business Suite → Account Quality.";
+    default:
+      return `Meta reports this number as ${status}, not connected, so it cannot send.`;
+  }
+}
+
+/**
+ * Turns the number on for the Cloud API.
+ *
+ * A number can be on the account with every credential valid and still be
+ * unregistered — WhatsApp then tells anyone who opens the chat that the
+ * business is "not on WhatsApp", and no message reaches it. This is what
+ * fixes that, and there is nowhere else in the product to do it.
+ */
+export async function registerNumber(id: string, pin: string): Promise<ActionResult> {
+  const { orgId, role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can register a number." };
+  }
+
+  const cleaned = pin.replace(/\D/g, "");
+  if (cleaned.length !== 6) {
+    return {
+      ok: false,
+      error: "The PIN is the 6-digit two-step verification PIN from Meta, not your password.",
+    };
+  }
+
+  const supabase = await createClient();
+  const connection = await resolveConnection(supabase, orgId, { connectionId: id });
+  if ("error" in connection) return { ok: false, error: connection.error };
+
+  try {
+    await registerPhoneNumber(connection.phoneNumberId, connection.accessToken, cleaned);
+  } catch (error) {
+    const reason =
+      error instanceof MetaApiError
+        ? describeMetaError(error.status, error.body)
+        : error instanceof Error
+          ? error.message
+          : "Meta refused the registration.";
+
+    await supabase
+      .from("waba_connections")
+      .update({ last_error: reason, last_error_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("org_id", orgId);
+
+    refreshScreens();
+    return { ok: false, error: reason };
+  }
+
+  // Read it straight back: registration is asynchronous enough that a
+  // success here does not on its own mean the number is CONNECTED.
+  return refreshNumber(id);
 }

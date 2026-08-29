@@ -16,6 +16,7 @@ import {
   MakeDefaultButton,
   CheckNumberButton,
   NumberLabel,
+  RegisterNumberButton,
 } from "./NumberControls";
 
 export default async function NumbersPage() {
@@ -135,6 +136,10 @@ export default async function NumbersPage() {
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
+                  {/* Only when Meta has actually told us it cannot send —
+                      offering it on a healthy number invites people to burn
+                      one of ten registration attempts per 72 hours. */}
+                  {connection.lastError && <RegisterNumberButton id={connection.id} />}
                   <MakeDefaultButton id={connection.id} isDefault={connection.isDefault} />
                   <CheckNumberButton id={connection.id} />
                 </div>
