@@ -9,6 +9,8 @@ import {
   type AutomationFlow,
   type RunnerResources,
 } from "../src/lib/reply-matcher.ts";
+import { triggerListensOn } from "../src/lib/trigger-scope.ts";
+import type { FlowNode } from "../src/types/flow.ts";
 import type { AiAssistant, ChatbotFlow, LegacyChatbotNode, FaqEntry } from "../src/types/portal.ts";
 
 // Run with: npm test
@@ -534,4 +536,32 @@ test("an inactive FAQ entry never matches", () => {
 
 test("nothing configured means nothing is sent", () => {
   assert.equal(planReply({ text: "hello" }, resources()).kind, "none");
+});
+
+// A trigger can be limited to some of the workspace's numbers. Getting this
+// wrong means a bot answering on a number it was told to stay off.
+
+test("an unrestricted trigger listens on every number", () => {
+  const node = { id: "t", kind: "on_message", data: {} } as unknown as FlowNode;
+  assert.equal(triggerListensOn(node, "conn-a"), true);
+  assert.equal(triggerListensOn(node, null), true);
+});
+
+test("a restricted trigger only listens on its own numbers", () => {
+  const node = {
+    id: "t",
+    kind: "on_message",
+    data: { phoneNumbers: ["conn-a", "conn-b"] },
+  } as unknown as FlowNode;
+
+  assert.equal(triggerListensOn(node, "conn-a"), true);
+  assert.equal(triggerListensOn(node, "conn-b"), true);
+  assert.equal(triggerListensOn(node, "conn-c"), false);
+  // A conversation with no number recorded must not slip past a restriction.
+  assert.equal(triggerListensOn(node, null), false);
+});
+
+test("an empty list is treated as no restriction, not as nothing", () => {
+  const node = { id: "t", kind: "on_message", data: { phoneNumbers: [] } } as unknown as FlowNode;
+  assert.equal(triggerListensOn(node, "conn-a"), true);
 });

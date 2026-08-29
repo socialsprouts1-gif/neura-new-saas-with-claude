@@ -53,6 +53,9 @@ export function nextNode(
 
 // --- trigger matching ------------------------------------------------------
 
+// Pure, so it lives in its own module and can be tested directly.
+export { triggerListensOn } from "@/lib/trigger-scope";
+
 export function triggerMatches(node: FlowNode, text: string): boolean {
   const keywords = asStringArray(node.data.keywords);
   // No keywords means "any inbound message", which is a deliberate choice in

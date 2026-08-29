@@ -15,6 +15,7 @@ import {
   isWaitingNode,
   nextNode,
   sectionsOf,
+  triggerListensOn,
   triggerMatches,
   INLINE_DELAY_LIMIT_MS,
   type FlowVariables,
@@ -83,7 +84,11 @@ export interface FlowOutcome {
  * Decides whether an inbound message starts this flow, and from which node.
  * Returns null when the flow does not apply.
  */
-export function flowEntryFor(flow: ChatbotFlow, text: string): FlowNode | null {
+export function flowEntryFor(
+  flow: ChatbotFlow,
+  text: string,
+  connectionId: string | null = null
+): FlowNode | null {
   const graph = graphOf(flow);
   const start = entryNode(graph, (flow as ChatbotFlow & { entry_node_id?: string | null }).entry_node_id);
   if (!start) return null;
@@ -92,6 +97,9 @@ export function flowEntryFor(flow: ChatbotFlow, text: string): FlowNode | null {
   // matches; one without a trigger (a flow built in the old simple form)
   // relies on the flow's own trigger_type, checked by the caller.
   if (start.kind === "on_message") {
+    // The number comes first: a trigger set to listen on one number must
+    // stay silent on the others however well the keywords match.
+    if (!triggerListensOn(start, connectionId)) return null;
     return triggerMatches(start, text) ? start : null;
   }
   return start;

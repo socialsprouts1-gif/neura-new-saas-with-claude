@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { listConnections, optionLabel } from "@/lib/connections";
 import type { FlowEdge, FlowNode } from "@/types/flow";
 import FlowBuilder from "./FlowBuilder";
 import BuiltBanner from "./BuiltBanner";
@@ -21,6 +22,12 @@ export default async function FlowBuilderPage({
   const built = Array.isArray(query.built) ? query.built[0] : query.built;
   const { orgId } = await requireOrg();
   const supabase = await createClient();
+
+  const numbers = (await listConnections(supabase, orgId)).map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+    status: connection.status,
+  }));
 
   const { data: flow } = await supabase
     .from("chatbot_flows")
@@ -74,6 +81,7 @@ export default async function FlowBuilderPage({
           initialActive={flow.is_active}
           initialNodes={nodes}
           initialEdges={(Array.isArray(flow.edges) ? flow.edges : []) as FlowEdge[]}
+          numbers={numbers}
         />
       </div>
     </div>

@@ -295,7 +295,11 @@ export default async function InboxPage({
         orgId={orgId}
         numbers={connections
           .filter((connection) => connection.status === "active")
-          .map((connection) => ({ id: connection.id, label: optionLabel(connection) }))}
+          .map((connection) => ({
+            id: connection.id,
+            label: optionLabel(connection),
+            status: connection.status,
+          }))}
       />
 
       {active && activeContact ? (

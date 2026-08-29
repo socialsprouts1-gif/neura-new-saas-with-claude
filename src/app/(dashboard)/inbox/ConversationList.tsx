@@ -2,7 +2,16 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, Filter, Phone, Search, Tag, Users } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  Phone,
+  Search,
+  Tag,
+  Users,
+} from "lucide-react";
 import NewMessageAlert from "./NewMessageAlert";
 
 export interface ConversationRow {
@@ -86,8 +95,8 @@ export default function ConversationList({
   allTags: string[];
   currentUserId: string;
   orgId: string;
-  /** Every active number, so the list can be narrowed to one of them. */
-  numbers: Array<{ id: string; label: string }>;
+  /** Every active number, so the list can be narrowed to some of them. */
+  numbers: Array<{ id: string; label: string; status?: string }>;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -96,14 +105,18 @@ export default function ConversationList({
   const [descending, setDescending] = useState(true);
   const [tag, setTag] = useState<string | null>(null);
   const [view, setView] = useState<View>("all");
-  const [numberId, setNumberId] = useState<string | null>(null);
+  const [pickedNumbers, setPickedNumbers] = useState<string[]>([]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
     const filtered = rows.filter((row) => {
       if (!inView(row, view, currentUserId)) return false;
-      if (numberId && row.connectionId !== numberId) return false;
+      // Nothing ticked means every number, so an empty list is not a
+      // filter that matches nothing.
+      if (pickedNumbers.length > 0 && !pickedNumbers.includes(row.connectionId ?? "")) {
+        return false;
+      }
       if (scope === "unread" && !row.unread) return false;
       if (scope === "assigned" && !row.assignedTo) return false;
       if (scope === "unassigned" && row.assignedTo) return false;
@@ -134,7 +147,7 @@ export default function ConversationList({
       const right = b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0;
       return direction * (left - right);
     });
-  }, [rows, query, scope, sort, descending, tag, view, numberId, currentUserId]);
+  }, [rows, query, scope, sort, descending, tag, view, pickedNumbers, currentUserId]);
 
   const scopeLabel =
     scope === "all"
@@ -146,31 +159,22 @@ export default function ConversationList({
   return (
     <aside className="w-80 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0">
       <div className="flex items-center gap-2 px-3 h-14 border-b border-white/8 flex-shrink-0">
-        {/* Which number's conversations to show. Hidden on a one-number
-            workspace, where every thread is on the same number anyway. */}
+        {/* Which numbers' conversations to show. A pill rather than an
+            icon: with several numbers connected, which one you are looking
+            at is the first thing you need to know. */}
         {numbers.length > 1 && (
-          <Menu
-            label={numberId ? (numbers.find((n) => n.id === numberId)?.label ?? "Number") : "Number"}
-            icon={<Phone className="w-4 h-4" />}
-            active={numberId !== null}
-            width="w-64"
-          >
-            <>
-              <MenuHeading>Show conversations on</MenuHeading>
-              <MenuItem checked={numberId === null} onClick={() => setNumberId(null)}>
-                All numbers
-              </MenuItem>
-              {numbers.map((number) => (
-                <MenuItem
-                  key={number.id}
-                  checked={numberId === number.id}
-                  onClick={() => setNumberId(number.id)}
-                >
-                  {number.label}
-                </MenuItem>
-              ))}
-            </>
-          </Menu>
+          <NumberMenu
+            numbers={numbers}
+            picked={pickedNumbers}
+            onToggle={(id) =>
+              setPickedNumbers((current) =>
+                current.includes(id)
+                  ? current.filter((entry) => entry !== id)
+                  : [...current, id]
+              )
+            }
+            onClear={() => setPickedNumbers([])}
+          />
         )}
 
         <Menu
@@ -371,9 +375,11 @@ export default function ConversationList({
             {scopeLabel && (
               <Chip onClear={() => setScope("all")}>{scopeLabel}</Chip>
             )}
-            {numberId && (
-              <Chip onClear={() => setNumberId(null)}>
-                {numbers.find((n) => n.id === numberId)?.label ?? "Number"}
+            {pickedNumbers.length > 0 && (
+              <Chip onClear={() => setPickedNumbers([])}>
+                {pickedNumbers.length === 1
+                  ? (numbers.find((n) => n.id === pickedNumbers[0])?.label ?? "Number")
+                  : `${pickedNumbers.length} numbers`}
               </Chip>
             )}
             {tag && <Chip onClear={() => setTag(null)}>#{tag}</Chip>}
@@ -592,4 +598,101 @@ function clockOrDay(iso: string | null): string {
   if (days <= 1) return "Yesterday";
   if (days < 7) return `${days}d`;
   return date.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+
+/**
+ * The WhatsApp number picker.
+ *
+ * A labelled pill, not an icon button: once a workspace has several
+ * numbers, which one you are reading is context you need before you read
+ * anything, and an icon does not carry it. Ticking nothing means all.
+ */
+function NumberMenu({
+  numbers,
+  picked,
+  onToggle,
+  onClear,
+}: {
+  numbers: Array<{ id: string; label: string; status?: string }>;
+  picked: string[];
+  onToggle: (id: string) => void;
+  onClear: () => void;
+}) {
+  const details = useRef<HTMLDetailsElement>(null);
+
+  const summary =
+    picked.length === 0
+      ? "All numbers"
+      : picked.length === 1
+        ? (numbers.find((number) => number.id === picked[0])?.label ?? "1 number")
+        : `${picked.length} numbers`;
+
+  return (
+    <details ref={details} className="relative">
+      <summary
+        aria-label="Filter by WhatsApp number"
+        className={`list-none cursor-pointer flex items-center gap-1.5 pl-2 pr-1.5 py-1.5 rounded-lg border text-xs transition-colors max-w-[11rem] ${
+          picked.length > 0
+            ? "border-accent/40 bg-accent/8 text-accent-ink"
+            : "border-white/12 bg-white/4 text-white/70 hover:border-white/25"
+        }`}
+      >
+        <Phone className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate flex-1 tabular-nums">{summary}</span>
+        <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
+      </summary>
+
+      <div className="absolute left-0 top-full mt-1.5 w-72 rounded-xl border border-white/10 bg-[var(--surface-2)] shadow-xl z-30 overflow-hidden">
+        <div className="px-3 py-2.5 border-b border-white/8">
+          <span className="text-xs font-semibold">WhatsApp numbers</span>
+        </div>
+
+        <div className="py-1 max-h-72 overflow-y-auto">
+          {numbers.map((number) => {
+            const checked = picked.includes(number.id);
+            return (
+              <label
+                key={number.id}
+                className="flex items-center gap-2.5 px-3 py-2 hover:bg-white/5 cursor-pointer"
+              >
+                <span
+                  className={`grid place-items-center w-4 h-4 rounded border shrink-0 transition-colors ${
+                    checked ? "bg-accent border-accent" : "border-white/25"
+                  }`}
+                >
+                  {checked && (
+                    <Check className="w-3 h-3 text-[var(--app-bg)]" strokeWidth={3} />
+                  )}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggle(number.id)}
+                  className="sr-only"
+                />
+                <span className="text-sm flex-1 truncate tabular-nums">{number.label}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/12 text-accent-ink shrink-0">
+                  {number.status === "active" || !number.status ? "Active" : number.status}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+
+        {picked.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              onClear();
+              details.current?.removeAttribute("open");
+            }}
+            className="w-full text-left px-3 py-2 text-[11px] text-white/45 hover:text-white hover:bg-white/5 border-t border-white/8"
+          >
+            Show all numbers
+          </button>
+        )}
+      </div>
+    </details>
+  );
 }

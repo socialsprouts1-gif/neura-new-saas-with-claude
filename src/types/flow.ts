@@ -88,7 +88,8 @@ export type FieldKind =
   | "keywords"
   | "buttons"
   | "sections"
-  | "variable";
+  | "variable"
+  | "numbers";
 
 export interface NodeField {
   name: string;
@@ -133,6 +134,12 @@ export const NODE_DEFS: NodeDef[] = [
         label: "Keywords",
         kind: "keywords",
         hint: "Leave empty to match any message. Comma separated.",
+      },
+      {
+        name: "phoneNumbers",
+        label: "Phone Numbers",
+        kind: "numbers",
+        hint: "Which of your WhatsApp numbers this bot listens on. None ticked means all of them.",
       },
       {
         name: "fuzzy",

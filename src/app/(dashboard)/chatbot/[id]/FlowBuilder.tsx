@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -21,32 +29,33 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  Copy,
-  Trash2,
-  Save,
-  Search,
-  X,
-  Zap,
-  MessageSquare,
-  MousePointerClick,
-  List,
-  Image as ImageIcon,
-  FileText,
-  Link2,
-  ShoppingCart,
-  HelpCircle,
-  MapPin,
-  GitBranch,
+  Bot,
+  Check,
+  ClipboardList,
   Clock,
-  Tag,
-  UserCog,
+  Copy,
   Database,
+  FileText,
+  GitBranch,
   Globe,
   Headset,
+  HelpCircle,
+  Image as ImageIcon,
+  Link2,
+  List,
+  MapPin,
+  MessageSquare,
+  MousePointerClick,
+  Save,
+  Search,
+  ShoppingCart,
   StopCircle,
-  Bot,
+  Tag,
+  Trash2,
+  UserCog,
+  X,
+  Zap,
   type LucideIcon,
-  ClipboardList,
 } from "lucide-react";
 import {
   NODE_DEFS,
@@ -109,6 +118,20 @@ function newId(kind: string): string {
 
 const inputClass =
   "w-full bg-white/4 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-white/25 focus:outline-none focus:border-accent/40 nodrag";
+
+export interface BuilderNumber {
+  id: string;
+  label: string;
+  status: string;
+}
+
+/**
+ * The workspace's numbers, for the trigger's Phone Numbers field.
+ *
+ * Through context rather than props: the field editor is rendered inside a
+ * React Flow node, several layers below anything that could pass it down.
+ */
+const NumbersContext = createContext<BuilderNumber[]>([]);
 
 function FieldEditor({
   field,
@@ -177,6 +200,9 @@ function FieldEditor({
 
     case "keywords":
       return <KeywordsEditor value={value} onChange={onChange} placeholder={field.placeholder} />;
+
+    case "numbers":
+      return <NumbersEditor value={value} onChange={onChange} />;
 
     case "variable":
       return (
@@ -625,9 +651,19 @@ interface BuilderProps {
   initialActive: boolean;
   initialNodes: FlowNode[];
   initialEdges: FlowEdge[];
+  /** The workspace's numbers, for the trigger's Phone Numbers field. */
+  numbers: BuilderNumber[];
 }
 
-function Builder({ flowId, initialName, initialActive, initialNodes, initialEdges }: BuilderProps) {
+// `numbers` is deliberately not destructured: the field editor reads it
+// from context, which FlowBuilder provides around this component.
+function Builder({
+  flowId,
+  initialName,
+  initialActive,
+  initialNodes,
+  initialEdges,
+}: BuilderProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<BuilderNode>(
     initialNodes.map((n) => ({
       id: n.id,
@@ -899,8 +935,84 @@ function Builder({ flowId, initialName, initialActive, initialNodes, initialEdge
 
 export default function FlowBuilder(props: BuilderProps) {
   return (
-    <ReactFlowProvider>
-      <Builder {...props} />
-    </ReactFlowProvider>
+    <NumbersContext.Provider value={props.numbers}>
+      <ReactFlowProvider>
+        <Builder {...props} />
+      </ReactFlowProvider>
+    </NumbersContext.Provider>
+  );
+}
+
+
+/**
+ * Which of the workspace's numbers a trigger listens on.
+ *
+ * Ticking nothing means every number, which is what a one-number workspace
+ * wants and what every bot built before numbers existed already means.
+ */
+function NumbersEditor({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (next: unknown) => void;
+}) {
+  const numbers = useContext(NumbersContext);
+  const selected = Array.isArray(value) ? (value as string[]) : [];
+
+  if (numbers.length === 0) {
+    return (
+      <p className="text-[11px] text-white/35 leading-relaxed">
+        No numbers connected yet. Connect one under Integrations and it will appear here.
+      </p>
+    );
+  }
+
+  const toggle = (id: string) =>
+    onChange(
+      selected.includes(id) ? selected.filter((entry) => entry !== id) : [...selected, id]
+    );
+
+  return (
+    <div className="nodrag space-y-1">
+      {numbers.map((number) => {
+        const checked = selected.includes(number.id);
+        return (
+          <label
+            key={number.id}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
+          >
+            <span
+              className={`grid place-items-center w-4 h-4 rounded border shrink-0 transition-colors ${
+                checked ? "bg-accent border-accent" : "border-white/25"
+              }`}
+            >
+              {checked && <Check className="w-3 h-3 text-[var(--app-bg)]" strokeWidth={3} />}
+            </span>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => toggle(number.id)}
+              className="sr-only"
+            />
+            <span className="text-xs tabular-nums flex-1 truncate">{number.label}</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded ${
+                number.status === "active"
+                  ? "bg-accent/12 text-accent-ink"
+                  : "bg-white/8 text-white/45"
+              }`}
+            >
+              {number.status === "active" ? "Active" : number.status}
+            </span>
+          </label>
+        );
+      })}
+      <p className="text-[11px] text-white/30 pt-1">
+        {selected.length === 0
+          ? "Listening on all numbers."
+          : `Listening on ${selected.length} of ${numbers.length}.`}
+      </p>
+    </div>
   );
 }

@@ -334,7 +334,7 @@ async function tryGraphFlow(args: {
     // to planReply so their trigger_type semantics keep working.
     if (!graph.nodes.some((n) => n.kind === "on_message")) continue;
 
-    const start = flowEntryFor(flow, text);
+    const start = flowEntryFor(flow, text, conversation.connectionId);
     if (!start) continue;
 
     const outcome = await runFlow(graph, start, context, {});
