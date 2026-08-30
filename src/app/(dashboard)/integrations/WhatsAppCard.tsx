@@ -223,6 +223,8 @@ export default function WhatsAppCard({
             </div>
           )}
 
+          {canManage && <ManualConnect />}
+
           {/* Storing credentials does not tell Meta where to deliver
               messages — that is a separate step in their dashboard, and
               the two values it asks for are shown here so nobody has to
@@ -294,19 +296,49 @@ export default function WhatsAppCard({
             <ConnectWhatsApp />
           </div>
 
-          <details className="group">
-            <summary className="cursor-pointer text-xs text-white/45 hover:text-white/70 transition-colors list-none">
-              Connect manually instead
-              <span className="text-white/25"> — if you already have a System User token</span>
-            </summary>
-            <div className="mt-4 pt-4 border-t border-white/8">
-              <p className="text-xs text-white/45 leading-relaxed mb-4 max-w-2xl">
-                This path does not subscribe your app to the WhatsApp Business Account. Without
-                that, inbound messages are never delivered no matter how the callback URL is
-                configured, and it can only be done through the API.
-              </p>
-              <ActionForm action={connectWaba} submitLabel="Connect number" resetOnSuccess>
-                <div className="grid sm:grid-cols-2 gap-4">
+          <ManualConnect />
+        </div>
+      ) : (
+        <p className="text-sm text-white/40">
+          No number connected. Ask an owner or admin to connect one.
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * The System User token path.
+ *
+ * Embedded Signup covers numbers you can reach through Meta's dialog. It
+ * does not cover the case an agency actually has: a client's WhatsApp
+ * Business Account, shared into your business portfolio as a Partner, which
+ * a System User token can act on today without waiting on Tech Provider
+ * approval. That is the only way to attach those numbers, so it has to stay
+ * reachable after the first connection — hiding it once one number existed
+ * made the whole path unreachable exactly when it was needed.
+ */
+function ManualConnect() {
+  return (
+    <details className="group">
+      <summary className="cursor-pointer text-xs text-white/45 hover:text-white/70 transition-colors list-none">
+        Connect with a System User token instead
+        <span className="text-white/25"> — for a client account shared with your business</span>
+      </summary>
+      <div className="mt-4 pt-4 border-t border-white/8">
+        <p className="text-xs text-white/45 leading-relaxed mb-4 max-w-2xl">
+          Use this when the WhatsApp Business Account belongs to someone else and they have
+          added your business portfolio as a Partner. Meta&apos;s dialog cannot reach those
+          accounts until your app is an approved Tech Provider; a System User token can.
+        </p>
+        <p className="text-xs text-[#FACC15]/80 leading-relaxed mb-4 max-w-2xl">
+          This path does not subscribe your app to the WhatsApp Business Account, and there is
+          no button for that anywhere in Meta&apos;s dashboard. Until it is done through the
+          API, inbound messages are never delivered no matter how the callback URL is set up.
+        </p>
+        <ActionForm action={connectWaba} submitLabel="Connect number" resetOnSuccess>
+          <div className="grid sm:grid-cols-2 gap-4">
             <Field label="WABA ID" name="waba_id" required placeholder="123456789012345" />
             <Field
               label="Phone number ID"
@@ -322,18 +354,11 @@ export default function WhatsAppCard({
               type="password"
               required
               placeholder="EAAG…"
-                    hint="Use a permanent System User token, not the 24-hour one"
-                  />
-                </div>
-              </ActionForm>
-            </div>
-          </details>
-        </div>
-      ) : (
-        <p className="text-sm text-white/40">
-          No number connected. Ask an owner or admin to connect one.
-        </p>
-      )}
-    </div>
+              hint="Use a permanent System User token, not the 24-hour one"
+            />
+          </div>
+        </ActionForm>
+      </div>
+    </details>
   );
 }
