@@ -344,6 +344,89 @@ async function graph(
   return data;
 }
 
+/** How big a sample file Meta will take for a template header. */
+const MAX_TEMPLATE_SAMPLE_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Uploads a file to Meta and returns the handle a template header needs.
+ *
+ * A media header's `example.header_handle` is not a URL. Meta will not fetch
+ * a link — it wants a handle from the Resumable Upload API, produced by
+ * sending the actual bytes to an app-scoped upload session. Passing a URL
+ * there is accepted by the request and then refused as "Invalid parameter
+ * (code 100)", which names no field and reads like the whole template is
+ * malformed.
+ *
+ * Two calls: open a session against the app, then POST the bytes to it. The
+ * second uses `Authorization: OAuth` — not Bearer — which is particular to
+ * this endpoint and silently 400s if you use the usual header.
+ */
+export async function uploadTemplateHeaderSample(
+  appId: string,
+  accessToken: string,
+  fileUrl: string
+): Promise<string> {
+  assertUsableAccessToken(accessToken);
+
+  const source = await fetch(fileUrl, { cache: "no-store" });
+  if (!source.ok) {
+    throw new Error(
+      `The sample file could not be downloaded (${source.status}). Meta has to receive the file itself, so the URL must be publicly reachable.`
+    );
+  }
+
+  const bytes = new Uint8Array(await source.arrayBuffer());
+  if (bytes.byteLength === 0) {
+    throw new Error("The sample file is empty.");
+  }
+  if (bytes.byteLength > MAX_TEMPLATE_SAMPLE_BYTES) {
+    throw new Error(
+      `The sample file is ${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB; Meta allows 16 MB.`
+    );
+  }
+
+  // Meta matches this against the template's declared format, so a wrong or
+  // missing type is rejected even when the file itself is fine.
+  const fileType = (source.headers.get("content-type") ?? "").split(";")[0].trim();
+  if (!fileType) {
+    throw new Error("The sample file was served without a content type, so Meta cannot accept it.");
+  }
+
+  const start = new URLSearchParams({
+    file_length: String(bytes.byteLength),
+    file_type: fileType,
+    access_token: accessToken,
+  });
+
+  const sessionResponse = await fetch(`${META_GRAPH_BASE_URL}/${appId}/uploads?${start}`, {
+    method: "POST",
+  });
+  const session = await sessionResponse.json().catch(() => ({}));
+  if (!sessionResponse.ok) throw new MetaApiError(sessionResponse.status, session);
+
+  const sessionId = (session as { id?: string }).id;
+  if (!sessionId) throw new Error("Meta opened no upload session for that file.");
+
+  const uploadResponse = await fetch(`${META_GRAPH_BASE_URL}/${sessionId}`, {
+    method: "POST",
+    headers: {
+      // OAuth, not Bearer. This endpoint is the exception.
+      Authorization: `OAuth ${accessToken}`,
+      file_offset: "0",
+      "Content-Type": "application/octet-stream",
+    },
+    body: bytes,
+  });
+
+  const uploaded = await uploadResponse.json().catch(() => ({}));
+  if (!uploadResponse.ok) throw new MetaApiError(uploadResponse.status, uploaded);
+
+  const handle = (uploaded as { h?: string }).h;
+  if (!handle) throw new Error("Meta accepted the upload but returned no file handle.");
+
+  return handle;
+}
+
 /**
  * Submits a template for review. Meta returns immediately with a PENDING
  * status; approval takes anywhere from a minute to a day, which is why the

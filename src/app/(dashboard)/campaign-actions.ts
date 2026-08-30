@@ -8,6 +8,7 @@ import {
   createMessageTemplate,
   deleteMessageTemplate,
   listMessageTemplates,
+  uploadTemplateHeaderSample,
   describeMetaError,
   MetaApiError,
 } from "@/lib/meta-whatsapp";
@@ -41,12 +42,15 @@ async function wabaCredentials(
   supabase: Client,
   orgId: string,
   connectionId?: string | null
-): Promise<{ wabaId: string; phoneNumberId: string; token: string } | { error: string }> {
+): Promise<
+  { wabaId: string; phoneNumberId: string; appId: string; token: string } | { error: string }
+> {
   const connection = await resolveConnection(supabase, orgId, { connectionId });
   if ("error" in connection) return { error: connection.error };
   return {
     wabaId: connection.wabaId,
     phoneNumberId: connection.phoneNumberId,
+    appId: connection.metaAppId,
     token: connection.accessToken,
   };
 }
@@ -96,7 +100,31 @@ export async function submitTemplate(
   const credentials = await wabaCredentials(supabase, orgId);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
-  const components = buildComponents(spec);
+  // A media header's sample has to reach Meta as bytes, not as a link. Do
+  // it before anything is written locally: a template row saved as pending
+  // against an upload that never happened is a row that can only ever fail.
+  let headerHandle: string | undefined;
+  if (["IMAGE", "VIDEO", "DOCUMENT"].includes(spec.headerFormat)) {
+    try {
+      headerHandle = await uploadTemplateHeaderSample(
+        credentials.appId,
+        credentials.token,
+        spec.headerMediaUrl.trim()
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof MetaApiError
+            ? `Meta would not accept the header file: ${describeMetaError(error.status, error.body)}`
+            : error instanceof Error
+              ? error.message
+              : "The header file could not be uploaded to Meta.",
+      };
+    }
+  }
+
+  const components = buildComponents(spec, headerHandle);
 
   const { data: saved, error: saveError } = await supabase
     .from("message_templates")

@@ -27,6 +27,8 @@ export interface ConnectionSummary {
   /** The operator's own name for it: "Support", "Sales". */
   label: string | null;
   qualityRating: string | null;
+  /** The Meta app the token belongs to. Needed to upload media to Meta. */
+  metaAppId: string;
   status: string;
   isDefault: boolean;
   lastError: string | null;
@@ -43,7 +45,8 @@ export interface ResolvedConnection extends ConnectionSummary {
 // otherwise a workspace that has not run the migration yet sees no numbers
 // at all and every picker hides itself, with nothing on screen saying why.
 const EXTRA = "display_phone_number, verified_name, label, quality_rating, is_default";
-const BASE = "id, org_id, phone_number_id, waba_id, status, last_error, last_error_at";
+const BASE =
+  "id, org_id, phone_number_id, waba_id, meta_app_id, status, last_error, last_error_at";
 const COLUMNS = `${BASE}, ${EXTRA}`;
 
 /** What a row looks like before the migration has been applied. */
@@ -75,6 +78,7 @@ type Row = {
   id: string;
   phone_number_id: string;
   waba_id: string;
+  meta_app_id: string;
   display_phone_number: string | null;
   verified_name: string | null;
   label: string | null;
@@ -94,6 +98,7 @@ function toSummary(row: Row): ConnectionSummary {
     verifiedName: row.verified_name,
     label: row.label,
     qualityRating: row.quality_rating,
+    metaAppId: row.meta_app_id,
     status: row.status,
     isDefault: row.is_default,
     lastError: row.last_error,

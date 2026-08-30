@@ -198,7 +198,7 @@ export interface MetaComponent {
  * header_handle are arrays of values, body_text is an array of arrays —
  * and getting that wrong is a 400 that names no field.
  */
-export function buildComponents(spec: TemplateSpec): MetaComponent[] {
+export function buildComponents(spec: TemplateSpec, headerHandle?: string): MetaComponent[] {
   const components: MetaComponent[] = [];
 
   if (spec.headerFormat === "TEXT" && spec.headerText.trim()) {
@@ -212,10 +212,15 @@ export function buildComponents(spec: TemplateSpec): MetaComponent[] {
     }
     components.push(header);
   } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(spec.headerFormat)) {
+    // header_handle is a handle from Meta's Resumable Upload API, never a
+    // URL — Meta does not fetch links here. The caller uploads the sample
+    // and passes the handle in; the URL is only ever a fallback for
+    // rendering a preview, and Meta rejects it with a bare "Invalid
+    // parameter (code 100)" that names no field.
     components.push({
       type: "HEADER",
       format: spec.headerFormat,
-      example: { header_handle: [spec.headerMediaUrl.trim()] },
+      example: { header_handle: [headerHandle ?? spec.headerMediaUrl.trim()] },
     });
   }
 

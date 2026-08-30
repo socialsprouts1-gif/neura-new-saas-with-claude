@@ -146,13 +146,27 @@ test("a text header example is a flat array", () => {
   assert.deepEqual(header?.example, { header_text: ["#1234"] });
 });
 
-test("a media header carries a handle and no text", () => {
+test("a media header carries the uploaded handle, not the URL", () => {
+  // Meta does not fetch a link here. header_handle must be the handle its
+  // Resumable Upload API returned for the bytes; a URL in this field is
+  // refused as "Invalid parameter (code 100)" naming no field at all.
   const header = buildComponents(
-    spec({ headerFormat: "IMAGE", headerMediaUrl: "https://x.test/a.jpg" })
+    spec({ headerFormat: "IMAGE", headerMediaUrl: "https://x.test/a.jpg" }),
+    "4::aW1hZ2UvanBlZw==:ARZhandle"
   ).find((c) => c.type === "HEADER");
 
   assert.equal(header?.format, "IMAGE");
   assert.equal(header?.text, undefined);
+  assert.deepEqual(header?.example, { header_handle: ["4::aW1hZ2UvanBlZw==:ARZhandle"] });
+});
+
+test("a media header falls back to the URL only when no handle was uploaded", () => {
+  // Rendering a preview needs something; a submission never takes this path
+  // because submitTemplate uploads first and refuses to continue if it fails.
+  const header = buildComponents(
+    spec({ headerFormat: "IMAGE", headerMediaUrl: "https://x.test/a.jpg" })
+  ).find((c) => c.type === "HEADER");
+
   assert.deepEqual(header?.example, { header_handle: ["https://x.test/a.jpg"] });
 });
 
