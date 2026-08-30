@@ -38,23 +38,41 @@ const CATEGORY_HELP: Record<string, string> = {
   AUTHENTICATION: "One-time passcodes. No links, no calls, no marketing language.",
 };
 
-export default function TemplateBuilder({ onClose }: { onClose: () => void }) {
+const BLANK: TemplateSpec = {
+  name: "",
+  language: "en_US",
+  category: "UTILITY",
+  headerFormat: "NONE",
+  headerText: "",
+  headerMediaUrl: "",
+  body: "",
+  footer: "",
+  buttons: [],
+  samples: [],
+};
+
+export default function TemplateBuilder({
+  onClose,
+  initial,
+  /**
+   * Set when the template already exists at Meta. Meta will not accept a
+   * second template under the same name, so an edit here has to become a
+   * new one — and saying that up front beats letting the submission fail.
+   */
+  liveAtMeta = false,
+}: {
+  onClose: () => void;
+  initial?: TemplateSpec;
+  liveAtMeta?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [spec, setSpec] = useState<TemplateSpec>({
-    name: "",
-    language: "en_US",
-    category: "UTILITY",
-    headerFormat: "NONE",
-    headerText: "",
-    headerMediaUrl: "",
-    body: "",
-    footer: "",
-    buttons: [],
-    samples: [],
-  });
+  const editing = initial !== undefined;
+  const originalName = initial?.name ?? "";
+
+  const [spec, setSpec] = useState<TemplateSpec>(initial ?? BLANK);
 
   const set = <K extends keyof TemplateSpec>(key: K, value: TemplateSpec[K]) =>
     setSpec((current) => ({ ...current, [key]: value }));
@@ -83,8 +101,18 @@ export default function TemplateBuilder({ onClose }: { onClose: () => void }) {
       )
     );
 
+  const nameUnchanged = normaliseName(spec.name) === normaliseName(originalName);
+
   const submit = () => {
     setError(null);
+
+    if (liveAtMeta && nameUnchanged) {
+      setError(
+        "This template already exists on your WhatsApp Business Account, and Meta does not allow replacing one under the same name. Give it a new name to submit these changes as a separate template."
+      );
+      return;
+    }
+
     const data = new FormData();
     data.set("name", normaliseName(spec.name));
     data.set("language", spec.language);
@@ -113,7 +141,7 @@ export default function TemplateBuilder({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto p-4 md:p-8"
       role="dialog"
       aria-modal="true"
-      aria-label="Create template"
+      aria-label={editing ? "Edit template" : "Create template"}
       onClick={(event) => {
         if (event.target === event.currentTarget && !pending) onClose();
       }}
@@ -121,10 +149,13 @@ export default function TemplateBuilder({ onClose }: { onClose: () => void }) {
       <div className="glass-card w-full max-w-5xl mx-auto p-6">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-lg font-semibold">Create template</h3>
+            <h3 className="text-lg font-semibold">
+              {editing ? "Edit template" : "Create template"}
+            </h3>
             <p className="text-xs text-white/45 mt-1.5 leading-relaxed max-w-xl">
-              Meta reviews every template before it can be sent. Most come back in minutes;
-              marketing ones can take a day.
+              {liveAtMeta
+                ? "This one is already on your WhatsApp Business Account. Meta will not replace a template under the same name, so save these changes under a new name."
+                : "Meta reviews every template before it can be sent. Most come back in minutes; marketing ones can take a day."}
             </p>
           </div>
           <button
@@ -404,7 +435,11 @@ export default function TemplateBuilder({ onClose }: { onClose: () => void }) {
               ) : (
                 <Sparkles className="w-4 h-4" />
               )}
-              {pending ? "Submitting…" : "Submit for review"}
+              {pending
+                ? "Submitting…"
+                : liveAtMeta
+                  ? "Submit as a new template"
+                  : "Submit for review"}
             </button>
           </div>
         </div>

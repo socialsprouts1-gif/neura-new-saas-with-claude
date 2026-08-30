@@ -259,6 +259,73 @@ export function buildComponents(spec: TemplateSpec, headerHandle?: string): Meta
   return components;
 }
 
+/** A stored template row, as loose as it arrives from the database. */
+export interface StoredTemplate {
+  name: string;
+  language: string;
+  category: string;
+  header_format?: string | null;
+  header_text?: string | null;
+  header_media_url?: string | null;
+  body_text?: string | null;
+  footer_text?: string | null;
+  buttons?: unknown;
+  variable_samples?: string[] | null;
+}
+
+function readStoredButtons(raw: unknown): ButtonSpec[] {
+  if (!Array.isArray(raw)) return [];
+
+  const buttons: ButtonSpec[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const button = entry as Record<string, unknown>;
+    const text = typeof button.text === "string" ? button.text : "";
+
+    if (button.type === "URL") {
+      buttons.push({ type: "URL", text, url: typeof button.url === "string" ? button.url : "" });
+    } else if (button.type === "PHONE_NUMBER") {
+      buttons.push({
+        type: "PHONE_NUMBER",
+        text,
+        phone_number: typeof button.phone_number === "string" ? button.phone_number : "",
+      });
+    } else if (button.type === "QUICK_REPLY") {
+      buttons.push({ type: "QUICK_REPLY", text });
+    }
+  }
+  return buttons;
+}
+
+/**
+ * Rebuilds the builder's state from a saved row.
+ *
+ * The parts are stored separately for exactly this — a template that Meta
+ * refused is worth more as a draft you can correct than as a row you can
+ * only delete and retype. A template synced from WhatsApp Manager has no
+ * parts saved, so it opens with whatever is there and nothing invented.
+ */
+export function specFromRow(row: StoredTemplate): TemplateSpec {
+  const headerFormat = HEADER_FORMATS.includes(row.header_format as HeaderFormat)
+    ? (row.header_format as HeaderFormat)
+    : "NONE";
+
+  return {
+    name: row.name ?? "",
+    language: row.language || "en_US",
+    category: (["MARKETING", "UTILITY", "AUTHENTICATION"].includes(row.category)
+      ? row.category
+      : "UTILITY") as TemplateSpec["category"],
+    headerFormat,
+    headerText: row.header_text ?? "",
+    headerMediaUrl: row.header_media_url ?? "",
+    body: row.body_text ?? "",
+    footer: row.footer_text ?? "",
+    buttons: readStoredButtons(row.buttons),
+    samples: Array.isArray(row.variable_samples) ? row.variable_samples : [],
+  };
+}
+
 /** Substitutes {{1}}, {{2}} … for a preview or an outgoing send. */
 export function fillVariables(text: string, values: string[]): string {
   return text.replace(/\{\{\s*(\d+)\s*\}\}/g, (whole, index: string) => {

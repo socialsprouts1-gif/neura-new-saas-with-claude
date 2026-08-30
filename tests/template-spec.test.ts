@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildComponents,
+  specFromRow,
   fillVariables,
   normaliseName,
   validateTemplate,
@@ -206,4 +207,61 @@ test("fillVariables substitutes, and leaves a missing one visible", () => {
   assert.equal(fillVariables("Hi {{1}}, order {{2}}", ["Vivek", "#9"]), "Hi Vivek, order #9");
   // Better a visible {{2}} in a preview than a silent gap in a real send.
   assert.equal(fillVariables("Hi {{1}}, order {{2}}", ["Vivek"]), "Hi Vivek, order {{2}}");
+});
+
+test("specFromRow reopens a saved template with every part intact", () => {
+  const restored = specFromRow({
+    name: "order_update",
+    language: "hi",
+    category: "MARKETING",
+    header_format: "IMAGE",
+    header_text: "",
+    header_media_url: "https://x.test/a.jpg",
+    body_text: "Hi {{1}}, your order is on the way.",
+    footer_text: "Reply STOP to opt out",
+    buttons: [{ type: "URL", text: "Track", url: "https://x.test/t" }],
+    variable_samples: ["Vivek"],
+  });
+
+  assert.equal(restored.name, "order_update");
+  assert.equal(restored.language, "hi");
+  assert.equal(restored.category, "MARKETING");
+  assert.equal(restored.headerFormat, "IMAGE");
+  assert.equal(restored.body, "Hi {{1}}, your order is on the way.");
+  assert.deepEqual(restored.buttons, [{ type: "URL", text: "Track", url: "https://x.test/t" }]);
+  assert.deepEqual(restored.samples, ["Vivek"]);
+});
+
+test("specFromRow survives a row synced from WhatsApp Manager", () => {
+  // Those rows carry a name and nothing else. The builder should open empty
+  // rather than throw, so the template can at least be seen and rebuilt.
+  const restored = specFromRow({ name: "synced_one", language: "en_US", category: "UTILITY" });
+
+  assert.equal(restored.body, "");
+  assert.equal(restored.headerFormat, "NONE");
+  assert.deepEqual(restored.buttons, []);
+  assert.deepEqual(restored.samples, []);
+});
+
+test("specFromRow drops button shapes it does not recognise", () => {
+  const restored = specFromRow({
+    name: "x",
+    language: "en_US",
+    category: "UTILITY",
+    buttons: [{ type: "FLOW", text: "Open" }, null, "nonsense", { type: "QUICK_REPLY", text: "Yes" }],
+  });
+
+  assert.deepEqual(restored.buttons, [{ type: "QUICK_REPLY", text: "Yes" }]);
+});
+
+test("specFromRow falls back when the stored header format is junk", () => {
+  const restored = specFromRow({
+    name: "x",
+    language: "en_US",
+    category: "NOPE",
+    header_format: "CAROUSEL",
+  });
+
+  assert.equal(restored.headerFormat, "NONE");
+  assert.equal(restored.category, "UTILITY");
 });

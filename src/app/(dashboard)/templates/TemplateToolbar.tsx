@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { removeTemplate, syncTemplates } from "@/app/(dashboard)/campaign-actions";
 import TemplateBuilder from "./TemplateBuilder";
+import { specFromRow, type StoredTemplate } from "@/lib/template-spec";
 
 /**
  * The two things this screen does besides list: submit a new template, and
@@ -96,5 +97,63 @@ export function DeleteTemplateButton({ id, name }: { id: string; name: string })
     >
       <Trash2 className="w-3.5 h-3.5" />
     </button>
+  );
+}
+
+
+/**
+ * Reopens a saved template in the builder.
+ *
+ * Every part of a template is stored separately for this reason, but until
+ * now nothing mounted the builder with them: a template Meta refused could
+ * only be deleted and retyped, which is the worst moment to lose the work.
+ *
+ * Rendered twice per row — around the name, because that is what people try
+ * to click, and as a pencil beside delete, because a name that opens an
+ * editor is not discoverable on its own.
+ */
+export function EditTemplateButton({
+  template,
+  liveAtMeta,
+  variant,
+}: {
+  template: StoredTemplate;
+  liveAtMeta: boolean;
+  variant: "name" | "icon";
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {variant === "name" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-left group"
+          title={`Open ${template.name}`}
+        >
+          <code className="text-accent2-ink text-xs group-hover:underline underline-offset-2">
+            {template.name}
+          </code>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Edit ${template.name}`}
+          className="p-1.5 rounded-lg text-white/30 hover:text-accent-ink hover:bg-white/8 transition-colors"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      )}
+
+      {open && (
+        <TemplateBuilder
+          initial={specFromRow(template)}
+          liveAtMeta={liveAtMeta}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }

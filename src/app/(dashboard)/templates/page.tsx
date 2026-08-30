@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
 import { variablesIn } from "@/lib/template-spec";
-import { TemplateToolbar, DeleteTemplateButton } from "./TemplateToolbar";
+import { TemplateToolbar, DeleteTemplateButton, EditTemplateButton } from "./TemplateToolbar";
 
 export default async function TemplatesPage() {
   const { orgId } = await requireOrg();
@@ -74,7 +74,11 @@ export default async function TemplatesPage() {
             return (
               <tr key={template.id} className="hover:bg-white/3 transition-colors align-top">
                 <Td>
-                  <code className="text-accent2-ink text-xs">{template.name}</code>
+                  <EditTemplateButton
+                    template={template}
+                    liveAtMeta={Boolean(template.waba_template_id)}
+                    variant="name"
+                  />
                   {template.rejected_reason && (
                     <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
                       {template.rejected_reason}
@@ -102,7 +106,12 @@ export default async function TemplatesPage() {
                 <Td className="text-white/40 text-xs whitespace-nowrap">
                   {formatDate(template.created_at)}
                 </Td>
-                <Td className="text-right">
+                <Td className="text-right whitespace-nowrap">
+                  <EditTemplateButton
+                    template={template}
+                    liveAtMeta={Boolean(template.waba_template_id)}
+                    variant="icon"
+                  />
                   <DeleteTemplateButton id={template.id} name={template.name} />
                 </Td>
               </tr>
@@ -117,9 +126,9 @@ export default async function TemplatesPage() {
       )}
 
       <p className="text-xs text-white/35 mt-4 max-w-2xl leading-relaxed">
-        Meta reviews every template and does not notify us when the verdict lands — press
-        Sync with Meta to pull the current status, including templates created directly in
-        WhatsApp Manager.
+        Click a template&apos;s name to reopen it. Meta reviews every template and does not
+        notify us when the verdict lands — press Sync with Meta to pull the current status,
+        including templates created directly in WhatsApp Manager.
       </p>
     </div>
   );
