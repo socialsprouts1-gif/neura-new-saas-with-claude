@@ -14,6 +14,10 @@ export interface MetaErrorDetail {
   type: string | null;
   /** Meta's own wording, preferring the more specific error_data.details. */
   detail: string | null;
+  /** error_user_title — a short label like "Template Name Already Exists". */
+  userTitle: string | null;
+  /** error_user_msg — the sentence Meta shows in its own dashboard. */
+  userMessage: string | null;
 }
 
 interface RawMetaError {
@@ -22,6 +26,8 @@ interface RawMetaError {
   type?: unknown;
   message?: unknown;
   error_data?: { details?: unknown } | null;
+  error_user_title?: unknown;
+  error_user_msg?: unknown;
 }
 
 function asNumber(value: unknown): number | null {
@@ -39,7 +45,7 @@ export function metaErrorDetail(body: unknown): MetaErrorDetail {
       : null;
 
   if (!error || typeof error !== "object") {
-    return { code: null, subcode: null, type: null, detail: null };
+    return { code: null, subcode: null, type: null, detail: null, userTitle: null, userMessage: null };
   }
 
   return {
@@ -49,6 +55,11 @@ export function metaErrorDetail(body: unknown): MetaErrorDetail {
     // error_data.details is the field that says "template name does not
     // exist" where message only says "Invalid parameter".
     detail: asString(error.error_data?.details) ?? asString(error.message),
+    // Where Meta actually explains a template rejection. `message` stays the
+    // generic "Invalid parameter" while these carry the reason, so ignoring
+    // them turns every distinct template fault into the same dead end.
+    userTitle: asString(error.error_user_title),
+    userMessage: asString(error.error_user_msg),
   };
 }
 
@@ -111,30 +122,56 @@ const META_SUBCODE_HELP: Record<string, string> = {
     "Meta cannot see that phone number ID with this access token. Either the ID is wrong, or the token's System User has not been given the WhatsApp Account as an asset. Note that assigning assets does not update an existing token — assign the WhatsApp Account in Business settings → Users → System users → Add assets, then generate a new token and paste that one.",
   "100:44":
     "That WhatsApp template does not exist in this account under the name and language requested.",
+  "100:2388023":
+    "Meta could not read the sample file for the header. Re-upload it, and check the file is a JPEG, PNG, MP4 or PDF that Meta's own limits accept.",
+  "100:2388042":
+    "A template with this name and language already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
+  "100:2388043":
+    "A template with this name already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
 };
 
 /**
  * A sentence an operator can act on. Never returns the raw JSON envelope.
  */
 export function describeMetaError(status: number, body: unknown): string {
-  const { code, subcode, detail } = metaErrorDetail(body);
+  const { code, subcode, detail, userTitle, userMessage } = metaErrorDetail(body);
+
+  // The reference to quote when nothing here is specific enough. A bare
+  // "code 100" sends someone hunting; a code with its subcode is the thing
+  // that finds the answer in Meta's docs and in a support thread.
+  const reference =
+    code === null
+      ? `HTTP ${status}`
+      : subcode !== null
+        ? `Meta error ${code}/${subcode}`
+        : `Meta error ${code}`;
 
   const subcodeHelp =
     code !== null && subcode !== null ? META_SUBCODE_HELP[`${code}:${subcode}`] : undefined;
-  if (subcodeHelp) return `${subcodeHelp} (Meta error ${code}/${subcode})`;
+  if (subcodeHelp) return `${subcodeHelp} (${reference})`;
+
+  // Meta's own user-facing wording beats our generic text whenever it
+  // exists: error_user_msg is what its dashboard shows, and for template
+  // rejections it is the only field that names the real fault while
+  // `message` stays a useless "Invalid parameter".
+  const metaSaid = userMessage ?? userTitle;
+  if (metaSaid) {
+    const both = userTitle && userMessage && userTitle !== userMessage
+      ? `${userTitle}: ${userMessage}`
+      : metaSaid;
+    return `Meta rejected this — ${both} (${reference})`;
+  }
 
   const help = code !== null ? META_ERROR_HELP[code] : undefined;
 
   if (help) {
-    // Meta's own wording rarely adds anything once we have named the fix,
-    // but it is the thing to search for when it does.
     return code === 100 || code === 132000
-      ? `${help}${detail ? ` Meta said: ${detail}` : ""} (code ${code})`
-      : `${help} (Meta error ${code})`;
+      ? `${help}${detail ? ` Meta said: ${detail}` : ""} (${reference})`
+      : `${help} (${reference})`;
   }
 
   if (detail) {
-    return `WhatsApp rejected the message: ${detail}${code !== null ? ` (Meta error ${code})` : ""}`;
+    return `WhatsApp rejected the message: ${detail} (${reference})`;
   }
 
   return `WhatsApp rejected the message with HTTP ${status} and no explanation.`;

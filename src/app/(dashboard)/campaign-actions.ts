@@ -177,6 +177,18 @@ export async function submitTemplate(
       message: "Submitted to Meta. Approval usually takes minutes, sometimes a day.",
     };
   } catch (error) {
+    // The whole envelope, once, where it can be read. describeMetaError
+    // deliberately never shows raw JSON to an operator, but a template
+    // rejection Meta explains only in a subcode is undiagnosable without it,
+    // and asking someone to reproduce the failure to learn its cause wastes
+    // a submission each time.
+    if (error instanceof MetaApiError) {
+      console.error(
+        "Template rejected by Meta",
+        JSON.stringify({ name: spec.name, status: error.status, body: error.body })
+      );
+    }
+
     const reason =
       error instanceof MetaApiError
         ? describeMetaError(error.status, error.body)

@@ -144,3 +144,37 @@ test("an integrity block says it is the account, not the message", () => {
   assert.match(text, /not on this message/);
   assert.match(text, /Account Quality/);
 });
+
+test("Meta's user-facing wording beats our generic text for code 100", () => {
+  // The real shape of a template rejection: `message` stays a useless
+  // "Invalid parameter" while error_user_title/msg carry the actual fault.
+  const said = describeMetaError(400, {
+    error: {
+      message: "Invalid parameter",
+      type: "OAuthException",
+      code: 100,
+      error_subcode: 2388043,
+      error_user_title: "Template Name Already Exists",
+      error_user_msg: "A template with this name already exists in this account.",
+    },
+  });
+
+  assert.match(said, /already exists/i);
+  assert.doesNotMatch(said, /rejected one of the message's fields/);
+});
+
+test("a subcode is always quoted, so it can be looked up", () => {
+  const said = describeMetaError(400, {
+    error: { message: "Invalid parameter", code: 100, error_subcode: 2388099 },
+  });
+
+  assert.match(said, /100\/2388099/);
+});
+
+test("user wording is still reported when only the title is present", () => {
+  const said = describeMetaError(400, {
+    error: { message: "Invalid parameter", code: 100, error_user_title: "Media Upload Error" },
+  });
+
+  assert.match(said, /Media Upload Error/);
+});
