@@ -110,8 +110,12 @@ export default function WhatsAppCard({
                   <Badge tone={statusTone(c.status)}>{c.status}</Badge>
                   {c.is_default && <Badge tone="blue">default</Badge>}
                 </div>
+                {/* The app id belongs here with the rest. A number whose
+                    WABA sits under a different Meta app fails only on
+                    templates and forms, and without seeing all three ids
+                    together there is no way to spot that they disagree. */}
                 <div className="text-xs text-white/40 font-mono">
-                  WABA {c.waba_id} · Number ID {c.phone_number_id}
+                  WABA {c.waba_id} · Number ID {c.phone_number_id} · App {c.meta_app_id}
                 </div>
               </div>
 
