@@ -18,6 +18,7 @@ import {
   InvalidAccessTokenError,
   describeMetaError,
   getPhoneNumber,
+  listWabaPhoneNumbers,
 } from "@/lib/meta-whatsapp";
 
 export interface ActionResult {
@@ -439,7 +440,7 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
 
   const { data: connection, error } = await supabase
     .from("waba_connections")
-    .select("id, phone_number_id, access_token_encrypted")
+    .select("id, phone_number_id, waba_id, access_token_encrypted")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -483,9 +484,31 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
     const name = number.verified_name ? ` as "${number.verified_name}"` : "";
     const shown = number.display_phone_number ? ` (${number.display_phone_number})` : "";
     const quality = number.quality_rating ? ` Quality rating: ${number.quality_rating}.` : "";
+
+    // Sending works off the phone number id alone, so everything above can
+    // pass with a waba_id that belongs to a different account entirely.
+    // Templates and flows are the only things that read it, which is why a
+    // wrong one stays invisible until the first template comes back refused
+    // with an error that names nothing. Check it here instead.
+    const waba = await describeWabaMembership(
+      connection.waba_id,
+      connection.phone_number_id,
+      accessToken
+    );
+
+    if (waba) {
+      await supabase
+        .from("waba_connections")
+        .update({ last_error: waba, last_error_at: new Date().toISOString() })
+        .eq("id", connection.id);
+      revalidatePath("/integrations");
+      revalidatePath("/numbers");
+      return { ok: false, error: waba };
+    }
+
     return {
       ok: true,
-      message: `Meta accepted the token and returned this number${shown}${name}.${quality} Sending should work.`,
+      message: `Meta accepted the token and returned this number${shown}${name}.${quality} The WhatsApp Business Account checks out too, so sending and templates should both work.`,
     };
   } catch (err) {
     const message =
@@ -503,6 +526,40 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
 
     return { ok: false, error: message };
   }
+}
+
+/**
+ * Checks the stored WABA is real and actually holds this number.
+ *
+ * Returns a sentence when something is wrong, null when it is fine. Both
+ * faults it catches are silent everywhere else: a WABA the token cannot see,
+ * and a WABA that exists but belongs to a different set of numbers.
+ */
+async function describeWabaMembership(
+  wabaId: string,
+  phoneNumberId: string,
+  accessToken: string
+): Promise<string | null> {
+  let numbers: Awaited<ReturnType<typeof listWabaPhoneNumbers>>;
+
+  try {
+    numbers = await listWabaPhoneNumbers(wabaId, accessToken);
+  } catch (err) {
+    const why =
+      err instanceof MetaApiError ? describeMetaError(err.status, err.body) : "Meta did not answer.";
+    return `This number works, but Meta would not open WhatsApp Business Account ${wabaId} with this token, so templates and forms cannot be created. ${why}`;
+  }
+
+  if (numbers.some((number) => number.id === phoneNumberId)) return null;
+
+  const listed = numbers
+    .map((number) => number.display_phone_number ?? number.id)
+    .filter(Boolean)
+    .join(", ");
+
+  return `This number sends fine, but it is not on WhatsApp Business Account ${wabaId} — that account holds ${
+    listed || "no numbers"
+  }. Templates and forms are created on the account, so they will keep failing until the WABA id is corrected under Integrations. Find the right one in Meta → WhatsApp Manager, on the account that lists this number.`;
 }
 
 /**

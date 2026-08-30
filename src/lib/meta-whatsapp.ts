@@ -454,6 +454,32 @@ export async function createMessageTemplate(
   };
 }
 
+export interface WabaPhoneNumber {
+  id: string;
+  display_phone_number?: string;
+  verified_name?: string;
+}
+
+/**
+ * The numbers on a WhatsApp Business Account.
+ *
+ * Used to prove a connection's waba_id and phone_number_id belong together.
+ * They are independent fields on the row and only templates and flows read
+ * the WABA — so a wrong one passes every send, every webhook and the
+ * connection test itself, and first surfaces as an incomprehensible refusal
+ * the first time someone writes a template.
+ */
+export async function listWabaPhoneNumbers(
+  wabaId: string,
+  accessToken: string
+): Promise<WabaPhoneNumber[]> {
+  const data = (await graph(
+    `${wabaId}/phone_numbers?limit=100&fields=id,display_phone_number,verified_name`,
+    accessToken
+  )) as { data?: WabaPhoneNumber[] };
+  return data.data ?? [];
+}
+
 /** Every template on the account, for reconciling status after review. */
 export async function listMessageTemplates(
   wabaId: string,
