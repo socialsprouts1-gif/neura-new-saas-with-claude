@@ -178,3 +178,20 @@ test("user wording is still reported when only the title is present", () => {
 
   assert.match(said, /Media Upload Error/);
 });
+
+test("2388339 points at the account, not at the template's fields", () => {
+  const said = describeMetaError(400, {
+    error: {
+      message: "Invalid parameter",
+      code: 100,
+      error_subcode: 2388339,
+      error_user_title: "Invalid WhatsApp account usage",
+      error_user_msg: "WhatsApp accounts cannot be used with this API.",
+    },
+  });
+
+  // The named subcode wins over Meta's terse wording: editing the body is
+  // the wrong response to an account-level refusal.
+  assert.match(said, /WhatsApp Business Account/i);
+  assert.match(said, /100\/2388339/);
+});

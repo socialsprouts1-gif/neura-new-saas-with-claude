@@ -51,9 +51,18 @@ const BLANK: TemplateSpec = {
   samples: [],
 };
 
+/** A number the template can be created on. */
+export interface TemplateTarget {
+  id: string;
+  label: string;
+  wabaId: string;
+  isDefault: boolean;
+}
+
 export default function TemplateBuilder({
   onClose,
   initial,
+  numbers = [],
   /**
    * Set when the template already exists at Meta. Meta will not accept a
    * second template under the same name, so an edit here has to become a
@@ -63,6 +72,8 @@ export default function TemplateBuilder({
 }: {
   onClose: () => void;
   initial?: TemplateSpec;
+  /** Every active number, so the account can be seen and chosen. */
+  numbers?: TemplateTarget[];
   liveAtMeta?: boolean;
 }) {
   const router = useRouter();
@@ -73,6 +84,12 @@ export default function TemplateBuilder({
   const originalName = initial?.name ?? "";
 
   const [spec, setSpec] = useState<TemplateSpec>(initial ?? BLANK);
+
+  // Default to the workspace default, falling back to the only one there is.
+  const [target, setTarget] = useState<string>(
+    () => (numbers.find((number) => number.isDefault) ?? numbers[0])?.id ?? ""
+  );
+  const chosen = numbers.find((number) => number.id === target) ?? null;
 
   const set = <K extends keyof TemplateSpec>(key: K, value: TemplateSpec[K]) =>
     setSpec((current) => ({ ...current, [key]: value }));
@@ -114,6 +131,7 @@ export default function TemplateBuilder({
     }
 
     const data = new FormData();
+    if (target) data.set("connection_id", target);
     data.set("name", normaliseName(spec.name));
     data.set("language", spec.language);
     data.set("category", spec.category);
@@ -168,6 +186,46 @@ export default function TemplateBuilder({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Which account this lands on. A template belongs to a WhatsApp
+            Business Account, not to a workspace, so with more than one number
+            connected the target was previously an invisible guess — and an
+            account-level rejection then reads as a fault in the template. */}
+        {numbers.length > 0 && (
+          <div className="mb-6 rounded-xl border border-white/10 bg-white/4 p-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <label className="text-xs text-white/50" htmlFor="template-target">
+                Create on
+              </label>
+              {numbers.length === 1 ? (
+                <span className="text-sm font-medium">{numbers[0].label}</span>
+              ) : (
+                <select
+                  id="template-target"
+                  value={target}
+                  onChange={(event) => setTarget(event.target.value)}
+                  className="bg-white/5 border border-white/12 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-accent/50"
+                >
+                  {numbers.map((number) => (
+                    <option key={number.id} value={number.id}>
+                      {number.label}
+                      {number.isDefault ? " · default" : ""}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {chosen && (
+                <span className="text-[11px] text-white/35 font-mono">
+                  WABA {chosen.wabaId}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
+              Templates live on the WhatsApp Business Account, not on this workspace. One
+              approved here is not available on your other numbers.
+            </p>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
           <div className="space-y-5">

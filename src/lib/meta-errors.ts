@@ -126,6 +126,11 @@ const META_SUBCODE_HELP: Record<string, string> = {
     "Meta could not read the sample file for the header. Re-upload it, and check the file is a JPEG, PNG, MP4 or PDF that Meta's own limits accept.",
   "100:2388042":
     "A template with this name and language already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
+  // Meta's own wording is "WhatsApp accounts cannot be used with this API",
+  // which is about the account being posted to rather than anything in the
+  // template — so the fields are the wrong place to go looking.
+  "100:2388339":
+    "Meta will not create templates on the WhatsApp Business Account this number is attached to. The account id may not be a WhatsApp Business Account at all — the Business Portfolio id and the phone number id are both easy to paste into that field by mistake — or the account is not one this app may manage. Check the WABA id against Meta → WhatsApp → API Setup, and confirm the token's System User has that WhatsApp Account assigned.",
   "100:2388043":
     "A template with this name already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
 };

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { removeTemplate, syncTemplates } from "@/app/(dashboard)/campaign-actions";
-import TemplateBuilder from "./TemplateBuilder";
+import TemplateBuilder, { type TemplateTarget } from "./TemplateBuilder";
 import { specFromRow, type StoredTemplate } from "@/lib/template-spec";
 
 /**
@@ -14,7 +14,7 @@ import { specFromRow, type StoredTemplate } from "@/lib/template-spec";
  * Sync exists because approval is asynchronous and Meta never calls back —
  * without it a template stays "pending" on screen hours after it went live.
  */
-export function TemplateToolbar() {
+export function TemplateToolbar({ numbers = [] }: { numbers?: TemplateTarget[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export function TemplateToolbar() {
         </button>
       </div>
 
-      {open && <TemplateBuilder onClose={() => setOpen(false)} />}
+      {open && <TemplateBuilder numbers={numbers} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -116,10 +116,12 @@ export function EditTemplateButton({
   template,
   liveAtMeta,
   variant,
+  numbers = [],
 }: {
   template: StoredTemplate;
   liveAtMeta: boolean;
   variant: "name" | "icon";
+  numbers?: TemplateTarget[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -150,6 +152,7 @@ export function EditTemplateButton({
       {open && (
         <TemplateBuilder
           initial={specFromRow(template)}
+          numbers={numbers}
           liveAtMeta={liveAtMeta}
           onClose={() => setOpen(false)}
         />

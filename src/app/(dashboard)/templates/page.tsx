@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
 import {
   PageHeader,
   Card,
@@ -18,29 +19,33 @@ export default async function TemplatesPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
-  const [{ data: templates, error }, { data: connection }] = await Promise.all([
+  const [{ data: templates, error }, connections] = await Promise.all([
     supabase
       .from("message_templates")
       .select("*")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("waba_connections")
-      .select("id")
-      .eq("org_id", orgId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle(),
+    listActiveConnections(supabase, orgId),
   ]);
 
   const all = templates ?? [];
+
+  // The WABA id travels with the option: a template lands on an account, and
+  // when Meta refuses one at account level the id is the first thing worth
+  // checking against Meta's own dashboard.
+  const numbers = connections.map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+    wabaId: connection.wabaId,
+    isDefault: connection.isDefault,
+  }));
 
   return (
     <div className="p-6 md:p-8">
       <PageHeader
         title="WhatsApp templates"
         subtitle="Pre-approved messages you can send outside the 24-hour window."
-        action={<TemplateToolbar />}
+        action={<TemplateToolbar numbers={numbers} />}
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -52,7 +57,7 @@ export default async function TemplatesPage() {
 
       {/* Without a connected number there is no WhatsApp account to submit
           to, so say that rather than letting the builder fail at the end. */}
-      {!connection && (
+      {connections.length === 0 && (
         <Card className="mb-6 border-[#FACC15]/25">
           <h2 className="font-semibold mb-1">Connect a WhatsApp number first</h2>
           <p className="text-sm text-white/50 leading-relaxed">
@@ -78,6 +83,7 @@ export default async function TemplatesPage() {
                     template={template}
                     liveAtMeta={Boolean(template.waba_template_id)}
                     variant="name"
+                    numbers={numbers}
                   />
                   {template.rejected_reason && (
                     <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
@@ -111,6 +117,7 @@ export default async function TemplatesPage() {
                     template={template}
                     liveAtMeta={Boolean(template.waba_template_id)}
                     variant="icon"
+                    numbers={numbers}
                   />
                   <DeleteTemplateButton id={template.id} name={template.name} />
                 </Td>

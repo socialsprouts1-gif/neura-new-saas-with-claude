@@ -97,7 +97,12 @@ export async function submitTemplate(
   const validation = validateTemplate(spec);
   if (!validation.ok) return { ok: false, error: validation.errors.join(" ") };
 
-  const credentials = await wabaCredentials(supabase, orgId);
+  // Which WhatsApp Business Account the template is created on. Templates
+  // belong to an account, not to a workspace, so with more than one number
+  // connected "the default" is a guess the operator cannot see or correct.
+  const connectionId = String(formData.get("connection_id") ?? "").trim() || null;
+
+  const credentials = await wabaCredentials(supabase, orgId, connectionId);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
   // A media header's sample has to reach Meta as bytes, not as a link. Do
@@ -185,16 +190,26 @@ export async function submitTemplate(
     if (error instanceof MetaApiError) {
       console.error(
         "Template rejected by Meta",
-        JSON.stringify({ name: spec.name, status: error.status, body: error.body })
+        JSON.stringify({
+          name: spec.name,
+          wabaId: credentials.wabaId,
+          status: error.status,
+          body: error.body,
+        })
       );
     }
 
-    const reason =
+    const described =
       error instanceof MetaApiError
         ? describeMetaError(error.status, error.body)
         : error instanceof Error
           ? error.message
           : "Meta refused the template.";
+
+    // Which account refused it. Without this an account-level rejection reads
+    // as a fault in the template, and the operator edits text that was never
+    // the problem.
+    const reason = `${described} (WhatsApp Business Account ${credentials.wabaId})`;
 
     // Kept as a draft with the reason attached, so it can be fixed and
     // resubmitted rather than retyped.
