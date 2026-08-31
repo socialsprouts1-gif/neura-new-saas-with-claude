@@ -23,7 +23,7 @@ import {
 } from "@/lib/template-spec";
 import { normaliseWaId } from "@/lib/audience";
 import type { ActionResult } from "./actions";
-import type { TemplateCategory, TemplateStatus } from "@/types/database";
+import type { Database, TemplateCategory, TemplateStatus } from "@/types/database";
 
 // Templates go to Meta for review; campaigns queue recipients that a
 // dispatcher sends. Nothing here sends a message directly — a campaign that
@@ -66,6 +66,43 @@ function readButtons(raw: string): ButtonSpec[] {
 }
 
 // --- templates ------------------------------------------------------------
+
+/**
+ * Saves a template row against the account it belongs to.
+ *
+ * Templates are unique per account, not per workspace: two connected
+ * accounts can each hold one called "marketing_", and keying only on the
+ * name lets a sync overwrite one with the other. The account column arrives
+ * with a migration, so a database without it falls back to the old key —
+ * losing the distinction, but never the row.
+ */
+type TemplateInsert = Database["public"]["Tables"]["message_templates"]["Insert"];
+
+async function upsertTemplate(
+  supabase: Client,
+  wabaId: string,
+  row: TemplateInsert
+): Promise<{ id: string } | { error: string }> {
+  const withAccount = await supabase
+    .from("message_templates")
+    .upsert({ ...row, waba_id: wabaId }, { onConflict: "org_id,waba_id,name,language" })
+    .select("id")
+    .maybeSingle();
+
+  if (!withAccount.error && withAccount.data) return withAccount.data;
+
+  const fallback = await supabase
+    .from("message_templates")
+    .upsert(row, { onConflict: "org_id,name,language" })
+    .select("id")
+    .maybeSingle();
+
+  if (fallback.error) return { error: fallback.error.message };
+  if (!fallback.data) return { error: "The template could not be saved." };
+  return fallback.data;
+}
+
+
 
 /**
  * Saves a template and submits it to Meta for review.
@@ -132,10 +169,7 @@ export async function submitTemplate(
 
   const components = buildComponents(spec, headerHandle);
 
-  const { data: saved, error: saveError } = await supabase
-    .from("message_templates")
-    .upsert(
-      {
+  const saved = await upsertTemplate(supabase, credentials.wabaId, {
         org_id: orgId,
         name: spec.name,
         language: spec.language,
@@ -151,13 +185,9 @@ export async function submitTemplate(
         variable_samples: spec.samples.filter(Boolean),
         rejected_reason: null,
         updated_at: new Date().toISOString(),
-      },
-      { onConflict: "org_id,name,language" }
-    )
-    .select("id")
-    .single();
+  });
 
-  if (saveError) return { ok: false, error: saveError.message };
+  if ("error" in saved) return { ok: false, error: saved.error };
 
   try {
     const result = await createMessageTemplate(credentials.wabaId, credentials.token, {
@@ -281,26 +311,23 @@ export async function syncTemplates(): Promise<ActionResult & { synced?: number 
   const now = new Date().toISOString();
   let synced = 0;
 
-  for (const { template } of remote) {
+  for (const { waba, template } of remote) {
     const status = template.status?.toLowerCase() ?? "pending";
-    const { error } = await supabase.from("message_templates").upsert(
-      {
-        org_id: orgId,
-        name: template.name,
-        language: template.language,
-        category: normaliseCategory(template.category),
-        // Meta reports states the column has to allow; anything unexpected
-        // is stored as pending rather than failing the whole sync.
-        status: normaliseStatus(status),
-        waba_template_id: template.id,
-        rejected_reason: template.rejected_reason ?? null,
-        components_json: template.components ?? [],
-        last_synced_at: now,
-        updated_at: now,
-      },
-      { onConflict: "org_id,name,language" }
-    );
-    if (!error) synced += 1;
+    const saved = await upsertTemplate(supabase, waba, {
+      org_id: orgId,
+      name: template.name,
+      language: template.language,
+      category: normaliseCategory(template.category),
+      // Meta reports states the column has to allow; anything unexpected
+      // is stored as pending rather than failing the whole sync.
+      status: normaliseStatus(status),
+      waba_template_id: template.id,
+      rejected_reason: template.rejected_reason ?? null,
+      components_json: template.components ?? [],
+      last_synced_at: now,
+      updated_at: now,
+    });
+    if (!("error" in saved)) synced += 1;
   }
 
   revalidatePath("/templates");

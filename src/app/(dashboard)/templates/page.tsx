@@ -33,6 +33,15 @@ export default async function TemplatesPage() {
   // The WABA id travels with the option: a template lands on an account, and
   // when Meta refuses one at account level the id is the first thing worth
   // checking against Meta's own dashboard.
+  // Templates from every account land in one list, so each row has to say
+  // which account it is on — two accounts can each hold a "marketing_".
+  const accountLabels = new Map<string, string>();
+  for (const connection of connections) {
+    if (!accountLabels.has(connection.wabaId)) {
+      accountLabels.set(connection.wabaId, optionLabel(connection));
+    }
+  }
+
   const numbers = connections.map((connection) => ({
     id: connection.id,
     label: optionLabel(connection),
@@ -73,7 +82,7 @@ export default async function TemplatesPage() {
           description={`${error.message}. If this mentions a missing relation, run supabase/setup.sql again.`}
         />
       ) : all.length > 0 ? (
-        <Table head={["Name", "Preview", "Category", "Language", "Status", "Created", ""]}>
+        <Table head={["Name", "Account", "Preview", "Category", "Language", "Status", "Created", ""]}>
           {all.map((template) => {
             const body = template.body_text ?? "";
             return (
@@ -89,6 +98,17 @@ export default async function TemplatesPage() {
                     <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
                       {template.rejected_reason}
                     </div>
+                  )}
+                </Td>
+                <Td className="text-xs">
+                  {accountLabels.get(template.waba_id ?? "") ? (
+                    <span className="text-white/55">
+                      {accountLabels.get(template.waba_id ?? "")}
+                    </span>
+                  ) : (
+                    <span className="text-white/25">
+                      {template.waba_id || "unknown"}
+                    </span>
                   )}
                 </Td>
                 <Td className="text-white/55 text-xs max-w-sm">

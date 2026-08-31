@@ -56,11 +56,6 @@ create table if not exists public.waba_connections (
   access_token_encrypted text not null,
   webhook_verify_token text not null,
   status text not null default 'pending' check (status in ('pending', 'active', 'disabled', 'error')),
-  -- Set when Meta rejects a send because of the credentials rather than the
-  -- message, so Integrations can say the number is broken before a customer
-  -- finds out. Cleared on the next successful send or on reconnect.
-  last_error text,
-  last_error_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -1629,17 +1624,34 @@ alter table public.contacts
 create index if not exists contacts_opted_out_idx on public.contacts(org_id)
   where opted_out;
 
+-- ========================================================================
+-- 20260824090000_connection_health.sql
+-- ========================================================================
+
 -- =========================================================================
--- Connection health — added after the first real token expiry surfaced as
--- raw Meta JSON in a customer's chat thread. Existing databases pick the
--- columns up here; new ones already have them from the create above.
+-- Connection health
+--
+-- When Meta rejects a send because the stored access token is dead, the only
+-- place that failure surfaced was the bot_runs row for whichever customer
+-- happened to message first. That means the operator learns their number is
+-- broken from a customer, which is the wrong way round. Record the last
+-- credential-level rejection on the connection itself so Integrations can say
+-- so before the next message arrives.
+--
+-- Deliberately NOT a status change: the row stays 'active' so sends keep
+-- being attempted and start working the instant a valid token is pasted in.
 -- =========================================================================
 
 alter table public.waba_connections
-  add column if not exists last_error text;
-
-alter table public.waba_connections
+  add column if not exists last_error text,
   add column if not exists last_error_at timestamptz;
+
+comment on column public.waba_connections.last_error is
+  'Plain-English description of the most recent credential-level rejection from Meta. Cleared on the next successful send or on reconnect.';
+
+-- ========================================================================
+-- 20260826090000_media_storage.sql
+-- ========================================================================
 
 -- =========================================================================
 -- Gallery uploads
@@ -1676,6 +1688,7 @@ on conflict (id) do update
 -- to list a folder, and supabase-js checks whether an object exists before
 -- uploading with upsert:false. Without this, uploads are rejected outright.
 drop policy if exists media_objects_select on storage.objects;
+drop policy if exists media_objects_select on storage.objects;
 create policy media_objects_select on storage.objects
   for select to authenticated
   using (
@@ -1683,6 +1696,7 @@ create policy media_objects_select on storage.objects
     and public.is_org_member(((storage.foldername(name))[1])::uuid)
   );
 
+drop policy if exists media_objects_insert on storage.objects;
 drop policy if exists media_objects_insert on storage.objects;
 create policy media_objects_insert on storage.objects
   for insert to authenticated
@@ -1692,6 +1706,7 @@ create policy media_objects_insert on storage.objects
   );
 
 drop policy if exists media_objects_update on storage.objects;
+drop policy if exists media_objects_update on storage.objects;
 create policy media_objects_update on storage.objects
   for update to authenticated
   using (
@@ -1699,6 +1714,7 @@ create policy media_objects_update on storage.objects
     and public.is_org_member(((storage.foldername(name))[1])::uuid)
   );
 
+drop policy if exists media_objects_delete on storage.objects;
 drop policy if exists media_objects_delete on storage.objects;
 create policy media_objects_delete on storage.objects
   for delete to authenticated
@@ -1714,6 +1730,10 @@ alter table public.media_assets
 
 comment on column public.media_assets.storage_path is
   'Object key inside the media bucket. Null for assets added by pasting an external URL, which we do not own and must not delete.';
+
+-- ========================================================================
+-- 20260827090000_assistant_providers.sql
+-- ========================================================================
 
 -- =========================================================================
 -- AI Assistant: bring-your-own provider + knowledge base + agent rules
@@ -1803,18 +1823,26 @@ create index if not exists assistant_knowledge_assistant_id_idx
 alter table public.assistant_knowledge enable row level security;
 
 drop policy if exists assistant_knowledge_select on public.assistant_knowledge;
+drop policy if exists assistant_knowledge_select on public.assistant_knowledge;
 create policy assistant_knowledge_select on public.assistant_knowledge
   for select to authenticated using (public.is_org_member(org_id));
 drop policy if exists assistant_knowledge_insert on public.assistant_knowledge;
+drop policy if exists assistant_knowledge_insert on public.assistant_knowledge;
 create policy assistant_knowledge_insert on public.assistant_knowledge
   for insert to authenticated with check (public.is_org_member(org_id));
+drop policy if exists assistant_knowledge_update on public.assistant_knowledge;
 drop policy if exists assistant_knowledge_update on public.assistant_knowledge;
 create policy assistant_knowledge_update on public.assistant_knowledge
   for update to authenticated
   using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
 drop policy if exists assistant_knowledge_delete on public.assistant_knowledge;
+drop policy if exists assistant_knowledge_delete on public.assistant_knowledge;
 create policy assistant_knowledge_delete on public.assistant_knowledge
   for delete to authenticated using (public.is_org_member(org_id));
+
+-- ========================================================================
+-- 20260828090000_inbox.sql
+-- ========================================================================
 
 -- =========================================================================
 -- Inbox: assignment, unread tracking, opt-in, and teammate identities
@@ -1882,10 +1910,12 @@ as $$
 $$;
 
 drop policy if exists profiles_select on public.profiles;
+drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
   for select to authenticated
   using (user_id = auth.uid() or public.shares_org_with(user_id));
 
+drop policy if exists profiles_update on public.profiles;
 drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles
   for update to authenticated
@@ -1929,6 +1959,10 @@ begin
   return new;
 end;
 $$;
+
+-- ========================================================================
+-- 20260829090000_inbox_crm.sql
+-- ========================================================================
 
 -- =========================================================================
 -- Inbox: AI modes, lead qualification, internal notes and a timeline
@@ -2020,11 +2054,14 @@ create index if not exists conversation_notes_conversation_idx
 alter table public.conversation_notes enable row level security;
 
 drop policy if exists conversation_notes_select on public.conversation_notes;
+drop policy if exists conversation_notes_select on public.conversation_notes;
 create policy conversation_notes_select on public.conversation_notes
   for select to authenticated using (public.is_org_member(org_id));
 drop policy if exists conversation_notes_insert on public.conversation_notes;
+drop policy if exists conversation_notes_insert on public.conversation_notes;
 create policy conversation_notes_insert on public.conversation_notes
   for insert to authenticated with check (public.is_org_member(org_id));
+drop policy if exists conversation_notes_delete on public.conversation_notes;
 drop policy if exists conversation_notes_delete on public.conversation_notes;
 create policy conversation_notes_delete on public.conversation_notes
   for delete to authenticated using (public.is_org_member(org_id));
@@ -2051,11 +2088,17 @@ create index if not exists conversation_events_conversation_idx
 alter table public.conversation_events enable row level security;
 
 drop policy if exists conversation_events_select on public.conversation_events;
+drop policy if exists conversation_events_select on public.conversation_events;
 create policy conversation_events_select on public.conversation_events
   for select to authenticated using (public.is_org_member(org_id));
 drop policy if exists conversation_events_insert on public.conversation_events;
+drop policy if exists conversation_events_insert on public.conversation_events;
 create policy conversation_events_insert on public.conversation_events
   for insert to authenticated with check (public.is_org_member(org_id));
+
+-- ========================================================================
+-- 20260830090000_realtime_messages.sql
+-- ========================================================================
 
 -- =========================================================================
 -- Realtime on messages, so the inbox can hear an incoming message.
@@ -2086,6 +2129,10 @@ $$;
 -- all the inbox needs: org_id to know it is ours, conversation_id to know
 -- where it landed, and direction to know whether to make a sound.
 
+-- ========================================================================
+-- 20260831090000_flow_resume.sql
+-- ========================================================================
+
 -- =========================================================================
 -- Where a delayed flow picks back up.
 --
@@ -2101,6 +2148,10 @@ alter table public.conversations
 create index if not exists conversations_resume_idx
   on public.conversations(bot_resume_at)
   where bot_resume_at is not null and bot_resume_node_id is not null;
+
+-- ========================================================================
+-- 20260901090000_ai_active_default.sql
+-- ========================================================================
 
 -- =========================================================================
 -- AI Active is the default, not Copilot.
@@ -2126,6 +2177,10 @@ set ai_mode = 'ai',
     bot_enabled = true
 where ai_mode = 'copilot'
   and bot_enabled = true;
+
+-- ========================================================================
+-- 20260902090000_leads_meetings_transactions.sql
+-- ========================================================================
 
 -- =========================================================================
 -- Meetings and customer transactions.
@@ -2163,15 +2218,19 @@ create index if not exists meetings_contact_idx on public.meetings(contact_id);
 alter table public.meetings enable row level security;
 
 drop policy if exists meetings_select on public.meetings;
+drop policy if exists meetings_select on public.meetings;
 create policy meetings_select on public.meetings
   for select to authenticated using (public.is_org_member(org_id));
+drop policy if exists meetings_insert on public.meetings;
 drop policy if exists meetings_insert on public.meetings;
 create policy meetings_insert on public.meetings
   for insert to authenticated with check (public.is_org_member(org_id));
 drop policy if exists meetings_update on public.meetings;
+drop policy if exists meetings_update on public.meetings;
 create policy meetings_update on public.meetings
   for update to authenticated
   using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
+drop policy if exists meetings_delete on public.meetings;
 drop policy if exists meetings_delete on public.meetings;
 create policy meetings_delete on public.meetings
   for delete to authenticated using (public.is_org_member(org_id));
@@ -2206,18 +2265,26 @@ create index if not exists transactions_contact_idx on public.transactions(conta
 alter table public.transactions enable row level security;
 
 drop policy if exists transactions_select on public.transactions;
+drop policy if exists transactions_select on public.transactions;
 create policy transactions_select on public.transactions
   for select to authenticated using (public.is_org_member(org_id));
 drop policy if exists transactions_insert on public.transactions;
+drop policy if exists transactions_insert on public.transactions;
 create policy transactions_insert on public.transactions
   for insert to authenticated with check (public.is_org_member(org_id));
+drop policy if exists transactions_update on public.transactions;
 drop policy if exists transactions_update on public.transactions;
 create policy transactions_update on public.transactions
   for update to authenticated
   using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
 drop policy if exists transactions_delete on public.transactions;
+drop policy if exists transactions_delete on public.transactions;
 create policy transactions_delete on public.transactions
   for delete to authenticated using (public.is_org_member(org_id));
+
+-- ========================================================================
+-- 20260903090000_templates_campaigns.sql
+-- ========================================================================
 
 -- =========================================================================
 -- Templates that can be built, and campaigns that can be sent.
@@ -2337,18 +2404,23 @@ create index if not exists campaign_steps_campaign_idx
 alter table public.campaign_steps enable row level security;
 
 drop policy if exists campaign_steps_select on public.campaign_steps;
+drop policy if exists campaign_steps_select on public.campaign_steps;
 create policy campaign_steps_select on public.campaign_steps
   for select to authenticated using (public.is_org_member(org_id));
 drop policy if exists campaign_steps_insert on public.campaign_steps;
+drop policy if exists campaign_steps_insert on public.campaign_steps;
 create policy campaign_steps_insert on public.campaign_steps
   for insert to authenticated with check (public.is_org_member(org_id));
+drop policy if exists campaign_steps_update on public.campaign_steps;
 drop policy if exists campaign_steps_update on public.campaign_steps;
 create policy campaign_steps_update on public.campaign_steps
   for update to authenticated
   using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
 drop policy if exists campaign_steps_delete on public.campaign_steps;
+drop policy if exists campaign_steps_delete on public.campaign_steps;
 create policy campaign_steps_delete on public.campaign_steps
   for delete to authenticated using (public.is_org_member(org_id));
+
 -- =========================================================================
 -- campaign_progress — how far along each campaign is.
 --
@@ -2371,6 +2443,13 @@ from public.campaign_recipients
 group by campaign_id, org_id;
 
 grant select on public.campaign_progress to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ========================================================================
+-- 20260904090000_whatsapp_flows.sql
+-- ========================================================================
+
 -- =========================================================================
 -- WhatsApp Flows — forms that open inside the chat.
 --
@@ -2414,15 +2493,19 @@ create unique index if not exists whatsapp_flows_meta_idx
 alter table public.whatsapp_flows enable row level security;
 
 drop policy if exists whatsapp_flows_select on public.whatsapp_flows;
+drop policy if exists whatsapp_flows_select on public.whatsapp_flows;
 create policy whatsapp_flows_select on public.whatsapp_flows
   for select to authenticated using (public.is_org_member(org_id));
+drop policy if exists whatsapp_flows_insert on public.whatsapp_flows;
 drop policy if exists whatsapp_flows_insert on public.whatsapp_flows;
 create policy whatsapp_flows_insert on public.whatsapp_flows
   for insert to authenticated with check (public.is_org_member(org_id));
 drop policy if exists whatsapp_flows_update on public.whatsapp_flows;
+drop policy if exists whatsapp_flows_update on public.whatsapp_flows;
 create policy whatsapp_flows_update on public.whatsapp_flows
   for update to authenticated
   using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
+drop policy if exists whatsapp_flows_delete on public.whatsapp_flows;
 drop policy if exists whatsapp_flows_delete on public.whatsapp_flows;
 create policy whatsapp_flows_delete on public.whatsapp_flows
   for delete to authenticated using (public.is_org_member(org_id));
@@ -2451,11 +2534,14 @@ create index if not exists flow_sends_flow_idx on public.flow_sends(flow_id, cre
 alter table public.flow_sends enable row level security;
 
 drop policy if exists flow_sends_select on public.flow_sends;
+drop policy if exists flow_sends_select on public.flow_sends;
 create policy flow_sends_select on public.flow_sends
   for select to authenticated using (public.is_org_member(org_id));
 drop policy if exists flow_sends_insert on public.flow_sends;
+drop policy if exists flow_sends_insert on public.flow_sends;
 create policy flow_sends_insert on public.flow_sends
   for insert to authenticated with check (public.is_org_member(org_id));
+drop policy if exists flow_sends_delete on public.flow_sends;
 drop policy if exists flow_sends_delete on public.flow_sends;
 create policy flow_sends_delete on public.flow_sends
   for delete to authenticated using (public.is_org_member(org_id));
@@ -2483,8 +2569,10 @@ create index if not exists flow_responses_org_idx
 alter table public.flow_responses enable row level security;
 
 drop policy if exists flow_responses_select on public.flow_responses;
+drop policy if exists flow_responses_select on public.flow_responses;
 create policy flow_responses_select on public.flow_responses
   for select to authenticated using (public.is_org_member(org_id));
+drop policy if exists flow_responses_delete on public.flow_responses;
 drop policy if exists flow_responses_delete on public.flow_responses;
 create policy flow_responses_delete on public.flow_responses
   for delete to authenticated using (public.is_org_member(org_id));
@@ -2492,16 +2580,12 @@ create policy flow_responses_delete on public.flow_responses
 -- the service role. A member forging a submission would corrupt the record
 -- of what a customer actually said.
 
--- =========================================================================
--- Tell PostgREST to re-read the schema.
---
--- Supabase serves the API through PostgREST, which caches the table list.
--- It usually reloads on its own after DDL, but not always — and when it
--- doesn't, every query fails with "Could not find the table '...' in the
--- schema cache" even though the table is right there. This makes it
--- certain rather than likely.
--- =========================================================================
 notify pgrst, 'reload schema';
+
+-- ========================================================================
+-- 20260905090000_multi_number.sql
+-- ========================================================================
+
 -- =========================================================================
 -- More than one WhatsApp number per workspace.
 --
@@ -2602,5 +2686,49 @@ alter table public.automation_flows
 alter table public.campaigns
   add column if not exists connection_id uuid
     references public.waba_connections(id) on delete set null;
+
+notify pgrst, 'reload schema';
+
+-- ========================================================================
+-- 20260906090000_template_account.sql
+-- ========================================================================
+
+-- Templates belong to a WhatsApp Business Account, not to a workspace.
+--
+-- message_templates was unique on (org_id, name, language), which is only
+-- correct while a workspace has one account. With two connected, a template
+-- named "marketing_" on each account collapses into a single row: syncing
+-- overwrites one account's template with the other's, and the list gives no
+-- way to tell which account anything belongs to.
+
+alter table public.message_templates
+  add column if not exists waba_id text not null default '';
+
+-- Existing rows were all created against whichever account resolved as the
+-- default, so attribute them there rather than leaving them unowned.
+update public.message_templates t
+set waba_id = c.waba_id
+from public.waba_connections c
+where t.waba_id = ''
+  and c.org_id = t.org_id
+  and c.is_default;
+
+update public.message_templates t
+set waba_id = c.waba_id
+from public.waba_connections c
+where t.waba_id = ''
+  and c.org_id = t.org_id;
+
+alter table public.message_templates
+  drop constraint if exists message_templates_org_id_name_language_key;
+
+-- A plain column index, not an expression: PostgREST's on_conflict can only
+-- name real columns, so an expression index here would be unusable from the
+-- client and every upsert would fail.
+create unique index if not exists message_templates_account_identity_idx
+  on public.message_templates(org_id, waba_id, name, language);
+
+create index if not exists message_templates_waba_idx
+  on public.message_templates(org_id, waba_id);
 
 notify pgrst, 'reload schema';

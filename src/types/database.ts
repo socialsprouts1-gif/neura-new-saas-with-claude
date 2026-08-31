@@ -281,6 +281,7 @@ export interface Database {
           status: TemplateStatus;
           language: string;
           components_json: unknown[];
+          waba_id: string;
           waba_template_id: string | null;
           rejected_reason: string | null;
           last_synced_at: string | null;
@@ -302,6 +303,7 @@ export interface Database {
           status?: TemplateStatus;
           language?: string;
           components_json?: unknown[];
+          waba_id?: string;
           waba_template_id?: string | null;
           rejected_reason?: string | null;
           last_synced_at?: string | null;

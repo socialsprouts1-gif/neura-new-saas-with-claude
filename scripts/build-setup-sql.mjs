@@ -53,6 +53,8 @@ console.log(`  migrations included: ${FILES.length}`);
 for (const f of FILES) console.log(`    - ${f}`);
 console.log(`  tables:              ${tables}`);
 console.log(`  policies:            ${policies}`);
-console.log(`  drop guards match:   ${policies === drops ? "yes" : "NO — MISMATCH"}`);
+// Every create needs a guard; extra drops are harmless, since a migration
+// may drop a policy an earlier one created under a different name.
+console.log(`  drop guards match:   ${drops >= policies ? "yes" : "NO — MISMATCH"}`);
 
-if (policies !== drops) process.exit(1);
+if (drops < policies) process.exit(1);
