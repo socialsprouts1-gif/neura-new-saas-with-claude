@@ -12,6 +12,7 @@ import {
   createSignupState,
   embeddedSignupUrl,
   getEmbeddedSignupEnv,
+  wabaIdsForToken,
 } from "@/lib/embedded-signup";
 import {
   MetaApiError,
@@ -441,7 +442,7 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
 
   const { data: connection, error } = await supabase
     .from("waba_connections")
-    .select("id, phone_number_id, waba_id, access_token_encrypted")
+    .select("id, phone_number_id, waba_id, meta_app_id, access_token_encrypted")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -494,6 +495,7 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
     const waba = await describeWabaMembership(
       connection.waba_id,
       connection.phone_number_id,
+      connection.meta_app_id,
       accessToken
     );
 
@@ -539,6 +541,7 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
 async function describeWabaMembership(
   wabaId: string,
   phoneNumberId: string,
+  appId: string,
   accessToken: string
 ): Promise<string | null> {
   let numbers: Awaited<ReturnType<typeof listWabaPhoneNumbers>>;
@@ -552,6 +555,9 @@ async function describeWabaMembership(
   }
 
   if (numbers.some((number) => number.id === phoneNumberId)) {
+    const scope = await describeTokenScope(wabaId, appId, accessToken);
+    if (scope) return scope;
+
     // The number belongs to the account, so the ids agree. What is left is
     // whether the account is allowed to do anything: an unapproved or
     // unverified account sends messages perfectly well and refuses template
@@ -567,6 +573,41 @@ async function describeWabaMembership(
   return `This number sends fine, but it is not on WhatsApp Business Account ${wabaId} — that account holds ${
     listed || "no numbers"
   }. Templates and forms are created on the account, so they will keep failing until the WABA id is corrected under Integrations. Find the right one in Meta → WhatsApp Manager, on the account that lists this number.`;
+}
+
+/**
+ * Whether the token itself was granted this account as an asset.
+ *
+ * With Standard access, whatsapp_business_management covers only the
+ * accounts a token has actually been granted. Reads often pass on the app's
+ * permission alone, so a token missing the asset sends messages, lists
+ * numbers and reads templates — and is refused the moment it tries to create
+ * one, with an error that names no field.
+ *
+ * Meta reports the grants on the token itself, so this asks. Silent unless
+ * it can answer: the check needs the app secret, which is only available
+ * when the connection belongs to this deployment's own Meta app.
+ */
+async function describeTokenScope(
+  wabaId: string,
+  appId: string,
+  accessToken: string
+): Promise<string | null> {
+  const env = getEmbeddedSignupEnv();
+  if (!env || env.appId !== appId) return null;
+
+  let granted: string[];
+  try {
+    granted = await wabaIdsForToken(accessToken, env);
+  } catch {
+    return null;
+  }
+
+  // No grants listed at all means Meta reported nothing useful, not that the
+  // token is empty — an app-scoped token has no granular scopes to report.
+  if (granted.length === 0 || granted.includes(wabaId)) return null;
+
+  return `This number sends fine, but the stored token has not been granted WhatsApp Business Account ${wabaId}, so it cannot create templates or forms on it — only ${granted.join(", ")}. Assign that account to the token's System User in Business settings → Users → System users → Add assets, then generate a NEW token: assigning an asset does not change a token that already exists. Paste it here with Update access token.`;
 }
 
 /**
