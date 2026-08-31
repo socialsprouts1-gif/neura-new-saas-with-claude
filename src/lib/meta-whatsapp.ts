@@ -454,6 +454,35 @@ export async function createMessageTemplate(
   };
 }
 
+export interface WabaDetails {
+  id: string;
+  name?: string;
+  /** PENDING / APPROVED / REJECTED — an unapproved account is restricted. */
+  account_review_status?: string;
+  business_verification_status?: string;
+  /** Meta distinguishes accounts onboarded from the WhatsApp Business app. */
+  ownership_type?: string;
+  country?: string;
+  currency?: string;
+}
+
+/**
+ * The account's own standing with Meta.
+ *
+ * Reachability and a green number say nothing about whether the account may
+ * create templates: review status and business verification are account-level
+ * gates, and Meta reports a refusal from them as a bare code 100 that names
+ * no field. Reading them turns a dead end into a sentence.
+ */
+export async function getWabaDetails(
+  wabaId: string,
+  accessToken: string
+): Promise<WabaDetails> {
+  const fields =
+    "id,name,account_review_status,business_verification_status,ownership_type,country,currency";
+  return (await graph(`${wabaId}?fields=${fields}`, accessToken)) as WabaDetails;
+}
+
 export interface WabaPhoneNumber {
   id: string;
   display_phone_number?: string;

@@ -19,6 +19,7 @@ import {
   describeMetaError,
   getPhoneNumber,
   listWabaPhoneNumbers,
+  getWabaDetails,
 } from "@/lib/meta-whatsapp";
 
 export interface ActionResult {
@@ -550,7 +551,13 @@ async function describeWabaMembership(
     return `This number works, but Meta would not open WhatsApp Business Account ${wabaId} with this token, so templates and forms cannot be created. ${why}`;
   }
 
-  if (numbers.some((number) => number.id === phoneNumberId)) return null;
+  if (numbers.some((number) => number.id === phoneNumberId)) {
+    // The number belongs to the account, so the ids agree. What is left is
+    // whether the account is allowed to do anything: an unapproved or
+    // unverified account sends messages perfectly well and refuses template
+    // creation with a bare code 100 that names nothing.
+    return describeWabaStanding(wabaId, accessToken);
+  }
 
   const listed = numbers
     .map((number) => number.display_phone_number ?? number.id)
@@ -560,6 +567,37 @@ async function describeWabaMembership(
   return `This number sends fine, but it is not on WhatsApp Business Account ${wabaId} — that account holds ${
     listed || "no numbers"
   }. Templates and forms are created on the account, so they will keep failing until the WABA id is corrected under Integrations. Find the right one in Meta → WhatsApp Manager, on the account that lists this number.`;
+}
+
+/**
+ * Account-level gates that block templates while sending keeps working.
+ *
+ * Returns a sentence when something is wrong, null when the account is clear.
+ * Never fails the test on its own account — a token that cannot read these
+ * fields is a narrower permission, not a broken connection.
+ */
+async function describeWabaStanding(
+  wabaId: string,
+  accessToken: string
+): Promise<string | null> {
+  let waba;
+  try {
+    waba = await getWabaDetails(wabaId, accessToken);
+  } catch {
+    return null;
+  }
+
+  const review = waba.account_review_status?.toUpperCase();
+  if (review && review !== "APPROVED") {
+    return `This number sends fine, but Meta has not approved WhatsApp Business Account ${wabaId} — it reports the review status as ${waba.account_review_status}. Templates and forms cannot be created until that clears. Check Meta Business Suite → Account Quality.`;
+  }
+
+  const verification = waba.business_verification_status?.toLowerCase();
+  if (verification && verification !== "verified") {
+    return `This number sends fine, but the business behind WhatsApp Business Account ${wabaId} is not verified with Meta (${waba.business_verification_status}). Template creation is limited until verification completes — Meta Business Suite → Security Centre → Start verification.`;
+  }
+
+  return null;
 }
 
 /**
