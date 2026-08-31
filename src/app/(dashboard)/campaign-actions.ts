@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { resolveConnection } from "@/lib/connections";
+import { resolveConnection, listActiveConnections, describe } from "@/lib/connections";
 import {
   createMessageTemplate,
   deleteMessageTemplate,
   listMessageTemplates,
   uploadTemplateHeaderSample,
   describeMetaError,
+  type MetaTemplateSummary,
   MetaApiError,
 } from "@/lib/meta-whatsapp";
 import {
@@ -233,26 +234,54 @@ export async function syncTemplates(): Promise<ActionResult & { synced?: number 
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
-  const credentials = await wabaCredentials(supabase, orgId);
-  if ("error" in credentials) return { ok: false, error: credentials.error };
+  // Every account, not just the default one. Templates belong to a WhatsApp
+  // Business Account, so syncing one account leaves every template on the
+  // others invisible here — including ones created in WhatsApp Manager,
+  // which is the whole reason someone presses this button.
+  const connections = await listActiveConnections(supabase, orgId);
+  if (connections.length === 0) {
+    return { ok: false, error: "No active WhatsApp number to read templates from." };
+  }
 
-  let remote;
-  try {
-    remote = await listMessageTemplates(credentials.wabaId, credentials.token);
-  } catch (error) {
-    return {
-      ok: false,
-      error:
-        error instanceof MetaApiError
-          ? describeMetaError(error.status, error.body)
-          : "Could not read templates from Meta.",
-    };
+  const seen = new Set<string>();
+  const remote: Array<{ waba: string; template: MetaTemplateSummary }> = [];
+  const problems: string[] = [];
+
+  for (const connection of connections) {
+    // Two numbers on one account would otherwise be read twice.
+    if (seen.has(connection.wabaId)) continue;
+    seen.add(connection.wabaId);
+
+    const resolved = await resolveConnection(supabase, orgId, { connectionId: connection.id });
+    if ("error" in resolved) {
+      problems.push(resolved.error);
+      continue;
+    }
+
+    try {
+      for (const template of await listMessageTemplates(connection.wabaId, resolved.accessToken)) {
+        remote.push({ waba: connection.wabaId, template });
+      }
+    } catch (error) {
+      // One unreadable account must not hide every template on the others.
+      problems.push(
+        `${describe(connection)}: ${
+          error instanceof MetaApiError
+            ? describeMetaError(error.status, error.body)
+            : "could not be read."
+        }`
+      );
+    }
+  }
+
+  if (remote.length === 0 && problems.length > 0) {
+    return { ok: false, error: problems.join(" ") };
   }
 
   const now = new Date().toISOString();
   let synced = 0;
 
-  for (const template of remote) {
+  for (const { template } of remote) {
     const status = template.status?.toLowerCase() ?? "pending";
     const { error } = await supabase.from("message_templates").upsert(
       {
@@ -275,7 +304,13 @@ export async function syncTemplates(): Promise<ActionResult & { synced?: number 
   }
 
   revalidatePath("/templates");
-  return { ok: true, synced, message: `Synced ${synced} template${synced === 1 ? "" : "s"}.` };
+  return {
+    ok: true,
+    synced,
+    message: `Synced ${synced} template${synced === 1 ? "" : "s"} from ${seen.size} account${
+      seen.size === 1 ? "" : "s"
+    }.${problems.length > 0 ? ` ${problems.join(" ")}` : ""}`,
+  };
 }
 
 export async function removeTemplate(formData: FormData): Promise<ActionResult> {
