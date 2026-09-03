@@ -22,6 +22,7 @@ import {
   type TemplateSpec,
 } from "@/lib/template-spec";
 import { normaliseWaId } from "@/lib/audience";
+import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
 import type { ActionResult } from "./actions";
 import type { Database, TemplateCategory, TemplateStatus } from "@/types/database";
 
@@ -670,4 +671,40 @@ function normaliseCategory(category: string | undefined): TemplateCategory {
   return upper === "MARKETING" || upper === "AUTHENTICATION"
     ? (upper as TemplateCategory)
     : "UTILITY";
+}
+
+/**
+ * Drains the campaign queue now, from the Campaigns screen.
+ *
+ * Campaigns queue recipients and a scheduler drains them. Vercel's Hobby
+ * plan allows at most a daily cron, and this project ships no vercel.json at
+ * all — so without this a campaign is created, queued, and then never sends,
+ * which is indistinguishable from sending being broken.
+ *
+ * Sends one batch per press, the same batch the cron route sends, so a large
+ * campaign is pressed a few times or left to a real scheduler.
+ */
+export async function sendQueuedNow(): Promise<ActionResult & { sent?: number }> {
+  const { role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can send a campaign." };
+  }
+
+  const result = await dispatchDueCampaigns();
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidatePath("/campaigns");
+
+  if (result.due === 0) {
+    return { ok: true, message: "Nothing is waiting to send right now." };
+  }
+
+  return {
+    ok: true,
+    sent: result.sent,
+    message:
+      result.failed > 0
+        ? `Sent ${result.sent}, ${result.failed} failed — open the campaign to see why.`
+        : `Sent ${result.sent}. Press again if more are queued.`,
+  };
 }

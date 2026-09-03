@@ -2,8 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Play, Plus, Trash2 } from "lucide-react";
-import { deleteCampaign, setCampaignStatus } from "@/app/(dashboard)/campaign-actions";
+import { Ban, Loader2, Play, Plus, Send, Trash2 } from "lucide-react";
+import {
+  deleteCampaign,
+  sendQueuedNow,
+  setCampaignStatus,
+} from "@/app/(dashboard)/campaign-actions";
 import CampaignBuilder, { type TemplateOption } from "./CampaignBuilder";
 
 export function NewCampaignButton({
@@ -92,6 +96,40 @@ export function CampaignRowActions({ id, status }: { id: string; status: string 
         className="p-1.5 rounded-lg text-white/30 hover:text-[#F87171] hover:bg-white/8 transition-colors"
       >
         <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </span>
+  );
+}
+
+/**
+ * Sends the queued recipients now.
+ *
+ * A campaign queues its recipients and waits for a scheduler. There isn't
+ * one on this deployment, so without this button a campaign is created and
+ * then sits at nought sent with nothing on screen explaining why.
+ */
+export function SendQueuedButton() {
+  const router = useRouter();
+  const [note, setNote] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {note && <span className="text-xs text-white/50 max-w-xs">{note}</span>}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await sendQueuedNow();
+            setNote(result.message ?? result.error ?? null);
+            router.refresh();
+          })
+        }
+        className="btn-secondary text-sm"
+      >
+        {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        Send queued now
       </button>
     </span>
   );

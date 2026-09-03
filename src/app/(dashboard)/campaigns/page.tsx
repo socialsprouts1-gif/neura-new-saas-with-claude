@@ -11,7 +11,7 @@ import {
   statusTone,
 } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
-import { NewCampaignButton, CampaignRowActions } from "./CampaignToolbar";
+import { NewCampaignButton, CampaignRowActions, SendQueuedButton } from "./CampaignToolbar";
 import type { TemplateOption } from "./CampaignBuilder";
 
 export default async function CampaignsPage() {
@@ -73,12 +73,17 @@ export default async function CampaignsPage() {
       <PageHeader
         title="Campaigns"
         subtitle="Send an approved template to a list of people, once or as a drip."
-        action={<NewCampaignButton
-            templates={options}
-            tags={tags}
-            groups={groups ?? []}
-            numbers={numbers}
-          />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <SendQueuedButton />
+            <NewCampaignButton
+              templates={options}
+              tags={tags}
+              groups={groups ?? []}
+              numbers={numbers}
+            />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -149,10 +154,11 @@ export default async function CampaignsPage() {
       )}
 
       <p className="text-xs text-white/35 mt-4 max-w-2xl leading-relaxed">
-        Recipients are queued, then sent by the dispatcher at{" "}
-        <code className="text-white/50">/api/cron/dispatch-campaigns</code>. If nothing is
-        sending, that endpoint isn&apos;t being called — see the README for the scheduler
-        setup.
+        Recipients are queued rather than sent inline, so a large run survives a closed tab.
+        Press <span className="text-white/60">Send queued now</span> to send a batch
+        immediately, or point a scheduler at{" "}
+        <code className="text-white/50">/api/cron/dispatch-campaigns</code> to drain the queue
+        on its own — see the README.
       </p>
     </div>
   );
