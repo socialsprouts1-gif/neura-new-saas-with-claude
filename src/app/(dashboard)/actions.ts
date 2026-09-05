@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { resolveConnection } from "@/lib/connections";
 import { encryptToken, decryptToken } from "@/lib/crypto";
 import { checkAccessToken } from "@/lib/access-token";
 import { headers } from "next/headers";
@@ -21,6 +22,7 @@ import {
   getPhoneNumber,
   listWabaPhoneNumbers,
   getWabaDetails,
+  createMessageTemplate,
 } from "@/lib/meta-whatsapp";
 
 export interface ActionResult {
@@ -639,6 +641,83 @@ async function describeWabaStanding(
   }
 
   return null;
+}
+
+/**
+ * Asks Meta, in one go, everything that bears on creating a template.
+ *
+ * Five theories about this failure have now been wrong, each ruled out only
+ * after a round trip through a person's browser. Meta states the reason in
+ * fields describeMetaError deliberately never shows an operator — subcode,
+ * error_data, fbtrace_id — and Vercel's log retention loses them before they
+ * can be read.
+ *
+ * So this runs the real call with the smallest possible template: no header,
+ * no buttons, one line of body. If that is refused, nothing about the
+ * template's content is at fault and the account or the token is, which is a
+ * different search. The whole envelope comes back verbatim.
+ */
+export async function diagnoseTemplates(
+  formData: FormData
+): Promise<ActionResult & { report?: string }> {
+  const { orgId, role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can run this." };
+  }
+
+  const supabase = await createClient();
+  const connection = await resolveConnection(supabase, orgId, {
+    connectionId: String(formData.get("id") ?? ""),
+  });
+  if ("error" in connection) return { ok: false, error: connection.error };
+
+  const lines: string[] = [
+    `waba      ${connection.wabaId}`,
+    `app       ${connection.metaAppId}`,
+    `number    ${connection.phoneNumberId} (${connection.displayPhoneNumber ?? "?"})`,
+  ];
+
+  try {
+    lines.push(`account   ${JSON.stringify(await getWabaDetails(connection.wabaId, connection.accessToken))}`);
+  } catch (error) {
+    lines.push(`account   unreadable — ${describeThrown(error)}`);
+  }
+
+  const env = getEmbeddedSignupEnv();
+  if (env && env.appId === connection.metaAppId) {
+    try {
+      lines.push(`granted   ${JSON.stringify(await wabaIdsForToken(connection.accessToken, env))}`);
+    } catch (error) {
+      lines.push(`granted   unreadable — ${describeThrown(error)}`);
+    }
+  } else {
+    lines.push("granted   not checked (this connection is on a different Meta app)");
+  }
+
+  // The smallest template Meta accepts. Nothing here can be the fault.
+  const name = `neura_diag_${Date.now()}`;
+  try {
+    const created = await createMessageTemplate(connection.wabaId, connection.accessToken, {
+      name,
+      language: "en_US",
+      category: "UTILITY",
+      components: [{ type: "BODY", text: "Diagnostic template. Please ignore." }],
+    });
+    lines.push(`create    OK — ${name} (${created.status}). Delete it in WhatsApp Manager.`);
+  } catch (error) {
+    lines.push(
+      error instanceof MetaApiError
+        ? `create    REFUSED ${error.status} ${JSON.stringify(error.body)}`
+        : `create    REFUSED — ${describeThrown(error)}`
+    );
+  }
+
+  return { ok: true, report: lines.join("\n") };
+}
+
+function describeThrown(error: unknown): string {
+  if (error instanceof MetaApiError) return `${error.status} ${JSON.stringify(error.body)}`;
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**

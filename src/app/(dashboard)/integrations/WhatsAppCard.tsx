@@ -1,5 +1,6 @@
 import { AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
 import ConnectWhatsApp from "./ConnectWhatsApp";
+import DiagnoseTemplates from "./DiagnoseTemplates";
 import { connectWaba, disconnectWaba, regenerateVerifyToken, verifyWabaConnection } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, statusTone } from "@/components/ui/primitives";
@@ -127,6 +128,8 @@ export default function WhatsAppCard({
                   <input type="hidden" name="id" value={c.id} />
                 </ActionForm>
               )}
+
+              {canManage && <DiagnoseTemplates id={c.id} />}
 
               {/* Rotating an access token is routine — Meta's API Setup
                   token dies every 24 hours — and it must not go through
