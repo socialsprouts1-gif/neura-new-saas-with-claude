@@ -114,7 +114,7 @@ async function upsertTemplate(
  */
 export async function submitTemplate(
   formData: FormData
-): Promise<ActionResult & { id?: string }> {
+): Promise<ActionResult & { id?: string; detail?: string }> {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
@@ -251,7 +251,16 @@ export async function submitTemplate(
       .eq("id", saved.id);
 
     revalidatePath("/templates");
-    return { ok: false, error: reason };
+
+    // Meta's whole envelope, alongside the sentence. The reason a template is
+    // refused lives in subcode and error_data, which the readable wording
+    // deliberately drops — and asking someone to go and press a separate
+    // diagnostic costs another round trip they should not have to make.
+    return {
+      ok: false,
+      error: reason,
+      detail: error instanceof MetaApiError ? JSON.stringify(error.body, null, 2) : undefined,
+    };
   }
 }
 

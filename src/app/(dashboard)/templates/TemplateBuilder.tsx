@@ -79,6 +79,7 @@ export default function TemplateBuilder({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
 
   const editing = initial !== undefined;
   const originalName = initial?.name ?? "";
@@ -122,6 +123,7 @@ export default function TemplateBuilder({
 
   const submit = () => {
     setError(null);
+    setDetail(null);
 
     if (liveAtMeta && nameUnchanged) {
       setError(
@@ -147,6 +149,7 @@ export default function TemplateBuilder({
       const result = await submitTemplate(data);
       if (!result.ok) {
         setError(result.error ?? "Meta refused the template.");
+        setDetail(result.detail ?? null);
         return;
       }
       router.refresh();
@@ -477,9 +480,26 @@ export default function TemplateBuilder({
             )}
 
             {error && (
-              <p className="text-xs text-red-400 mt-4 leading-relaxed" role="alert">
-                {error}
-              </p>
+              <div className="mt-4">
+                <p className="text-xs text-red-400 leading-relaxed" role="alert">
+                  {error}
+                </p>
+
+                {/* Meta's own envelope. Normally the wrong thing to put in
+                    front of an operator, but the readable sentence drops the
+                    subcode and error_data — the only fields that ever say
+                    which of several unrelated faults this actually is. */}
+                {detail && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[11px] text-white/40 hover:text-white/65 list-none">
+                      Show Meta&apos;s exact response
+                    </summary>
+                    <pre className="mt-2 text-[10px] leading-relaxed bg-black/40 border border-white/10 rounded-lg p-2.5 overflow-x-auto whitespace-pre-wrap break-words text-white/65">
+                      {detail}
+                    </pre>
+                  </details>
+                )}
+              </div>
             )}
 
             <button
