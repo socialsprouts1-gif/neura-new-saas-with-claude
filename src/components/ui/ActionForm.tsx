@@ -132,12 +132,16 @@ export function TextareaField({
   placeholder,
   required = false,
   rows = 3,
+  defaultValue,
+  hint,
 }: {
   label: string;
   name: string;
   placeholder?: string;
   required?: boolean;
   rows?: number;
+  defaultValue?: string;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -146,9 +150,11 @@ export function TextareaField({
         name={name}
         rows={rows}
         required={required}
+        defaultValue={defaultValue}
         placeholder={placeholder}
         className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y"
       />
+      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }

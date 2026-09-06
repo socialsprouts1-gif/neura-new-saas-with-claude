@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { loadSiteContent } from "@/lib/site-content-server";
 import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 
 // Meta's domain verification token. Public by design — it proves control of
@@ -13,7 +14,32 @@ import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 const FACEBOOK_DOMAIN_VERIFICATION =
   process.env.FACEBOOK_DOMAIN_VERIFICATION ?? "txlrl2b6tbksilyz5jhz1un9410ga4";
 
-export const metadata: Metadata = {
+/**
+ * Title, description and favicon follow the brand set in the admin panel.
+ *
+ * generateMetadata rather than a constant, because these now come from the
+ * database. It falls back to the defaults on its own, so an unmigrated or
+ * unreachable database still produces a correctly titled page.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { brand } = await loadSiteContent();
+
+  return {
+    ...metadata,
+    title: brand.siteTitle,
+    description: brand.siteDescription,
+    icons: brand.faviconUrl
+      ? { icon: brand.faviconUrl, shortcut: brand.faviconUrl, apple: brand.faviconUrl }
+      : metadata.icons,
+    openGraph: {
+      ...metadata.openGraph,
+      title: brand.siteTitle,
+      description: brand.siteDescription,
+    },
+  };
+}
+
+const metadata: Metadata = {
   title: "Neura Chat — AI-Powered WhatsApp Automation Platform",
   description: "Automate customer support, lead generation, sales, follow-ups, and engagement with AI-powered WhatsApp workflows.",
   keywords: "WhatsApp automation, AI chatbot, WhatsApp marketing, CRM, lead generation",

@@ -555,6 +555,26 @@ export interface Database {
           },
         ];
       };
+      site_content: {
+        Row: {
+          key: string;
+          value: unknown;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          key: string;
+          value?: unknown;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          value?: unknown;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [];
+      };
       platform_settings: {
         Row: PlatformSetting;
         Insert: Partial<PlatformSetting> & { key: string };

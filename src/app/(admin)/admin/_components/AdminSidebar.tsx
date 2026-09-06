@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Shield,
-  LayoutDashboard,
-  Users,
+  ArrowLeft,
   Building2,
   CreditCard,
-  Package,
-  Ticket,
-  Receipt,
+  LayoutDashboard,
   LifeBuoy,
+  Package,
+  Palette,
+  Receipt,
   ScrollText,
   Settings,
-  ArrowLeft,
+  Shield,
+  Ticket,
+  Users,
 } from "lucide-react";
 
 const SECTIONS = [
@@ -41,6 +42,7 @@ const SECTIONS = [
   {
     label: "Operations",
     items: [
+      { icon: Palette, label: "Landing page", href: "/admin/landing" },
       { icon: LifeBuoy, label: "Support tickets", href: "/admin/tickets" },
       { icon: ScrollText, label: "Webhook logs", href: "/admin/webhook-logs" },
       { icon: Settings, label: "Platform settings", href: "/admin/settings" },

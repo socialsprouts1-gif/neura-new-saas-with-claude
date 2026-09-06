@@ -112,7 +112,7 @@ export default function Testimonials() {
               </div>
 
               {/* Text */}
-              <p className="text-sm text-white/70 leading-relaxed mb-6">"{t.text}"</p>
+              <p className="text-sm text-white/70 leading-relaxed mb-6">&ldquo;{t.text}&rdquo;</p>
 
               {/* Metric badge */}
               <div

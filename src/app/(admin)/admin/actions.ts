@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SubscriptionStatus } from "@/types/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requirePlatformAdmin } from "@/lib/org";
 import type { ActionResult } from "@/app/(dashboard)/actions";
@@ -143,6 +144,15 @@ export async function toggleCoupon(formData: FormData): Promise<ActionResult> {
   return { ok: true };
 }
 
+/** The values subscriptions.status accepts, in the order they are offered. */
+const SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
+  "active",
+  "trialing",
+  "past_due",
+  "cancelled",
+  "expired",
+];
+
 export async function assignPlan(formData: FormData): Promise<ActionResult> {
   await requirePlatformAdmin();
 
@@ -150,24 +160,56 @@ export async function assignPlan(formData: FormData): Promise<ActionResult> {
   const planId = String(formData.get("plan_id") ?? "");
   if (!orgId || !planId) return { ok: false, error: "Organization and plan are required." };
 
-  const periodEnd = new Date();
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  const status = SUBSCRIPTION_STATUSES.includes(
+    String(formData.get("status") ?? "") as SubscriptionStatus
+  )
+    ? (String(formData.get("status")) as SubscriptionStatus)
+    : "active";
 
   const supabase = await createClient();
+
+  // How long the period runs comes from the plan, not from a constant. A
+  // yearly plan assigned with a hardcoded month expires eleven months early,
+  // and nothing on any screen would say why.
+  const { data: plan } = await supabase
+    .from("plans")
+    .select("name, billing_interval")
+    .eq("id", planId)
+    .maybeSingle();
+
+  if (!plan) return { ok: false, error: "That plan no longer exists." };
+
+  const start = new Date();
+  const periodEnd = new Date(start);
+  if (plan.billing_interval === "yearly") periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  else periodEnd.setMonth(periodEnd.getMonth() + 1);
+
   const { error } = await supabase.from("subscriptions").upsert(
     {
       org_id: orgId,
       plan_id: planId,
-      status: "active",
-      current_period_start: new Date().toISOString(),
-      current_period_end: periodEnd.toISOString(),
+      status,
+      current_period_start: start.toISOString(),
+      // A cancelled or expired subscription has no future period to run to.
+      current_period_end:
+        status === "cancelled" || status === "expired" ? null : periodEnd.toISOString(),
+      cancel_at_period_end: false,
+      updated_at: start.toISOString(),
     },
     { onConflict: "org_id" }
   );
 
   if (error) return { ok: false, error: error.message };
   revalidatePath("/admin/organizations");
-  return { ok: true, message: "Plan assigned." };
+  revalidatePath("/admin");
+
+  return {
+    ok: true,
+    message:
+      status === "cancelled" || status === "expired"
+        ? `${plan.name} set to ${status}.`
+        : `${plan.name} assigned, ${plan.billing_interval}, running to ${periodEnd.toLocaleDateString()}.`,
+  };
 }
 
 export async function updateTicket(formData: FormData): Promise<ActionResult> {
@@ -241,4 +283,44 @@ export async function recordOrder(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
   revalidatePath("/admin/orders");
   return { ok: true, message: "Order recorded." };
+}
+
+/**
+ * Saves one section of the landing page.
+ *
+ * Sections are stored whole rather than field by field: the editor posts the
+ * complete shape, so a save is one row and can never leave half a section
+ * from the old copy and half from the new.
+ */
+export async function saveSiteSection(
+  key: string,
+  value: Record<string, unknown>
+): Promise<ActionResult> {
+  const user = await requirePlatformAdmin();
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("site_content").upsert(
+    {
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id,
+    },
+    { onConflict: "key" }
+  );
+
+  if (error) {
+    return {
+      ok: false,
+      error: /relation|does not exist|schema cache/i.test(error.message)
+        ? "The site_content table isn't there yet — run supabase/setup.sql in the Supabase SQL editor, then try again."
+        : error.message,
+    };
+  }
+
+  // The landing page and the metadata that reads the brand.
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/landing");
+
+  return { ok: true, message: "Saved. The landing page is updated." };
 }

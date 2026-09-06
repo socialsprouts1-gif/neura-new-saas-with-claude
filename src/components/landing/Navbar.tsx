@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import BrandWordmark from "./BrandWordmark";
+import { DEFAULT_BRAND, type BrandContent } from "@/lib/site-content";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Menu, X, ChevronDown } from "lucide-react";
 
@@ -23,7 +25,7 @@ const navItems = [
   { label: "Docs", href: "#" },
 ];
 
-export default function Navbar() {
+export default function Navbar({ brand = DEFAULT_BRAND }: { brand?: BrandContent }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -45,13 +47,8 @@ export default function Navbar() {
       <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,135,0.5)] group-hover:shadow-[0_0_30px_rgba(0,255,135,0.7)] transition-shadow">
-              <Zap className="w-4 h-4 text-[#050508]" />
-            </div>
-            <span className="font-bold text-lg">
-              Neura <span className="gradient-text-green">Chat</span>
-            </span>
+          <Link href="/">
+            <BrandWordmark brand={brand} size={32} />
           </Link>
 
           {/* Desktop Nav */}

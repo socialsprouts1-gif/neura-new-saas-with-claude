@@ -1,11 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { DEFAULT_HERO, type HeroContent } from "@/lib/site-content";
 import Link from "next/link";
 import {
   ArrowRight,
   Play,
-  Zap,
   MessageCircle,
   Bot,
   TrendingUp,
@@ -13,49 +13,23 @@ import {
   CheckCircle,
 } from "lucide-react";
 
-const floatingCards = [
-  {
-    icon: <MessageCircle className="w-4 h-4 text-accent-ink" />,
-    title: "AI Reply Sent",
-    subtitle: "Response time: 0.3s",
-    color: "#00FF87",
-    pos: "top-16 -left-8",
-    delay: 0,
-  },
-  {
-    icon: <TrendingUp className="w-4 h-4 text-accent2-ink" />,
-    title: "Lead Converted",
-    subtitle: "+$2,400 revenue",
-    color: "#00D4FF",
-    pos: "top-36 -right-12",
-    delay: 0.5,
-  },
-  {
-    icon: <Bot className="w-4 h-4 text-purple-400" />,
-    title: "Chatbot Active",
-    subtitle: "1,247 chats handled",
-    color: "#A855F7",
-    pos: "bottom-24 -left-12",
-    delay: 1,
-  },
-  {
-    icon: <Users className="w-4 h-4 text-accent-ink" />,
-    title: "Campaign Sent",
-    subtitle: "98.2% delivered",
-    color: "#00FF87",
-    pos: "bottom-8 -right-8",
-    delay: 1.5,
-  },
+// Icon, position and timing are layout, not copy — they stay here. The
+// words and the colour come from the editable content.
+const cardChrome = [
+  { icon: <MessageCircle className="w-4 h-4 text-accent-ink" />, pos: "top-16 -left-8", delay: 0 },
+  { icon: <TrendingUp className="w-4 h-4 text-accent2-ink" />, pos: "top-36 -right-12", delay: 0.5 },
+  { icon: <Bot className="w-4 h-4 text-purple-400" />, pos: "bottom-24 -left-12", delay: 1 },
+  { icon: <Users className="w-4 h-4 text-accent-ink" />, pos: "bottom-8 -right-8", delay: 1.5 },
 ];
 
-const stats = [
-  { value: "50K+", label: "Active Businesses" },
-  { value: "2.4B", label: "Messages Automated" },
-  { value: "98.2%", label: "Delivery Rate" },
-  { value: "12x", label: "Faster Response" },
-];
+export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent }) {
+  // Pair each card's words with the chrome at the same index. More cards
+  // than chrome would have nowhere to sit, so the list is capped.
+  const floatingCards = content.floatingCards
+    .slice(0, cardChrome.length)
+    .map((card, i) => ({ ...card, ...cardChrome[i] }));
+  const stats = content.stats;
 
-export default function Hero() {
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
       {/* Background effects */}
@@ -79,7 +53,7 @@ export default function Hero() {
             >
               <span className="section-badge">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                AI-Powered WhatsApp Automation
+                {content.badge}
               </span>
             </motion.div>
 
@@ -91,10 +65,10 @@ export default function Hero() {
               className="space-y-2"
             >
               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight">
-                Turn WhatsApp Into
+                {content.headline}
               </h1>
               <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight gradient-text-green">
-                Your Sales Machine
+                {content.headlineAccent}
               </h1>
             </motion.div>
 
@@ -105,8 +79,7 @@ export default function Hero() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-lg text-white/60 max-w-lg leading-relaxed"
             >
-              Automate customer support, lead generation, sales follow-ups, and
-              marketing campaigns with AI-powered WhatsApp workflows. No code required.
+              {content.subheadline}
             </motion.p>
 
             {/* Feature pills */}
@@ -116,7 +89,7 @@ export default function Hero() {
               transition={{ duration: 0.6, delay: 0.25 }}
               className="flex flex-wrap gap-2"
             >
-              {["AI Chatbots", "Bulk Campaigns", "CRM Built-in", "Auto Follow-ups", "Analytics"].map((f) => (
+              {content.pills.map((f) => (
                 <span key={f} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/70">
                   <CheckCircle className="w-3 h-3 text-accent-ink" />
                   {f}
@@ -131,17 +104,22 @@ export default function Hero() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="flex flex-wrap gap-4"
             >
-              <Link href="/auth/register" className="btn-primary text-base px-7 py-3.5 animate-glow-pulse">
-                Start Free Trial
+              <Link
+                href={content.primaryCta.href}
+                className="btn-primary text-base px-7 py-3.5 animate-glow-pulse"
+              >
+                {content.primaryCta.label}
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <button className="btn-secondary text-base px-7 py-3.5">
+              <Link href={content.secondaryCta.href} className="btn-secondary text-base px-7 py-3.5">
                 <Play className="w-4 h-4 fill-current" />
-                Watch Demo
-              </button>
+                {content.secondaryCta.label}
+              </Link>
             </motion.div>
 
-            {/* Social proof */}
+            {/* Social proof. Switchable, because a claim about how many
+                businesses use the product is one that has to be true. */}
+            {content.showSocialProof && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -163,11 +141,13 @@ export default function Hero() {
                   {[1, 2, 3, 4, 5].map((s) => (
                     <span key={s} className="text-yellow-400 text-sm">★</span>
                   ))}
-                  <span className="text-sm font-semibold ml-1">4.9/5</span>
+                  <span className="text-sm font-semibold ml-1">{content.rating}</span>
                 </div>
-                <p className="text-xs text-white/50">Trusted by 50,000+ businesses worldwide</p>
+                <p className="text-xs text-white/50">{content.socialProofText}</p>
               </div>
             </motion.div>
+            )}
+
           </div>
 
           {/* Right — Dashboard Preview */}

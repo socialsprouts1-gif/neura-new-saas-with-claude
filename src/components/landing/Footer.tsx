@@ -1,5 +1,7 @@
 import BrandMark from "@/components/ui/BrandMark";
 import Link from "next/link";
+import BrandWordmark from "./BrandWordmark";
+import { DEFAULT_BRAND, brandName, type BrandContent } from "@/lib/site-content";
 import { Share2, Link2, GitFork, PlaySquare, ArrowRight } from "lucide-react";
 
 const footerLinks = {
@@ -9,7 +11,7 @@ const footerLinks = {
   Company: ["About", "Careers", "Partners", "Press", "Contact", "Legal"],
 };
 
-export default function Footer() {
+export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent }) {
   return (
     <footer className="relative border-t border-white/8 pt-20 pb-10 overflow-hidden">
       {/* Background */}
@@ -47,11 +49,8 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
           {/* Brand */}
           <div className="col-span-2">
-            <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <BrandMark size={34} />
-              <span className="font-bold text-lg">
-                Neura <span className="gradient-text-green">Chat</span>
-              </span>
+            <Link href="/" className="inline-block mb-4">
+              <BrandWordmark brand={brand} size={34} />
             </Link>
             <p className="text-sm text-white/50 leading-relaxed mb-6 max-w-xs">
               The most powerful AI-powered WhatsApp automation platform for modern businesses.
@@ -111,7 +110,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="border-t border-white/8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-white/40">
-            © {new Date().getFullYear()} Neura Chat. All rights reserved.
+            © {new Date().getFullYear()} {brandName(brand)}. All rights reserved.
           </p>
           {/* Real destinations, not placeholders: Meta will not let an app go
               live without a working Privacy Policy URL, and a reviewer does

@@ -4,6 +4,15 @@ import { assignPlan } from "../actions";
 import ActionForm from "@/components/ui/ActionForm";
 import { PageHeader, Badge, Table, Td, EmptyState, statusTone } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
+import type { SubscriptionStatus } from "@/types/admin";
+
+const SUBSCRIPTION_STATUS_OPTIONS: SubscriptionStatus[] = [
+  "active",
+  "trialing",
+  "past_due",
+  "cancelled",
+  "expired",
+];
 
 export default async function AdminOrganizationsPage() {
   await requirePlatformAdmin();
@@ -12,8 +21,14 @@ export default async function AdminOrganizationsPage() {
   const [{ data: orgs, error }, { data: plans }, { data: subs }, { data: members }, { data: connections }] =
     await Promise.all([
       supabase.from("organizations").select("id, name, created_at").order("created_at", { ascending: false }).limit(200),
-      supabase.from("plans").select("id, name").eq("is_active", true).order("sort_order"),
-      supabase.from("subscriptions").select("org_id, status, plan_id, plans(name)"),
+      supabase
+        .from("plans")
+        .select("id, name, billing_interval")
+        .eq("is_active", true)
+        .order("sort_order"),
+      supabase
+        .from("subscriptions")
+        .select("org_id, status, plan_id, current_period_end, plans(name)"),
       supabase.from("org_members").select("org_id"),
       supabase.from("waba_connections").select("org_id, status"),
     ]);
@@ -56,9 +71,17 @@ export default async function AdminOrganizationsPage() {
                 </Td>
                 <Td>
                   {sub ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">{plan?.name ?? "Custom"}</span>
-                      <Badge tone={statusTone(sub.status)}>{sub.status}</Badge>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{plan?.name ?? "Custom"}</span>
+                        <Badge tone={statusTone(sub.status)}>{sub.status}</Badge>
+                      </div>
+                      {sub.current_period_end && (
+                        <div className="text-[11px] text-white/35 mt-0.5">
+                          {new Date(sub.current_period_end) < new Date() ? "expired" : "renews"}{" "}
+                          {formatDate(sub.current_period_end)}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <span className="text-white/30 text-xs">No plan</span>
@@ -78,7 +101,22 @@ export default async function AdminOrganizationsPage() {
                       </option>
                       {(plans ?? []).map((p) => (
                         <option key={p.id} value={p.id} className="bg-[var(--surface-3)]">
-                          {p.name}
+                          {p.name} · {p.billing_interval}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Assigning is not only "make this org paid". A trial, a
+                        lapsed card and a cancellation are all things support
+                        has to set, and without this they were a SQL edit. */}
+                    <select
+                      name="status"
+                      className="bg-white/5 border border-white/12 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#A855F7]/50 mb-2 w-full"
+                      defaultValue={sub?.status ?? "active"}
+                    >
+                      {SUBSCRIPTION_STATUS_OPTIONS.map((value) => (
+                        <option key={value} value={value} className="bg-[var(--surface-3)]">
+                          {value}
                         </option>
                       ))}
                     </select>
