@@ -3,22 +3,29 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
+import { NewUserButton, UserRowActions } from "./UserControls";
 
 export default async function AdminUsersPage() {
-  await requirePlatformAdmin();
+  const me = await requirePlatformAdmin();
 
   const supabase = await createClient();
 
   // Memberships come through the normal client (RLS lets staff read all of
   // them). Email and last-sign-in live in auth.users, which is only
   // reachable through the Admin API, so that part needs the service role.
-  const { data: memberships, error } = await supabase
-    .from("org_members")
-    .select("user_id, role, created_at, organizations(id, name)")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const [{ data: memberships, error }, { data: orgs }] = await Promise.all([
+    supabase
+      .from("org_members")
+      .select("user_id, role, created_at, organizations(id, name)")
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabase.from("organizations").select("id, name").order("name").limit(200),
+  ]);
 
-  let emailById = new Map<string, { email: string; lastSignIn: string | null }>();
+  let emailById = new Map<
+    string,
+    { email: string; lastSignIn: string | null; suspended: boolean }
+  >();
   let authError: string | null = null;
 
   try {
@@ -30,7 +37,16 @@ export default async function AdminUsersPage() {
       emailById = new Map(
         data.users.map((u) => [
           u.id,
-          { email: u.email ?? "—", lastSignIn: u.last_sign_in_at ?? null },
+          {
+            email: u.email ?? "—",
+            lastSignIn: u.last_sign_in_at ?? null,
+            // Supabase reports a suspension as a ban that runs into the
+            // future; a past date is a lapsed one and not a suspension.
+            suspended: Boolean(
+              (u as { banned_until?: string | null }).banned_until &&
+                new Date((u as { banned_until?: string | null }).banned_until as string) > new Date()
+            ),
+          },
         ])
       );
     }
@@ -43,6 +59,7 @@ export default async function AdminUsersPage() {
       <PageHeader
         title="Users"
         subtitle={`${memberships?.length ?? 0} membership${memberships?.length === 1 ? "" : "s"} across all organizations.`}
+        action={<NewUserButton orgs={orgs ?? []} />}
       />
 
       {authError && (
@@ -57,15 +74,29 @@ export default async function AdminUsersPage() {
       {error ? (
         <EmptyState title="Couldn't load users" description={error.message} />
       ) : memberships && memberships.length > 0 ? (
-        <Table head={["User", "Email", "Organization", "Role", "Joined", "Last sign in"]}>
+        <Table head={["User", "Email", "Organization", "Role", "Joined", "Last sign in", ""]}>
           {memberships.map((m) => {
             const org = m.organizations as { id: string; name: string } | null;
             const auth = emailById.get(m.user_id);
             return (
               <tr key={`${m.user_id}-${org?.id}`} className="hover:bg-white/3 transition-colors">
                 <Td className="font-mono text-[11px] text-white/50">{m.user_id.slice(0, 8)}…</Td>
-                <Td className="font-medium">{auth?.email ?? <span className="text-white/30">—</span>}</Td>
-                <Td>{org?.name ?? <span className="text-white/30">—</span>}</Td>
+                <Td className="font-medium">
+                  <div className="flex items-center gap-2">
+                    {auth?.email ?? <span className="text-white/30">—</span>}
+                    {auth?.suspended && <Badge tone="amber">suspended</Badge>}
+                  </div>
+                </Td>
+                <Td>
+                  {org ? (
+                    <div>
+                      <div>{org.name}</div>
+                      <div className="font-mono text-[10px] text-white/30">{org.id.slice(0, 8)}…</div>
+                    </div>
+                  ) : (
+                    <span className="text-white/30">—</span>
+                  )}
+                </Td>
                 <Td>
                   <Badge tone={m.role === "owner" ? "green" : m.role === "admin" ? "blue" : "grey"}>
                     {m.role}
@@ -74,6 +105,15 @@ export default async function AdminUsersPage() {
                 <Td className="text-white/40 text-xs whitespace-nowrap">{formatDate(m.created_at)}</Td>
                 <Td className="text-white/40 text-xs whitespace-nowrap">
                   {formatDate(auth?.lastSignIn ?? null)}
+                </Td>
+                <Td className="text-right">
+                  <UserRowActions
+                    userId={m.user_id}
+                    orgId={org?.id ?? ""}
+                    email={auth?.email ?? m.user_id.slice(0, 8)}
+                    suspended={auth?.suspended ?? false}
+                    isSelf={m.user_id === me.id}
+                  />
                 </Td>
               </tr>
             );

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
+import type { OrgRole } from "@/types/database";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
@@ -323,4 +325,144 @@ export async function saveSiteSection(
   revalidatePath("/admin/landing");
 
   return { ok: true, message: "Saved. The landing page is updated." };
+}
+
+/** The roles org_members accepts, most privileged first. */
+const ORG_ROLES: OrgRole[] = ["owner", "admin", "member"];
+
+// --- user administration --------------------------------------------------
+//
+// Creating, suspending and deleting accounts all go through the Auth Admin
+// API, which needs the service role. Every one of them refuses to act on the
+// signed-in admin: locking yourself out of the platform you administer is a
+// mistake with no in-product way back.
+
+/** Creates an account and puts it in an organization. */
+export async function createUserAccount(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const orgId = String(formData.get("org_id") ?? "").trim();
+  const role = String(formData.get("role") ?? "member") as OrgRole;
+
+  if (!email.includes("@")) return { ok: false, error: "That doesn't look like an email address." };
+  if (password.length < 8) {
+    return { ok: false, error: "Give them a password of at least 8 characters. They can change it later." };
+  }
+  if (!ORG_ROLES.includes(role)) return { ok: false, error: "Pick a role." };
+
+  const admin = createAdminClient();
+
+  // email_confirm skips the verification mail: an account made by staff is
+  // one the person never asked for, so waiting on a link they will not click
+  // would leave it unusable.
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+
+  if (createError || !created.user) {
+    return {
+      ok: false,
+      error: /already|exists|registered/i.test(createError?.message ?? "")
+        ? `${email} already has an account. Add them to an organization instead of creating a second one.`
+        : (createError?.message ?? "The account could not be created."),
+    };
+  }
+
+  // The signup trigger has already made them an organization of their own.
+  // When a specific one was asked for, put them in that as well.
+  if (orgId) {
+    const supabase = await createClient();
+    const { error: memberError } = await supabase
+      .from("org_members")
+      .upsert({ org_id: orgId, user_id: created.user.id, role }, { onConflict: "org_id,user_id" });
+
+    if (memberError) {
+      return {
+        ok: false,
+        error: `${email} was created, but adding them to that organization failed: ${memberError.message}`,
+      };
+    }
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/organizations");
+  return { ok: true, message: `${email} created. Send them the password yourself — it is not emailed.` };
+}
+
+/** Blocks or restores sign-in. Reversible, unlike deleting. */
+export async function setUserSuspended(formData: FormData): Promise<ActionResult> {
+  const me = await requirePlatformAdmin();
+
+  const userId = String(formData.get("user_id") ?? "");
+  const suspend = String(formData.get("suspend") ?? "") === "true";
+
+  if (!userId) return { ok: false, error: "No user given." };
+  if (userId === me.id) return { ok: false, error: "You cannot suspend your own account." };
+
+  const admin = createAdminClient();
+  // A hundred years, which is Supabase's way of saying indefinite; "none"
+  // lifts it.
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: suspend ? "876000h" : "none",
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/users");
+  return {
+    ok: true,
+    message: suspend
+      ? "Suspended. They cannot sign in; their data is untouched."
+      : "Restored. They can sign in again.",
+  };
+}
+
+/**
+ * Deletes an account outright.
+ *
+ * org_members cascades from auth.users, so this also removes every
+ * membership. The organizations themselves survive — an org whose last
+ * member is deleted keeps its conversations, and someone has to be able to
+ * put a new owner in it.
+ */
+export async function deleteUserAccount(formData: FormData): Promise<ActionResult> {
+  const me = await requirePlatformAdmin();
+
+  const userId = String(formData.get("user_id") ?? "");
+  if (!userId) return { ok: false, error: "No user given." };
+  if (userId === me.id) return { ok: false, error: "You cannot delete your own account." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/organizations");
+  return { ok: true, message: "Account deleted." };
+}
+
+/** Takes someone out of one organization without touching their account. */
+export async function removeMembership(formData: FormData): Promise<ActionResult> {
+  const me = await requirePlatformAdmin();
+
+  const orgId = String(formData.get("org_id") ?? "");
+  const userId = String(formData.get("user_id") ?? "");
+  if (!orgId || !userId) return { ok: false, error: "No membership given." };
+  if (userId === me.id) return { ok: false, error: "You cannot remove your own membership." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("org_members")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("user_id", userId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/users");
+  return { ok: true, message: "Removed from that organization. The account still exists." };
 }
