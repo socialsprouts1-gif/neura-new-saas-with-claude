@@ -466,3 +466,33 @@ export async function removeMembership(formData: FormData): Promise<ActionResult
   revalidatePath("/admin/users");
   return { ok: true, message: "Removed from that organization. The account still exists." };
 }
+
+/** How many days a new workspace gets before it has to pay. */
+export async function saveTrialLength(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const days = Number(formData.get("trial_days"));
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    return { ok: false, error: "Give a whole number of days between 1 and 365." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("platform_settings").upsert(
+    {
+      key: "billing",
+      value: { trial_days: days },
+      description: "Length of the free trial given to a new workspace, in days",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "key" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/plans");
+  revalidatePath("/admin/settings");
+  return {
+    ok: true,
+    message: `New workspaces now get ${days} days. Trials already running keep the length they started with.`,
+  };
+}

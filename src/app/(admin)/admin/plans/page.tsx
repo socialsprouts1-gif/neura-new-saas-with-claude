@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requirePlatformAdmin } from "@/lib/org";
-import { savePlan, togglePlan } from "../actions";
+import { savePlan, saveTrialLength, togglePlan } from "../actions";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
@@ -9,10 +9,14 @@ export default async function AdminPlansPage() {
   await requirePlatformAdmin();
   const supabase = await createClient();
 
-  const [{ data: plans, error }, { data: subs }] = await Promise.all([
+  const [{ data: plans, error }, { data: subs }, { data: billing }] = await Promise.all([
     supabase.from("plans").select("*").order("sort_order").order("price_cents"),
     supabase.from("subscriptions").select("plan_id"),
+    supabase.from("platform_settings").select("value").eq("key", "billing").maybeSingle(),
   ]);
+
+  const trialDays =
+    Number((billing?.value as { trial_days?: number } | null)?.trial_days) || 14;
 
   const subscriberCount = new Map<string, number>();
   for (const s of subs ?? []) {
@@ -22,6 +26,22 @@ export default async function AdminPlansPage() {
   return (
     <div className="p-6 md:p-8">
       <PageHeader title="Plans" subtitle="The subscription catalogue offered to tenants." />
+
+      {/* The trial belongs beside the price list: how long someone gets for
+          free is part of the offer, not a setting buried in a JSON box. */}
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">Free trial</h2>
+        <p className="text-sm text-white/50 mb-4 max-w-xl leading-relaxed">
+          Every new workspace starts on a trial of this length. When it ends they are asked to
+          pick a plan; nothing is deleted. Changing this affects new signups only — a trial
+          already running keeps the length it started with.
+        </p>
+        <ActionForm action={saveTrialLength} submitLabel="Save">
+          <div className="max-w-[10rem]">
+            <Field label="Days" name="trial_days" type="number" defaultValue={String(trialDays)} required />
+          </div>
+        </ActionForm>
+      </Card>
 
       <div className="grid lg:grid-cols-[1fr_340px] gap-6 items-start">
         <div className="order-2 lg:order-1">
