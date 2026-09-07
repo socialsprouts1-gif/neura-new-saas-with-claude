@@ -20,6 +20,13 @@ import {
   type KnowledgeSourceType,
 } from "@/types/portal";
 import { integrationBySlug } from "@/lib/integrations";
+import { CRM_LABEL, isCrmProvider } from "@/lib/crm";
+import {
+  BULK_SYNC_LIMIT,
+  loadCrmConnections,
+  syncAllContacts,
+  testCrmConnection,
+} from "@/lib/crm-sync";
 import { generateFlow, PLATFORM_FLOW_MODEL } from "@/lib/flow-generator";
 import { buildInstructions, PROMPT_BUILDER_MODEL } from "@/lib/prompt-builder";
 import type { ActionResult } from "./actions";
@@ -744,6 +751,100 @@ export async function connectIntegration(formData: FormData): Promise<ActionResu
 
   revalidatePath("/integrations");
   return { ok: true, message: `${def.name} connected.` };
+}
+
+// ------------------------------------------------------------- CRM sync
+
+/**
+ * Tries the stored credentials against the CRM and says what came back.
+ *
+ * Connecting only encrypts what was typed; nothing checks it until the first
+ * contact arrives, and by then the failure is a line in a log nobody is
+ * watching. This is the check, on demand.
+ */
+export async function testCrm(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireManager();
+  if (!ctx) return { ok: false, error: "Only owners and admins can manage integrations." };
+
+  const provider = String(formData.get("provider") ?? "");
+  if (!isCrmProvider(provider)) return { ok: false, error: "Not a CRM integration." };
+
+  const supabase = await createClient();
+  const [connection] = await loadCrmConnections(supabase, ctx.orgId, provider);
+  if (!connection) {
+    return {
+      ok: false,
+      error: `${CRM_LABEL[provider]} is not connected, or its stored credentials could not be decrypted. Disconnect and connect again.`,
+    };
+  }
+
+  const failure = await testCrmConnection(connection);
+  if (failure) {
+    // Record it where the card can show it, so the state on screen matches
+    // what the last attempt actually did.
+    await supabase
+      .from("org_integrations")
+      .update({ last_error: failure, updated_at: new Date().toISOString() })
+      .eq("org_id", ctx.orgId)
+      .eq("provider", provider);
+    revalidatePath("/integrations");
+    return { ok: false, error: failure };
+  }
+
+  await supabase
+    .from("org_integrations")
+    .update({ last_error: null, updated_at: new Date().toISOString() })
+    .eq("org_id", ctx.orgId)
+    .eq("provider", provider);
+
+  revalidatePath("/integrations");
+  return { ok: true, message: `${CRM_LABEL[provider]} answered. The credentials work.` };
+}
+
+/**
+ * Pushes existing contacts, for the ones that predate the connection.
+ *
+ * New contacts go across as they arrive; this is for the back catalogue.
+ * Capped per run and it says so, because three HTTP calls per contact does
+ * not fit in one request for a workspace with thousands of them.
+ */
+export async function syncCrmContacts(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireManager();
+  if (!ctx) return { ok: false, error: "Only owners and admins can manage integrations." };
+
+  const provider = String(formData.get("provider") ?? "");
+  if (!isCrmProvider(provider)) return { ok: false, error: "Not a CRM integration." };
+
+  const supabase = await createClient();
+  const result = await syncAllContacts(supabase, ctx.orgId, provider);
+  revalidatePath("/integrations");
+
+  if (result.attempted === 0) {
+    return {
+      ok: false,
+      error: result.firstError ?? "No contacts to sync yet.",
+    };
+  }
+
+  const parts = [
+    `${result.created} created`,
+    `${result.updated} updated`,
+    result.failed > 0 ? `${result.failed} failed` : null,
+  ].filter(Boolean);
+
+  if (result.failed > 0 && result.created + result.updated === 0) {
+    return { ok: false, error: `Nothing reached ${CRM_LABEL[provider]} — ${result.firstError}` };
+  }
+
+  return {
+    ok: true,
+    message:
+      `${CRM_LABEL[provider]}: ${parts.join(", ")}.` +
+      (result.attempted >= BULK_SYNC_LIMIT
+        ? ` Stopped at ${BULK_SYNC_LIMIT} contacts — run it again for the rest.`
+        : "") +
+      (result.firstError && result.failed > 0 ? ` First failure: ${result.firstError}` : ""),
+  };
 }
 
 export async function disconnectIntegration(formData: FormData): Promise<ActionResult> {

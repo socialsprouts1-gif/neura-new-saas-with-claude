@@ -151,6 +151,8 @@ export interface Database {
           source: string | null;
           campaign: string | null;
           deal_value: number | null;
+          crm_refs: Record<string, string>;
+          crm_synced_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -170,10 +172,36 @@ export interface Database {
           source?: string | null;
           campaign?: string | null;
           deal_value?: number | null;
+          crm_refs?: Record<string, string>;
+          crm_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["contacts"]["Insert"]>;
+        Relationships: [];
+      };
+      crm_sync_log: {
+        Row: {
+          id: string;
+          org_id: string;
+          provider: string;
+          contact_id: string | null;
+          status: "created" | "updated" | "skipped" | "failed";
+          external_id: string | null;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          provider: string;
+          contact_id?: string | null;
+          status: "created" | "updated" | "skipped" | "failed";
+          external_id?: string | null;
+          error?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["crm_sync_log"]["Insert"]>;
         Relationships: [];
       };
       conversations: {

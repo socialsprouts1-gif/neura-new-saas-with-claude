@@ -8,6 +8,7 @@
 
 export type IntegrationCapability =
   | "live" // works end to end right now, no third-party app registration needed
+  | "sync" // credentials are used: contacts are pushed to the provider for real
   | "credentials" // stores and validates credentials; per-provider sync not built
   | "via_webhook"; // works today by consuming our outgoing webhook / API
 
@@ -187,41 +188,61 @@ export const INTEGRATIONS: IntegrationDef[] = [
     slug: "hubspot",
     name: "HubSpot",
     category: "CRM",
-    description: "Two-way contact sync and WhatsApp activity on the CRM timeline.",
-    capability: "credentials",
-    prerequisite: "Create a private app in HubSpot with crm.objects.contacts scopes.",
+    description:
+      "Every WhatsApp contact becomes a HubSpot contact, matched on phone number so the same customer is never created twice.",
+    capability: "sync",
+    prerequisite:
+      "HubSpot → Settings → Integrations → Private Apps → create an app with the crm.objects.contacts read and write scopes.",
     fields: [
       { name: "access_token", label: "Private app token", type: "password", required: true, placeholder: "pat-na1-…" },
     ],
     brand: "#FF7A59",
+    featured: true,
+    note:
+      "The token needs crm.objects.contacts.write as well as read. Read alone connects and then fails on the first contact, because searching works and creating does not.",
   },
   {
     slug: "zoho-crm",
     name: "Zoho CRM",
     category: "CRM",
-    description: "Push WhatsApp leads into Zoho and keep contact records in sync.",
-    capability: "credentials",
-    prerequisite: "Register a self-client in the Zoho API console and generate a refresh token.",
+    description:
+      "Every WhatsApp contact becomes a Zoho lead, deduplicated on phone number by Zoho itself.",
+    capability: "sync",
+    prerequisite:
+      "Zoho API Console → Self Client → generate a code for the ZohoCRM.modules.ALL and ZohoCRM.settings.ALL scopes, then trade it for a refresh token.",
     fields: [
-      { name: "client_id", label: "Client ID", required: true },
+      { name: "client_id", label: "Client ID", required: true, placeholder: "1000.XXXXXXXX" },
       { name: "client_secret", label: "Client secret", type: "password", required: true },
       { name: "refresh_token", label: "Refresh token", type: "password", required: true },
+      {
+        name: "data_center",
+        label: "Data centre",
+        required: true,
+        placeholder: "in",
+        hint: "The suffix of your Zoho URL: in, com, eu, com.au or jp. An Indian account is 'in'.",
+      },
     ],
     brand: "#E42527",
+    note:
+      "Refresh tokens are tied to the data centre that issued them. A token from zoho.in used against zoho.com fails as 'invalid code', which reads like a typo but is not one.",
   },
   {
     slug: "salesforce",
     name: "Salesforce",
     category: "CRM",
-    description: "Sync leads and log WhatsApp conversations against Salesforce records.",
-    capability: "credentials",
-    prerequisite: "Create a Connected App and note its consumer key and secret.",
+    description:
+      "Every WhatsApp contact becomes a Salesforce lead, matched on phone number before anything is created.",
+    capability: "sync",
+    prerequisite:
+      "Create a Connected App with OAuth enabled, tick 'Enable Client Credentials Flow', and set a run-as user under Manage → Client Credentials Flow.",
     fields: [
       { name: "instance_url", label: "Instance URL", type: "url", required: true, placeholder: "https://yourorg.my.salesforce.com" },
       { name: "client_id", label: "Consumer key", required: true },
       { name: "client_secret", label: "Consumer secret", type: "password", required: true },
     ],
     brand: "#00A1E0",
+    note:
+      "Without a run-as user on the Connected App, Salesforce issues no token at all and answers every request with invalid_grant.",
   },
   {
     slug: "razorpay",
@@ -344,12 +365,15 @@ export function integrationBySlug(slug: string): IntegrationDef | undefined {
 
 export const CAPABILITY_LABEL: Record<IntegrationCapability, string> = {
   live: "Works now",
+  sync: "Syncs contacts",
   via_webhook: "Works via webhook",
   credentials: "Stores credentials",
 };
 
 export const CAPABILITY_HELP: Record<IntegrationCapability, string> = {
   live: "Fully functional — nothing to register with a third party.",
+  sync:
+    "Functional today: contacts are pushed to this CRM as they arrive, matched on phone number so the same person is never created twice.",
   via_webhook:
     "Functional today: we deliver signed events to the URL you provide, which is exactly how this provider consumes data.",
   credentials:

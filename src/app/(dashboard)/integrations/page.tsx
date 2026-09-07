@@ -1,10 +1,13 @@
+import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
-import { INTEGRATIONS } from "@/lib/integrations";
+import { INTEGRATIONS, integrationBySlug } from "@/lib/integrations";
+import { CRM_PROVIDERS } from "@/lib/crm";
 import IntegrationsBrowser from "./IntegrationsBrowser";
 import type { CardData } from "./IntegrationCard";
 import WhatsAppCard from "./WhatsAppCard";
+import CrmPanel from "./CrmPanel";
 import WebhooksPanel from "./WebhooksPanel";
 import ApiPanel from "./ApiPanel";
 import type { OutgoingWebhook } from "@/types/portal";
@@ -44,13 +47,17 @@ export default async function IntegrationsPage({
     note: one("wa_note"),
   };
 
-  const [{ data: connections }, { data: webhooks }, waba] = await Promise.all([
+  const [{ data: connections }, { data: webhooks }, waba, crm] = await Promise.all([
     // credentials_encrypted is deliberately not selected — this page never
     // needs the secret, and not fetching it keeps it out of the RSC payload.
-    supabase.from("org_integrations").select("provider, status, connected_at").eq("org_id", orgId),
+    supabase
+      .from("org_integrations")
+      .select("provider, status, connected_at, last_error")
+      .eq("org_id", orgId),
     supabase.from("outgoing_webhooks").select("*").eq("org_id", orgId).order("created_at"),
     // access_token_encrypted is likewise never selected here.
     loadWabaConnections(supabase, orgId),
+    loadCrmStatus(supabase, orgId),
   ]);
 
   const wabaConnections = waba.data ?? [];
@@ -82,6 +89,28 @@ export default async function IntegrationsPage({
     })),
   ];
 
+  // One panel per CRM in the catalogue, so a connected CRM opens on its sync
+  // state rather than a credential form it has already been given.
+  const crmPanels: Record<string, ReactNode> = {};
+  for (const provider of CRM_PROVIDERS) {
+    const def = integrationBySlug(provider);
+    if (!def) continue;
+    const row = (connections ?? []).find((entry) => entry.provider === provider);
+    crmPanels[provider] = (
+      <CrmPanel
+        def={def}
+        provider={provider}
+        connected={row?.status === "connected"}
+        canManage={canManage}
+        lastError={row?.last_error ?? null}
+        syncedCount={crm.synced}
+        totalCount={crm.total}
+        lastSyncedAt={crm.lastSyncedAt}
+        recentFailure={crm.lastFailure[provider] ?? null}
+      />
+    );
+  }
+
   return (
     <div className="p-6 md:p-8">
       <IntegrationsBrowser
@@ -111,6 +140,7 @@ export default async function IntegrationsPage({
             />
           ),
           api: <ApiPanel apiBase={apiBase} />,
+          ...crmPanels,
         }}
       />
     </div>
@@ -155,5 +185,74 @@ async function loadWabaConnections(
     // worth naming so the missing banner is explained rather than mysterious.
     error: null,
     degraded: true,
+  };
+}
+
+/**
+ * How much of the contact book has reached a CRM, and what last went wrong.
+ *
+ * "Synced" is counted from contacts.crm_synced_at rather than per provider:
+ * the timestamp is a column and a plain count, where "does this contact have
+ * a HubSpot id" is a key lookup inside a jsonb column that PostgREST cannot
+ * express reliably for a slug with a hyphen in it. A workspace with two CRMs
+ * connected at once would see the same number on both cards, which is worth
+ * it for a count that is always right rather than sometimes silently zero.
+ *
+ * Tolerates a database that has not run the CRM migration: the columns are
+ * new, and losing the counts is better than losing the whole Integrations
+ * page, which is where the operator would go to fix it.
+ */
+async function loadCrmStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string
+): Promise<{
+  total: number;
+  synced: number;
+  lastFailure: Record<string, string>;
+  lastSyncedAt: string | null;
+}> {
+  const empty = { total: 0, synced: 0, lastFailure: {}, lastSyncedAt: null };
+
+  const total = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId);
+  if (total.error) return empty;
+
+  const synced = await supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .not("crm_synced_at", "is", null);
+
+  const recent = await supabase
+    .from("contacts")
+    .select("crm_synced_at")
+    .eq("org_id", orgId)
+    .not("crm_synced_at", "is", null)
+    .order("crm_synced_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const failures = await supabase
+    .from("crm_sync_log")
+    .select("provider, error, created_at")
+    .eq("org_id", orgId)
+    .eq("status", "failed")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  const lastFailure: Record<string, string> = {};
+  for (const row of failures.data ?? []) {
+    // Ordered newest first, so the first one seen for a provider is the one
+    // to show and the rest are history.
+    if (row.error && !lastFailure[row.provider]) lastFailure[row.provider] = row.error;
+  }
+
+  return {
+    total: total.count ?? 0,
+    synced: synced.error ? 0 : (synced.count ?? 0),
+    lastFailure,
+    lastSyncedAt: recent.error ? null : (recent.data?.crm_synced_at ?? null),
   };
 }

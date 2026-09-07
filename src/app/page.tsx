@@ -1,4 +1,4 @@
-import { loadSiteContent } from "@/lib/site-content-server";
+import { loadPricing, loadSiteContent } from "@/lib/site-content-server";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import Features from "@/components/landing/Features";
@@ -16,7 +16,7 @@ import Footer from "@/components/landing/Footer";
 // sections that asked separately.
 
 export default async function HomePage() {
-  const content = await loadSiteContent();
+  const [content, pricing] = await Promise.all([loadSiteContent(), loadPricing()]);
 
   return (
     <main className="bg-[var(--app-bg)] text-white overflow-x-hidden">
@@ -27,7 +27,7 @@ export default async function HomePage() {
       <UseCases />
       <Testimonials />
       <Integrations />
-      <Pricing />
+      <Pricing tiers={pricing.tiers} trialDays={pricing.trialDays} />
       <FAQ />
       <Footer brand={content.brand} />
     </main>

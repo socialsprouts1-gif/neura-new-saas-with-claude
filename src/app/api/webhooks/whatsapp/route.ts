@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { notifyInboundMessage, runInboundMessage } from "@/lib/message-runner";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
+import { syncContact } from "@/lib/crm-sync";
 import { readFlowReply } from "@/lib/flow-reply";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
@@ -317,6 +318,14 @@ async function handleInboundMessages(
         wa_id: waId,
         name: contact.name,
       });
+
+      // Into the CRM as soon as they exist here, so a lead that arrives at
+      // 2am is in the sales team's pipeline before anyone reads the message.
+      // Only on the first message: pushing on every inbound would be three
+      // HTTP calls per message for a record that has not changed. syncContact
+      // never throws and never blocks on a slow CRM for more than a few
+      // seconds.
+      await syncContact(supabase, orgId, contact.id);
     }
 
     // A completed WhatsApp Form arrives as an ordinary interactive message.
