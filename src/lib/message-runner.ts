@@ -17,6 +17,7 @@ import {
 import { graphOf, findNode } from "@/lib/flow-engine";
 import { flowEntryFor, resumeFrom, runFlow, type FlowContext } from "@/lib/flow-runner";
 import { sendTextMessage } from "@/lib/meta-whatsapp";
+import { tryBooking } from "@/lib/appointment-bot";
 
 // The execution half of the message runner. `reply-matcher.ts` decides what
 // to say; this decides whether to say it at all, sends it, moves the
@@ -74,7 +75,7 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
   }
 
   const finish = async (update: {
-    matched_kind?: ReplyPlan["kind"];
+    matched_kind?: ReplyPlan["kind"] | "booking";
     matched_id?: string | null;
     matched_label?: string | null;
     node_id?: string | null;
@@ -112,6 +113,36 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
     // flow with a trigger node owns its own matching — planReply knows
     // nothing about either.
     const connectionForFlow = await loadOrgConnection(supabase, orgId, { conversationId: event.conversationId });
+
+    // Booking comes first, ahead of the flows. A customer halfway through
+    // choosing a time who taps one must get that time — a flow matching on
+    // the same message would answer something unrelated and leave the
+    // booking hanging with no way to finish it.
+    if (connectionForFlow) {
+      const booking = await tryBooking({
+        supabase,
+        connection: connectionForFlow,
+        orgId,
+        conversationId: event.conversationId,
+        contactId: event.contactId,
+        contactWaId: event.contactWaId,
+        contactName: event.contactName,
+        text,
+        buttonId,
+      });
+
+      if (booking) {
+        await finish({
+          matched_kind: "booking",
+          matched_label: booking.label,
+          reply_text: booking.reply,
+          outcome: booking.outcome,
+          error: booking.error,
+        });
+        return;
+      }
+    }
+
     if (connectionForFlow) {
       const flowResult = await tryGraphFlow({
         supabase,

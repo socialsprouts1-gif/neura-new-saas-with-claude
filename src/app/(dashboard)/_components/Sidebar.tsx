@@ -21,6 +21,7 @@ import {
   CreditCard,
   Settings,
   Shield,
+  CalendarCheck,
   CalendarDays,
   ChevronRight,
   DollarSign,
@@ -61,6 +62,7 @@ const PLATFORM: NavItem[] = [
     ],
   },
   { icon: Bell, label: "Reminders", href: "/reminders" },
+  { icon: CalendarCheck, label: "Appointments", href: "/appointments" },
   { icon: CalendarDays, label: "Meetings", href: "/meetings" },
   { icon: LifeBuoy, label: "My support", href: "/support" },
 ];

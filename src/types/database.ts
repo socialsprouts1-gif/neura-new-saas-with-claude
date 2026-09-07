@@ -28,6 +28,10 @@ import type {
   FlowSend,
   FlowResponse,
   Meeting,
+  AppointmentType,
+  AppointmentSettingsRow,
+  AppointmentBlackout,
+  BookingSession,
   Transaction,
   ConversationEvent,
   ApiKey,
@@ -640,6 +644,39 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      appointment_types: {
+        Row: AppointmentType;
+        Insert: Partial<AppointmentType> & { org_id: string; name: string };
+        Update: Partial<AppointmentType>;
+        Relationships: [];
+      };
+      appointment_settings: {
+        Row: AppointmentSettingsRow;
+        Insert: Partial<AppointmentSettingsRow> & { org_id: string };
+        Update: Partial<AppointmentSettingsRow>;
+        Relationships: [];
+      };
+      appointment_blackouts: {
+        Row: AppointmentBlackout;
+        Insert: Partial<AppointmentBlackout> & {
+          org_id: string;
+          starts_at: string;
+          ends_at: string;
+        };
+        Update: Partial<AppointmentBlackout>;
+        Relationships: [];
+      };
+      booking_sessions: {
+        Row: BookingSession;
+        Insert: Partial<BookingSession> & {
+          conversation_id: string;
+          org_id: string;
+          contact_id: string;
+          step: "type" | "date" | "time";
+        };
+        Update: Partial<BookingSession>;
+        Relationships: [];
       };
       transactions: {
         Row: Transaction;

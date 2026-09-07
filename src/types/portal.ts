@@ -118,6 +118,76 @@ export type Meeting = {
   starts_at: string;
   duration_minutes: number;
   status: MeetingStatus;
+  /** The service booked, when it came from the appointment menu. */
+  appointment_type_id: string | null;
+  /** 'whatsapp' means the customer booked it themselves. */
+  source: MeetingSource;
+  reminder_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const MEETING_SOURCES = ["manual", "whatsapp", "api"] as const;
+export type MeetingSource = (typeof MEETING_SOURCES)[number];
+
+// --- appointments ---------------------------------------------------------
+
+/** One thing that can be booked: a consultation, a demo, a haircut. */
+export type AppointmentType = {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  duration_minutes: number;
+  price_cents: number;
+  location: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+/** When the business is open, and what the booking bot says. */
+export type AppointmentSettingsRow = {
+  org_id: string;
+  is_enabled: boolean;
+  timezone: string;
+  slot_minutes: number;
+  buffer_minutes: number;
+  min_notice_minutes: number;
+  horizon_days: number;
+  max_per_slot: number;
+  /** A weekly pattern keyed by weekday; see lib/appointments.ts. */
+  hours: Record<string, Array<{ start: string; end: string }>>;
+  trigger_keywords: string[];
+  location: string | null;
+  greeting: string;
+  confirmation: string;
+  no_slots_message: string;
+  cancelled_message: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A holiday or an afternoon out — an exception to the weekly pattern. */
+export type AppointmentBlackout = {
+  id: string;
+  org_id: string;
+  starts_at: string;
+  ends_at: string;
+  reason: string | null;
+  created_at: string;
+};
+
+/** Where a customer has got to in the booking conversation. */
+export type BookingSession = {
+  conversation_id: string;
+  org_id: string;
+  contact_id: string;
+  step: "type" | "date" | "time";
+  appointment_type_id: string | null;
+  chosen_date: string | null;
+  expires_at: string;
   created_at: string;
   updated_at: string;
 };
@@ -330,6 +400,7 @@ export type BotMatchKind =
   | "automation"
   | "assistant"
   | "handoff"
+  | "booking"
   | "none";
 
 export type BotRunOutcome = "replied" | "skipped" | "handoff" | "failed";

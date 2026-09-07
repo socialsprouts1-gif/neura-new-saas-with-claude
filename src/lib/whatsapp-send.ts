@@ -8,7 +8,9 @@ import {
   describeMetaError,
   isMetaAuthError,
   sendInteractiveButtons,
+  sendInteractiveList,
   sendTextMessage,
+  type MetaListSection,
   type MetaReplyButton,
 } from "@/lib/meta-whatsapp";
 
@@ -85,6 +87,12 @@ interface SendArgs {
   body: string;
   buttons?: MetaReplyButton[];
   /**
+   * A list menu instead of buttons. Meta allows three reply buttons and ten
+   * list rows, so anything with more than three choices — the times a
+   * business is free on a given day — has to be a list.
+   */
+  list?: { buttonText: string; sections: MetaListSection[] };
+  /**
    * Skip the window check. Only for sends that answer an inbound message
    * we are holding in hand — there the window is open by definition and
    * re-reading a just-written column would only add a round trip.
@@ -107,6 +115,7 @@ export async function sendAndLogText({
   toWaId,
   body,
   buttons,
+  list,
   skipWindowCheck = false,
   lastInboundAt,
 }: SendArgs): Promise<SendOutcome> {
@@ -119,19 +128,29 @@ export async function sendAndLogText({
     };
   }
 
-  const useButtons = Boolean(buttons?.length);
+  const useList = Boolean(list?.sections.length);
+  const useButtons = !useList && Boolean(buttons?.length);
 
   let waMessageId: string | null = null;
   try {
-    const result = useButtons
-      ? await sendInteractiveButtons(
+    const result = useList
+      ? await sendInteractiveList(
           connection.phoneNumberId,
           toWaId,
           body,
-          buttons!,
+          list!.buttonText,
+          list!.sections,
           connection.accessToken
         )
-      : await sendTextMessage(connection.phoneNumberId, toWaId, body, connection.accessToken);
+      : useButtons
+        ? await sendInteractiveButtons(
+            connection.phoneNumberId,
+            toWaId,
+            body,
+            buttons!,
+            connection.accessToken
+          )
+        : await sendTextMessage(connection.phoneNumberId, toWaId, body, connection.accessToken);
 
     waMessageId = result.messages[0]?.id ?? null;
   } catch (error) {
@@ -172,8 +191,8 @@ export async function sendAndLogText({
   const { error: messageError } = await supabase.from("messages").insert({
     conversation_id: conversationId,
     direction: "outbound",
-    type: useButtons ? "interactive" : "text",
-    content: useButtons ? { body, buttons } : { body },
+    type: useButtons || useList ? "interactive" : "text",
+    content: useList ? { body, sections: list!.sections } : useButtons ? { body, buttons } : { body },
     wa_message_id: waMessageId,
     status: "sent",
   });
