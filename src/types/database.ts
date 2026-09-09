@@ -28,6 +28,9 @@ import type {
   FlowSend,
   FlowResponse,
   Meeting,
+  StoreOrder,
+  StoreOrderItem,
+  PaymentSettings,
   AppointmentType,
   AppointmentSettingsRow,
   AppointmentBlackout,
@@ -112,6 +115,10 @@ export interface Database {
           last_checked_at: string | null;
           last_error: string | null;
           last_error_at: string | null;
+          catalog_id: string | null;
+          catalog_name: string | null;
+          is_catalog_visible: boolean | null;
+          is_cart_enabled: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -132,6 +139,10 @@ export interface Database {
           last_checked_at?: string | null;
           last_error?: string | null;
           last_error_at?: string | null;
+          catalog_id?: string | null;
+          catalog_name?: string | null;
+          is_catalog_visible?: boolean | null;
+          is_cart_enabled?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -676,6 +687,32 @@ export interface Database {
           step: "type" | "date" | "time";
         };
         Update: Partial<BookingSession>;
+        Relationships: [];
+      };
+      store_orders: {
+        Row: StoreOrder;
+        Insert: Partial<StoreOrder> & { org_id: string; reference: string };
+        Update: Partial<StoreOrder>;
+        Relationships: [
+          {
+            foreignKeyName: "store_orders_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      store_order_items: {
+        Row: StoreOrderItem;
+        Insert: Partial<StoreOrderItem> & { order_id: string; name: string };
+        Update: Partial<StoreOrderItem>;
+        Relationships: [];
+      };
+      payment_settings: {
+        Row: PaymentSettings;
+        Insert: Partial<PaymentSettings> & { org_id: string };
+        Update: Partial<PaymentSettings>;
         Relationships: [];
       };
       transactions: {

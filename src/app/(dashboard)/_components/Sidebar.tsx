@@ -98,7 +98,7 @@ const MAIN: NavItem[] = [
   },
   { icon: Plug, label: "Integrations", href: "/integrations" },
   { icon: ShoppingBag, label: "Commerce", href: "/commerce" },
-  { icon: Wallet, label: "WA Pay", href: "/wa-pay", soon: true },
+  { icon: Wallet, label: "WA Pay", href: "/wa-pay" },
   { icon: ImageIcon, label: "Gallery", href: "/gallery" },
   { icon: HelpCircle, label: "FAQ Bot", href: "/faq-bot" },
   { icon: Bot, label: "Chatbot", href: "/chatbot" },

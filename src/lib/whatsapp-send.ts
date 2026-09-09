@@ -31,6 +31,12 @@ export interface OrgConnection {
   /** waba_connections.id — needed to record credential failures against it. */
   id: string;
   phoneNumberId: string;
+  /**
+   * The WhatsApp Business Account. Sending never needs it, but templates,
+   * flows and the commerce catalogue all hang off the WABA rather than the
+   * number, and each of those had been re-fetching the row to get it.
+   */
+  wabaId: string;
   accessToken: string;
   /** Whatever we last recorded, so a success knows whether to clear it. */
   lastError: string | null;
@@ -64,6 +70,7 @@ export async function loadOrgConnection(
   return {
     id: resolved.id,
     phoneNumberId: resolved.phoneNumberId,
+    wabaId: resolved.wabaId,
     accessToken: resolved.accessToken,
     lastError: resolved.lastError,
   };

@@ -725,3 +725,287 @@ export async function registerPhoneNumber(
     body: { messaging_product: "whatsapp", pin },
   });
 }
+
+// ---------------------------------------------------------------- commerce
+//
+// The commerce catalogue lives on the WhatsApp Business Account, not the
+// phone number, and product messages carry its id plus each item's
+// retailer_id — the SKU as Meta's Commerce Manager knows it, which is not
+// necessarily the SKU the business uses internally.
+//
+// Nothing here writes to the catalogue. Creating catalogue products needs
+// catalog_management, a permission this app has not been granted, and
+// pretending otherwise would fail on the first product with an error about
+// scopes. Products are managed in Commerce Manager and read from here,
+// which is how the rest of the market works too.
+
+export interface MetaCatalog {
+  id: string;
+  name: string;
+  /** How many items Meta says are in it. */
+  productCount: number | null;
+}
+
+/**
+ * The catalogues attached to a WABA.
+ *
+ * Usually exactly one. More than one is possible and Meta gives no way to
+ * mark a default, so the caller picks and we store the choice.
+ */
+export async function listWabaCatalogs(
+  wabaId: string,
+  accessToken: string
+): Promise<MetaCatalog[]> {
+  const data = (await graph(
+    `${wabaId}/product_catalogs?fields=id,name,product_count`,
+    accessToken
+  )) as { data?: Array<{ id: string; name?: string; product_count?: number }> };
+
+  return (data.data ?? []).map((entry) => ({
+    id: entry.id,
+    name: entry.name ?? entry.id,
+    productCount: typeof entry.product_count === "number" ? entry.product_count : null,
+  }));
+}
+
+export interface MetaCatalogProduct {
+  /** Meta's own id for the item. */
+  id: string;
+  /** The SKU a product message must reference. */
+  retailerId: string;
+  name: string;
+  description: string | null;
+  /** Formatted by Meta, e.g. "₹1,299.00" — it has no minor-unit field. */
+  price: string | null;
+  currency: string | null;
+  availability: string | null;
+  imageUrl: string | null;
+  url: string | null;
+}
+
+/**
+ * The items in a catalogue.
+ *
+ * `price` comes back as a formatted string rather than a number, so the
+ * caller parses it. Meta offers no minor-unit field on this edge.
+ */
+export async function listCatalogProducts(
+  catalogId: string,
+  accessToken: string,
+  limit = 200
+): Promise<MetaCatalogProduct[]> {
+  const fields = [
+    "id",
+    "retailer_id",
+    "name",
+    "description",
+    "price",
+    "currency",
+    "availability",
+    "image_url",
+    "url",
+  ].join(",");
+
+  const data = (await graph(
+    `${catalogId}/products?fields=${fields}&limit=${Math.min(limit, 500)}`,
+    accessToken
+  )) as {
+    data?: Array<{
+      id: string;
+      retailer_id?: string;
+      name?: string;
+      description?: string;
+      price?: string;
+      currency?: string;
+      availability?: string;
+      image_url?: string;
+      url?: string;
+    }>;
+  };
+
+  return (data.data ?? [])
+    // An item without a retailer_id cannot be put in a product message, so
+    // importing it would create a row nothing can send.
+    .filter((entry) => !!entry.retailer_id)
+    .map((entry) => ({
+      id: entry.id,
+      retailerId: entry.retailer_id!,
+      name: entry.name ?? entry.retailer_id!,
+      description: entry.description ?? null,
+      price: entry.price ?? null,
+      currency: entry.currency ?? null,
+      availability: entry.availability ?? null,
+      imageUrl: entry.image_url ?? null,
+      url: entry.url ?? null,
+    }));
+}
+
+export interface CommerceSettings {
+  isCatalogVisible: boolean | null;
+  isCartEnabled: boolean | null;
+}
+
+/**
+ * Whether the storefront and cart are switched on for a number.
+ *
+ * Worth reading rather than assuming: a catalogue that exists but is not
+ * visible looks identical to one that is, right up until a customer cannot
+ * find the shop button.
+ */
+export async function getCommerceSettings(
+  phoneNumberId: string,
+  accessToken: string
+): Promise<CommerceSettings> {
+  const data = (await graph(
+    `${phoneNumberId}/whatsapp_commerce_settings`,
+    accessToken
+  )) as { data?: Array<{ is_catalog_visible?: boolean; is_cart_enabled?: boolean }> };
+
+  const settings = data.data?.[0];
+  return {
+    isCatalogVisible: settings?.is_catalog_visible ?? null,
+    isCartEnabled: settings?.is_cart_enabled ?? null,
+  };
+}
+
+/** Turns the storefront icon and the cart on or off for a number. */
+export async function setCommerceSettings(
+  phoneNumberId: string,
+  accessToken: string,
+  settings: { isCatalogVisible?: boolean; isCartEnabled?: boolean }
+): Promise<void> {
+  const params = new URLSearchParams();
+  if (settings.isCatalogVisible !== undefined) {
+    params.set("is_catalog_visible", String(settings.isCatalogVisible));
+  }
+  if (settings.isCartEnabled !== undefined) {
+    params.set("is_cart_enabled", String(settings.isCartEnabled));
+  }
+  if ([...params.keys()].length === 0) return;
+
+  // Query parameters, not a JSON body — this edge is one of the few that
+  // rejects the body form.
+  await graph(`${phoneNumberId}/whatsapp_commerce_settings?${params}`, accessToken, {
+    method: "POST",
+  });
+}
+
+/** One product, with its own card in the chat. */
+export function sendProductMessage(
+  phoneNumberId: string,
+  to: string,
+  catalogId: string,
+  retailerId: string,
+  accessToken: string,
+  options: { body?: string; footer?: string } = {}
+): Promise<MetaSendMessageResponse> {
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "product",
+      ...(options.body ? { body: { text: options.body } } : {}),
+      ...(options.footer ? { footer: { text: options.footer } } : {}),
+      action: { catalog_id: catalogId, product_retailer_id: retailerId },
+    },
+  });
+}
+
+export interface MetaProductSection {
+  title: string;
+  retailerIds: string[];
+}
+
+/** Meta's cap on a multi-product message: 30 items across all sections. */
+export const MAX_PRODUCT_ITEMS = 30;
+
+/**
+ * Several products, as a browsable list the customer can add to a cart.
+ *
+ * Unlike the single-product form, the header is required and must be text —
+ * Meta rejects the message without one.
+ */
+export function sendProductListMessage(
+  phoneNumberId: string,
+  to: string,
+  catalogId: string,
+  header: string,
+  body: string,
+  sections: MetaProductSection[],
+  accessToken: string,
+  options: { footer?: string } = {}
+): Promise<MetaSendMessageResponse> {
+  let remaining = MAX_PRODUCT_ITEMS;
+  const clamped = sections
+    .map((section) => {
+      const ids = section.retailerIds.slice(0, Math.max(0, remaining));
+      remaining -= ids.length;
+      return {
+        title: section.title.slice(0, 24),
+        product_items: ids.map((id) => ({ product_retailer_id: id })),
+      };
+    })
+    .filter((section) => section.product_items.length > 0);
+
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "product_list",
+      header: { type: "text", text: header.slice(0, 60) },
+      body: { text: body },
+      ...(options.footer ? { footer: { text: options.footer } } : {}),
+      action: { catalog_id: catalogId, sections: clamped },
+    },
+  });
+}
+
+/** The whole catalogue, as a single "view catalogue" card. */
+export function sendCatalogMessage(
+  phoneNumberId: string,
+  to: string,
+  body: string,
+  accessToken: string,
+  options: { footer?: string; thumbnailRetailerId?: string } = {}
+): Promise<MetaSendMessageResponse> {
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "interactive",
+    interactive: {
+      type: "catalog_message",
+      body: { text: body },
+      ...(options.footer ? { footer: { text: options.footer } } : {}),
+      action: {
+        name: "catalog_message",
+        ...(options.thumbnailRetailerId
+          ? {
+              parameters: {
+                thumbnail_product_retailer_id: options.thumbnailRetailerId,
+              },
+            }
+          : {}),
+      },
+    },
+  });
+}
+
+/**
+ * Sends a message body this module did not build.
+ *
+ * The escape hatch for the two payloads that are shaped by pure code
+ * elsewhere so they can be tested — order_details and order_status, whose
+ * amounts must add up to the paisa and are therefore worth asserting on
+ * without a network. `body` is everything but the recipient: type,
+ * interactive, and a context when the message quotes another.
+ *
+ * Not a general-purpose hole. Anything sent often enough to have a shape
+ * belongs in a named function above, where the caps and the caveats live.
+ */
+export function sendRawMessage(
+  phoneNumberId: string,
+  to: string,
+  body: Record<string, unknown>,
+  accessToken: string
+): Promise<MetaSendMessageResponse> {
+  return postToMessagesEndpoint(phoneNumberId, accessToken, { to, ...body });
+}

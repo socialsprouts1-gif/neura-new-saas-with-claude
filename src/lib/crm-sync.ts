@@ -1,6 +1,6 @@
 import "server-only";
 
-import { decryptToken } from "@/lib/crypto";
+import { loadIntegrations } from "@/lib/integration-store";
 import {
   CRM_PROVIDERS,
   CRM_RECORD_LABEL,
@@ -390,43 +390,27 @@ export function testCrmConnection(connection: CrmConnection): Promise<string | n
 // -------------------------------------------------------------- loading
 
 /**
- * The org's connected CRMs, credentials decrypted.
+ * The org's connected CRMs.
  *
- * A row whose credentials will not decrypt is dropped rather than thrown on:
- * one bad connection must not stop the others syncing, and the sync log
- * records the reason per contact anyway.
+ * A row whose credentials will not decrypt is dropped by the loader rather
+ * than thrown on: one bad connection must not stop the others syncing, and
+ * the sync log records the reason per contact anyway.
  */
 export async function loadCrmConnections(
   supabase: RunnerClient,
   orgId: string,
   only?: CrmProvider
 ): Promise<CrmConnection[]> {
-  const providers = only ? [only] : CRM_PROVIDERS;
-  const { data, error } = await supabase
-    .from("org_integrations")
-    .select("provider, status, credentials_encrypted, config")
-    .eq("org_id", orgId)
-    .eq("status", "connected")
-    .in("provider", providers);
-
-  if (error || !data) return [];
+  const stored = await loadIntegrations(supabase, orgId, only ? [only] : CRM_PROVIDERS);
 
   const connections: CrmConnection[] = [];
-  for (const row of data as Array<{
-    provider: string;
-    credentials_encrypted: string | null;
-    config: Record<string, string> | null;
-  }>) {
-    if (!isCrmProvider(row.provider)) continue;
-    let credentials: Record<string, string> = {};
-    if (row.credentials_encrypted) {
-      try {
-        credentials = JSON.parse(decryptToken(row.credentials_encrypted));
-      } catch {
-        continue;
-      }
-    }
-    connections.push({ provider: row.provider, credentials, config: row.config ?? {} });
+  for (const entry of stored) {
+    if (!isCrmProvider(entry.provider)) continue;
+    connections.push({
+      provider: entry.provider,
+      credentials: entry.credentials,
+      config: entry.config,
+    });
   }
   return connections;
 }

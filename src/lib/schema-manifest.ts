@@ -65,4 +65,7 @@ export const SCHEMA_MANIFEST: SchemaTable[] = [
   { table: "appointment_settings", migration: "20260911090000_appointments.sql", bundle: "2026-09" },
   { table: "appointment_blackouts", migration: "20260911090000_appointments.sql", bundle: "2026-09" },
   { table: "booking_sessions", migration: "20260911090000_appointments.sql", bundle: "2026-09" },
+  { table: "store_orders", migration: "20260913090000_commerce_orders.sql", bundle: "2026-09" },
+  { table: "store_order_items", migration: "20260913090000_commerce_orders.sql", bundle: "2026-09" },
+  { table: "payment_settings", migration: "20260913090000_commerce_orders.sql", bundle: "2026-09" },
 ];

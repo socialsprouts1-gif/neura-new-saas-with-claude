@@ -9,6 +9,9 @@
 export type IntegrationCapability =
   | "live" // works end to end right now, no third-party app registration needed
   | "sync" // credentials are used: contacts are pushed to the provider for real
+  | "import" // credentials are used: data is pulled in from the provider
+  | "payments" // credentials are used: payment links are created for real
+  | "lookup" // credentials are used: a live read, on demand
   | "credentials" // stores and validates credentials; per-provider sync not built
   | "via_webhook"; // works today by consuming our outgoing webhook / API
 
@@ -160,29 +163,38 @@ export const INTEGRATIONS: IntegrationDef[] = [
     slug: "shopify",
     name: "Shopify",
     category: "E-commerce",
-    description: "Abandoned cart recovery, order updates and catalogue sync.",
-    capability: "credentials",
-    prerequisite: "Create a custom app in your Shopify admin and copy its Admin API access token.",
+    description:
+      "Pull your products into the WhatsApp catalogue — name, price, stock and photo — so you can send them in a conversation.",
+    capability: "import",
+    prerequisite:
+      "Shopify admin → Settings → Apps and sales channels → Develop apps → create an app with read_products, then install it on the store.",
     fields: [
-      { name: "shop_domain", label: "Shop domain", required: true, placeholder: "your-store.myshopify.com" },
+      { name: "shop_domain", label: "Shop domain", required: true, placeholder: "your-store.myshopify.com", hint: "The myshopify.com domain, not your custom one." },
       { name: "access_token", label: "Admin API access token", type: "password", required: true, placeholder: "shpat_…" },
+      { name: "currency", label: "Currency", placeholder: "INR", hint: "The currency your prices are in. Defaults to INR." },
     ],
     brand: "#95BF47",
     featured: true,
+    note:
+      "Creating the custom app is not enough — it has to be installed on the store as well, or every request comes back 401.",
   },
   {
     slug: "woocommerce",
     name: "WooCommerce",
     category: "E-commerce",
-    description: "Order notifications and catalogue sync from your WordPress store.",
-    capability: "credentials",
-    prerequisite: "WooCommerce → Settings → Advanced → REST API → create a read/write key.",
+    description:
+      "Pull your published products into the WhatsApp catalogue so you can share them in a conversation.",
+    capability: "import",
+    prerequisite: "WooCommerce → Settings → Advanced → REST API → create a key with Read access.",
     fields: [
       { name: "store_url", label: "Store URL", type: "url", required: true, placeholder: "https://yourstore.com" },
       { name: "consumer_key", label: "Consumer key", required: true, placeholder: "ck_…" },
       { name: "consumer_secret", label: "Consumer secret", type: "password", required: true, placeholder: "cs_…" },
+      { name: "currency", label: "Currency", placeholder: "INR", hint: "The currency your prices are in. Defaults to INR." },
     ],
     brand: "#7F54B3",
+    note:
+      "The store URL has to be https. WooCommerce refuses key-pair auth over plain HTTP, and the failure looks exactly like a wrong secret.",
   },
   {
     slug: "hubspot",
@@ -248,55 +260,75 @@ export const INTEGRATIONS: IntegrationDef[] = [
     slug: "razorpay",
     name: "Razorpay",
     category: "Payments",
-    description: "Send payment links over WhatsApp and confirm payments automatically.",
-    capability: "credentials",
-    prerequisite: "Razorpay Dashboard → Settings → API Keys → generate a key pair.",
+    description:
+      "Ask for money in a conversation: a UPI payment link the customer taps, and the order marked paid when it clears.",
+    capability: "payments",
+    prerequisite: "Razorpay Dashboard → Account & Settings → API Keys → generate a key pair.",
     fields: [
       { name: "key_id", label: "Key ID", required: true, placeholder: "rzp_live_…" },
       { name: "key_secret", label: "Key secret", type: "password", required: true },
+      {
+        name: "webhook_secret",
+        label: "Webhook secret",
+        type: "password",
+        hint: "From Razorpay → Settings → Webhooks. Without it a payment notification cannot be trusted and orders are never marked paid.",
+      },
     ],
     brand: "#0C2451",
     featured: true,
     note:
-      "Use Connect to add a merchant account, then set its webhook to the URL shown after saving — without that, payments clear at Razorpay but never mark the order paid here.",
+      "A live Key ID with a test secret fails identically to a wrong secret. Check both came from the same mode.",
   },
   {
     slug: "stripe",
     name: "Stripe",
     category: "Payments",
-    description: "Payment links and receipts delivered through WhatsApp.",
-    capability: "credentials",
+    description: "Payment links sent in a WhatsApp conversation, for customers paying by card.",
+    capability: "payments",
     prerequisite: "Stripe Dashboard → Developers → API keys → copy your secret key.",
     fields: [
       { name: "secret_key", label: "Secret key", type: "password", required: true, placeholder: "sk_live_…" },
+      {
+        name: "webhook_secret",
+        label: "Webhook signing secret",
+        type: "password",
+        placeholder: "whsec_…",
+        hint: "From Stripe → Developers → Webhooks, after adding the endpoint. Without it orders are never marked paid.",
+      },
     ],
     brand: "#635BFF",
-    featured: true,
+    note: "No UPI. For an Indian customer, Razorpay or Cashfree is the one to connect.",
   },
   {
     slug: "shiprocket",
     name: "Shiprocket",
     category: "E-commerce",
-    description: "Shipping and delivery updates pushed to customers on WhatsApp.",
-    capability: "credentials",
-    prerequisite: "Create an API user under Shiprocket → Settings → API.",
+    description:
+      "Look up where a parcel is by AWB number, so you can answer “where is my order?” without leaving the inbox.",
+    capability: "lookup",
+    prerequisite: "Shiprocket → Settings → API → Configure → create an API user.",
     fields: [
       { name: "email", label: "API user email", required: true },
       { name: "password", label: "API user password", type: "password", required: true },
     ],
     brand: "#E94B3C",
+    note:
+      "It has to be an API user, not your dashboard login. Shiprocket refuses the dashboard account on this endpoint.",
   },
   {
     slug: "calendly",
     name: "Calendly",
     category: "Productivity",
-    description: "Share booking links and send appointment reminders over WhatsApp.",
-    capability: "credentials",
+    description:
+      "Pull your Calendly booking links so you can share the right one in a conversation.",
+    capability: "lookup",
     prerequisite: "Calendly → Integrations → API & Webhooks → create a personal access token.",
     fields: [
       { name: "access_token", label: "Personal access token", type: "password", required: true },
     ],
     brand: "#006BFF",
+    note:
+      "For booking on WhatsApp itself — a menu of days and times the customer taps — use the built-in Appointments screen instead. This only shares links.",
   },
   {
     slug: "facebook-lead-ads",
@@ -304,12 +336,13 @@ export const INTEGRATIONS: IntegrationDef[] = [
     category: "CRM",
     description:
       "New leads from your Facebook and Instagram lead forms arrive as contacts, ready for an instant WhatsApp follow-up.",
-    capability: "credentials",
+    capability: "import",
     prerequisite:
-      "Meta Business Settings → System Users → generate a token with leads_retrieval and pages_manage_ads, then note the Page ID.",
+      "Meta Business Settings → System Users → generate a token with leads_retrieval and pages_show_list, then note the Page ID.",
     fields: [
       { name: "page_id", label: "Page ID", required: true, placeholder: "123456789012345" },
       { name: "access_token", label: "Page access token", type: "password", required: true, placeholder: "EAAG…" },
+      { name: "country_code", label: "Default country code", placeholder: "91", hint: "Added to any number that arrives without one." },
     ],
     brand: "#1877F2",
     featured: true,
@@ -320,27 +353,42 @@ export const INTEGRATIONS: IntegrationDef[] = [
     slug: "cashfree",
     name: "Cashfree",
     category: "Payments",
-    description: "Send Cashfree payment links over WhatsApp and mark orders paid when they clear.",
-    capability: "credentials",
+    description:
+      "UPI payment links sent in a conversation, and the order marked paid when the money lands.",
+    capability: "payments",
     prerequisite: "Cashfree Merchant Dashboard → Developers → API Keys.",
     fields: [
       { name: "app_id", label: "App ID", required: true },
       { name: "secret_key", label: "Secret key", type: "password", required: true },
+      { name: "mode", label: "Mode", placeholder: "production", hint: "production or sandbox. Must match where the keys came from." },
+      {
+        name: "webhook_secret",
+        label: "Webhook secret",
+        type: "password",
+        hint: "Cashfree uses your secret key to sign webhooks — paste it here too. Without it orders are never marked paid.",
+      },
     ],
     brand: "#6933FF",
+    note:
+      "Sandbox and production are different hosts and do not accept each other's keys — a sandbox key against production is a 401 that reads like a bad secret.",
   },
   {
     slug: "indiamart",
     name: "IndiaMART",
     category: "CRM",
-    description: "Pull buyer enquiries from IndiaMART into contacts so no lead waits for a callback.",
-    capability: "credentials",
+    description:
+      "Pull the last week of buyer enquiries in as contacts, so no lead sits waiting for a callback.",
+    capability: "import",
     prerequisite: "IndiaMART Seller Panel → Lead Manager → CRM Integration → copy your CRM key.",
     fields: [
       { name: "crm_key", label: "CRM key", type: "password", required: true },
       { name: "mobile", label: "Registered mobile", required: true, placeholder: "9198XXXXXXXX" },
+      { name: "country_code", label: "Default country code", placeholder: "91", hint: "IndiaMART returns bare ten-digit mobiles; this is prefixed to them." },
     ],
     brand: "#2D3E88",
+    featured: true,
+    note:
+      "IndiaMART allows one pull every five minutes and only returns the last seven days, so run it regularly rather than once.",
   },
   {
     slug: "google-calendar",
@@ -376,6 +424,9 @@ export function integrationBySlug(slug: string): IntegrationDef | undefined {
 export const CAPABILITY_LABEL: Record<IntegrationCapability, string> = {
   live: "Works now",
   sync: "Syncs contacts",
+  import: "Imports data",
+  payments: "Takes payments",
+  lookup: "Live lookup",
   via_webhook: "Works via webhook",
   credentials: "Stores credentials",
 };
@@ -384,6 +435,12 @@ export const CAPABILITY_HELP: Record<IntegrationCapability, string> = {
   live: "Fully functional — nothing to register with a third party.",
   sync:
     "Functional today: contacts are pushed to this CRM as they arrive, matched on phone number so the same person is never created twice.",
+  import:
+    "Functional today: press the button and data is pulled in from this provider for real.",
+  payments:
+    "Functional today: payment links are created through this gateway and sent in the conversation.",
+  lookup:
+    "Functional today: the credentials are used for a live read whenever you ask for one.",
   via_webhook:
     "Functional today: we deliver signed events to the URL you provide, which is exactly how this provider consumes data.",
   credentials:

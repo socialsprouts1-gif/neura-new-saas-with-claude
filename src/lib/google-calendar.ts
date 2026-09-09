@@ -1,6 +1,6 @@
 import "server-only";
 
-import { decryptToken } from "@/lib/crypto";
+import { loadIntegration } from "@/lib/integration-store";
 import type { RunnerClient } from "@/lib/whatsapp-send";
 
 // Putting a booking in the business's own calendar.
@@ -225,31 +225,19 @@ export async function loadGoogleCalendar(
   supabase: RunnerClient,
   orgId: string
 ): Promise<GoogleCalendarCredentials | null> {
-  const { data, error } = await supabase
-    .from("org_integrations")
-    .select("credentials_encrypted, config, status")
-    .eq("org_id", orgId)
-    .eq("provider", "google-calendar")
-    .eq("status", "connected")
-    .maybeSingle();
+  const stored = await loadIntegration(supabase, orgId, "google-calendar");
+  if (!stored) return null;
 
-  if (error || !data?.credentials_encrypted) return null;
-
-  let secrets: Record<string, string>;
-  try {
-    secrets = JSON.parse(decryptToken(data.credentials_encrypted));
-  } catch {
-    return null;
-  }
-
-  const config = (data.config ?? {}) as Record<string, string>;
-  const clientId = config.client_id ?? secrets.client_id;
-  if (!clientId || !secrets.client_secret || !secrets.refresh_token) return null;
+  const { values, config } = stored;
+  // A half-filled connection is worse than none: it would fail on the first
+  // booking with an error about a missing field rather than about not being
+  // connected.
+  if (!values.client_id || !values.client_secret || !values.refresh_token) return null;
 
   return {
-    clientId,
-    clientSecret: secrets.client_secret,
-    refreshToken: secrets.refresh_token,
+    clientId: values.client_id,
+    clientSecret: values.client_secret,
+    refreshToken: values.refresh_token,
     calendarId: config.calendar_id?.trim() || "primary",
   };
 }

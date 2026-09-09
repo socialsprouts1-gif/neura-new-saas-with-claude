@@ -9,6 +9,9 @@ import { connectIntegration, disconnectIntegration } from "../portal-actions";
 const CAPABILITY_TONE: Record<IntegrationDef["capability"], Tone> = {
   live: "green",
   sync: "green",
+  import: "green",
+  payments: "green",
+  lookup: "green",
   via_webhook: "blue",
   credentials: "amber",
 };

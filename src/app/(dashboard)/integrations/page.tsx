@@ -4,10 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { INTEGRATIONS, integrationBySlug } from "@/lib/integrations";
 import { CRM_PROVIDERS } from "@/lib/crm";
+import { LEAD_PROVIDERS, PAYMENT_PROVIDERS, STORE_PROVIDERS } from "@/lib/provider-meta";
 import IntegrationsBrowser from "./IntegrationsBrowser";
 import type { CardData } from "./IntegrationCard";
 import WhatsAppCard from "./WhatsAppCard";
 import CrmPanel from "./CrmPanel";
+import ProviderPanel from "./ProviderPanel";
 import WebhooksPanel from "./WebhooksPanel";
 import ApiPanel from "./ApiPanel";
 import type { OutgoingWebhook } from "@/types/portal";
@@ -107,6 +109,39 @@ export default async function IntegrationsPage({
         totalCount={crm.total}
         lastSyncedAt={crm.lastSyncedAt}
         recentFailure={crm.lastFailure[provider] ?? null}
+      />
+    );
+  }
+
+  // Everything else that makes a real call: gateways, shops, lead sources,
+  // and the three one-trick providers. Each gets a Test button and its own
+  // operation, so a connected card is never a card that does nothing.
+  const OTHER_PROVIDERS = [
+    ...PAYMENT_PROVIDERS,
+    ...STORE_PROVIDERS,
+    ...LEAD_PROVIDERS,
+    "google-calendar",
+    "shiprocket",
+    "calendly",
+  ];
+
+  for (const provider of OTHER_PROVIDERS) {
+    const def = integrationBySlug(provider);
+    if (!def) continue;
+    const row = (connections ?? []).find((entry) => entry.provider === provider);
+    crmPanels[provider] = (
+      <ProviderPanel
+        def={def}
+        connected={row?.status === "connected"}
+        canManage={canManage}
+        lastError={row?.last_error ?? null}
+        // Only the gateways have a webhook to receive, and only they need
+        // the URL spelled out.
+        webhookUrl={
+          (PAYMENT_PROVIDERS as string[]).includes(provider)
+            ? `${apiBase}/webhooks/payments/${provider}`
+            : null
+        }
       />
     );
   }

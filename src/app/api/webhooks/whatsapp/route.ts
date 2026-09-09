@@ -5,6 +5,14 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { notifyInboundMessage, runInboundMessage } from "@/lib/message-runner";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
 import { syncContact } from "@/lib/crm-sync";
+import {
+  loadPaymentSettings,
+  recordInboundCart,
+  updateOrderStatus,
+} from "@/lib/commerce";
+import { fillTemplate } from "@/lib/booking-dialogue";
+import { formatAmount } from "@/lib/orders";
+import { loadOrgConnection } from "@/lib/whatsapp-send";
 import { readFlowReply } from "@/lib/flow-reply";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
@@ -230,6 +238,101 @@ async function processChangeValue(
   }
   if (value.statuses?.length) {
     await handleStatusUpdates(supabase, value.statuses);
+    // A payment made inside WhatsApp arrives attached to a status, not as a
+    // message. Handled after the ordinary status update, which is about the
+    // message's delivery rather than the money.
+    await handleWhatsAppPayments(supabase, connection.org_id, value.statuses);
+  }
+}
+
+/** A payment update as Meta attaches it to a message status. */
+interface MetaPaymentUpdate {
+  reference_id?: string;
+  transaction?: {
+    id?: string;
+    status?: string;
+    type?: string;
+  };
+  status?: string;
+}
+
+/**
+ * Marks an order paid when the customer paid inside WhatsApp.
+ *
+ * Meta's own guidance is not to trust the status in the webhook on its own
+ * and to confirm against the payment lookup API — which is behind the same
+ * alpha-stage payments programme as the rest of this flow. Until this app
+ * has access to it, the compromise is deliberate and narrow: only a
+ * `captured`/`success` transaction on an order we are actually awaiting
+ * payment for moves anything, and the transaction id is stored so a
+ * reconciliation later has something to check against.
+ */
+async function handleWhatsAppPayments(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  statuses: MetaStatusUpdate[]
+): Promise<void> {
+  for (const status of statuses) {
+    const payment = (status as unknown as { payment?: MetaPaymentUpdate }).payment;
+    const reference = payment?.reference_id;
+    if (!payment || !reference) continue;
+
+    const state = (payment.transaction?.status ?? payment.status ?? "").toLowerCase();
+    const settled = state === "captured" || state === "success" || state === "completed";
+
+    try {
+      const { data: order } = await supabase
+        .from("store_orders")
+        .select("id, org_id, reference, status, currency, total_cents, conversation_id")
+        .eq("org_id", orgId)
+        .eq("reference", reference)
+        .maybeSingle();
+
+      if (!order) continue;
+
+      await supabase
+        .from("store_orders")
+        .update({
+          payment_status: state || "unknown",
+          payment_reference: payment.transaction?.id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
+
+      // Redelivery is normal, and marking an order paid twice would send the
+      // customer a second thank-you.
+      if (!settled || order.status === "paid" || order.status === "confirmed") continue;
+
+      const settings = await loadPaymentSettings(supabase, orgId);
+      const connection = await loadOrgConnection(supabase, orgId, {
+        conversationId: order.conversation_id,
+      });
+
+      await updateOrderStatus({
+        supabase,
+        orgId,
+        orderId: order.id,
+        status: "paid",
+        notify: connection
+          ? {
+              connection,
+              body: fillTemplate(settings.payment_received_message, {
+                reference: order.reference,
+                total: formatAmount(order.total_cents, order.currency),
+              }),
+            }
+          : null,
+      });
+
+      await dispatchWebhookEvent(supabase, orgId, "order.paid", {
+        reference: order.reference,
+        total_cents: order.total_cents,
+        currency: order.currency,
+        provider: "whatsapp",
+      });
+    } catch (error) {
+      console.error("Handling a WhatsApp payment update failed", error);
+    }
   }
 }
 
@@ -326,6 +429,20 @@ async function handleInboundMessages(
       // never throws and never blocks on a slow CRM for more than a few
       // seconds.
       await syncContact(supabase, orgId, contact.id);
+    }
+
+    // A cart. The customer picked items out of the catalogue in WhatsApp and
+    // sent them; Meta delivers it as its own message type, not an
+    // interactive reply. Recorded before the bot runs so an order survives
+    // even if an automation later fails on the same message.
+    if (message.type === "order") {
+      await handleInboundOrder(supabase, orgId, {
+        order: (message.order ?? {}) as InboundOrder,
+        conversationId: conversation.id,
+        contactId: contact.id,
+        contactWaId: waId,
+        contactName: contact.name,
+      });
     }
 
     // A completed WhatsApp Form arrives as an ordinary interactive message.
@@ -514,4 +631,71 @@ function extractMessageContent(message: MetaInboundMessage): Record<string, unkn
   // Fall back to the whole message for types with no such sub-object.
   const typed = message[message.type];
   return typed && typeof typed === "object" ? (typed as Record<string, unknown>) : message;
+}
+
+/** The cart, as Meta reports it on an inbound order message. */
+interface InboundOrder {
+  catalog_id?: string;
+  text?: string;
+  product_items?: unknown[];
+}
+
+/**
+ * Records a cart a customer sent from the catalogue.
+ *
+ * Never throws: an order that cannot be saved must not cost the customer
+ * their message or the workspace its automation. The failure is logged and
+ * the message carries on down the pipeline as an ordinary one.
+ */
+async function handleInboundOrder(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  args: {
+    order: InboundOrder;
+    conversationId: string;
+    contactId: string;
+    contactWaId: string;
+    contactName: string | null;
+  }
+): Promise<void> {
+  try {
+    // The number the customer wrote to, not the workspace default: an
+    // acknowledgement has to come from the number they contacted.
+    const connection = await loadOrgConnection(supabase, orgId, {
+      conversationId: args.conversationId,
+    });
+    if (!connection) {
+      console.error("A cart arrived but no connection could be loaded to answer on");
+      return;
+    }
+
+    const result = await recordInboundCart(
+      {
+        supabase,
+        connection,
+        orgId,
+        conversationId: args.conversationId,
+        contactId: args.contactId,
+        contactWaId: args.contactWaId,
+        contactName: args.contactName,
+      },
+      args.order
+    );
+
+    if (result?.error) {
+      console.error(`Cart ${result.reference || "(unsaved)"} had a problem: ${result.error}`);
+      return;
+    }
+
+    if (result) {
+      await dispatchWebhookEvent(supabase, orgId, "order.created", {
+        reference: result.reference,
+        total_cents: result.totals.totalCents,
+        items: result.lineCount,
+        contact_wa_id: args.contactWaId,
+      });
+    }
+  } catch (error) {
+    console.error("Handling the inbound cart failed", error);
+  }
 }
