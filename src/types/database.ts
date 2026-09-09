@@ -28,6 +28,10 @@ import type {
   FlowSend,
   FlowResponse,
   Meeting,
+  Invoice,
+  InvoiceItem,
+  InvoiceSettings,
+  RecurringInvoice,
   StoreOrder,
   StoreOrderItem,
   PaymentSettings,
@@ -689,6 +693,50 @@ export interface Database {
         Update: Partial<BookingSession>;
         Relationships: [];
       };
+      invoice_settings: {
+        Row: InvoiceSettings;
+        Insert: Partial<InvoiceSettings> & { org_id: string };
+        Update: Partial<InvoiceSettings>;
+        Relationships: [];
+      };
+      invoices: {
+        Row: Invoice;
+        Insert: Partial<Invoice> & { org_id: string };
+        Update: Partial<Invoice>;
+        Relationships: [
+          {
+            foreignKeyName: "invoices_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      invoice_items: {
+        Row: InvoiceItem;
+        Insert: Partial<InvoiceItem> & { invoice_id: string; description: string };
+        Update: Partial<InvoiceItem>;
+        Relationships: [];
+      };
+      recurring_invoices: {
+        Row: RecurringInvoice;
+        Insert: Partial<RecurringInvoice> & {
+          org_id: string;
+          title: string;
+          next_run_on: string;
+        };
+        Update: Partial<RecurringInvoice>;
+        Relationships: [
+          {
+            foreignKeyName: "recurring_invoices_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       store_orders: {
         Row: StoreOrder;
         Insert: Partial<StoreOrder> & { org_id: string; reference: string };
@@ -927,6 +975,16 @@ export interface Database {
         Relationships: [];
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      /**
+       * Hands out the next invoice number and steps the counter, under a
+       * row lock. GST wants consecutive serial numbers, so this exists
+       * rather than max(number)+1 — see the invoicing migration.
+       */
+      claim_invoice_number: {
+        Args: { target_org: string };
+        Returns: number;
+      };
+    };
   };
 }

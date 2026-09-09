@@ -89,11 +89,11 @@ const MAIN: NavItem[] = [
   {
     icon: DollarSign,
     label: "Invoice",
-    href: "/invoice/settings",
+    href: "/invoice/list",
     children: [
-      { label: "Setting", href: "/invoice/settings", soon: true },
-      { label: "List", href: "/invoice/list", soon: true },
-      { label: "Recurring payment", href: "/invoice/recurring", soon: true },
+      { label: "Invoices", href: "/invoice/list" },
+      { label: "Recurring", href: "/invoice/recurring" },
+      { label: "Settings", href: "/invoice/settings" },
     ],
   },
   { icon: Plug, label: "Integrations", href: "/integrations" },

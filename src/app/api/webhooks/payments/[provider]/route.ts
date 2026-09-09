@@ -7,7 +7,8 @@ import { isPaymentProvider, type PaymentProvider } from "@/lib/provider-meta";
 import { loadPaymentSettings, updateOrderStatus } from "@/lib/commerce";
 import { fillTemplate } from "@/lib/booking-dialogue";
 import { formatAmount } from "@/lib/orders";
-import { loadOrgConnection } from "@/lib/whatsapp-send";
+import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
+import { loadInvoiceSettings, recordInvoicePayment } from "@/lib/invoice-engine";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
 
 // Where a gateway tells us a payment landed.
@@ -74,13 +75,29 @@ export async function POST(
     .eq("reference", reference)
     .maybeSingle();
 
-  if (!order) {
-    return NextResponse.json({ ok: true, note: "No such order" });
+  // Not an order? It may be an invoice. Invoice numbers and order references
+  // never share a shape — "INV-0042" against "NC-260909-ABCDE" — so one
+  // reference can only ever match one of the two, and looking in both means
+  // a gateway needs one webhook rather than two.
+  const invoice = order
+    ? null
+    : (
+        await supabase
+          .from("invoices")
+          .select("id, org_id, number, status, currency, total_cents, amount_paid_cents")
+          .eq("number", reference)
+          .maybeSingle()
+      ).data;
+
+  if (!order && !invoice) {
+    return NextResponse.json({ ok: true, note: "No such order or invoice" });
   }
 
-  // The secret is the tenant's, so it can only be checked once the order —
-  // and through it the workspace — is known.
-  const stored = await loadIntegration(supabase, order.org_id, provider);
+  const orgId = order?.org_id ?? invoice!.org_id;
+
+  // The secret is the tenant's, so it can only be checked once the order or
+  // invoice — and through it the workspace — is known.
+  const stored = await loadIntegration(supabase, orgId, provider);
   const secret = stored?.values.webhook_secret ?? process.env[envKeyFor(provider)] ?? "";
 
   const verdict = verify(provider, request, raw, secret);
@@ -99,9 +116,75 @@ export async function POST(
     return NextResponse.json({ ok: true, note: `Ignoring ${event}` });
   }
 
+  // An invoice takes a different path: part payment is ordinary on one, and
+  // its own message and status live with invoicing.
+  if (invoice) {
+    if (failed) {
+      return NextResponse.json({ ok: true, note: "Recorded a failed attempt on an invoice" });
+    }
+    if (invoice.status === "paid") {
+      return NextResponse.json({ ok: true, note: "Invoice already paid" });
+    }
+
+    const outstanding = invoice.total_cents - invoice.amount_paid_cents;
+    const settled = await recordInvoicePayment(supabase, orgId, invoice.id, outstanding, {
+      provider,
+      reference,
+    });
+    if (!settled.ok) {
+      return NextResponse.json({ error: settled.error }, { status: 500 });
+    }
+
+    const invoiceSettings = await loadInvoiceSettings(supabase, orgId);
+    const { data: full } = await supabase
+      .from("invoices")
+      .select("conversation_id, contact_id")
+      .eq("id", invoice.id)
+      .maybeSingle();
+
+    if (full?.conversation_id) {
+      const connection = await loadOrgConnection(supabase, orgId, {
+        conversationId: full.conversation_id,
+      });
+      const { data: contact } = full.contact_id
+        ? await supabase
+            .from("contacts")
+            .select("wa_id")
+            .eq("id", full.contact_id)
+            .maybeSingle()
+        : { data: null };
+
+      if (connection && contact?.wa_id) {
+        await sendAndLogText({
+          supabase,
+          connection,
+          conversationId: full.conversation_id,
+          toWaId: contact.wa_id,
+          body: fillTemplate(invoiceSettings.payment_received_message, {
+            number: invoice.number ?? reference,
+            total: formatAmount(outstanding, invoice.currency),
+          }),
+          // Answering a payment the customer just made is us starting the
+          // conversation, so the window still applies.
+          lastInboundAt: null,
+          skipWindowCheck: false,
+        });
+      }
+    }
+
+    await dispatchWebhookEvent(supabase, orgId, "order.paid", {
+      invoice: invoice.number,
+      total_cents: invoice.total_cents,
+      currency: invoice.currency,
+      provider,
+    });
+
+    return NextResponse.json({ ok: true, kind: "invoice" });
+  }
+
   // Already settled. Gateways redeliver, and marking an order paid twice
   // would send the customer a second thank-you.
-  if (paid && (order.status === "paid" || order.status === "confirmed")) {
+  if (paid && (order!.status === "paid" || order!.status === "confirmed")) {
     return NextResponse.json({ ok: true, note: "Already paid" });
   }
 
@@ -109,40 +192,40 @@ export async function POST(
     await supabase
       .from("store_orders")
       .update({ payment_status: event, updated_at: new Date().toISOString() })
-      .eq("id", order.id);
+      .eq("id", order!.id);
     return NextResponse.json({ ok: true, note: "Recorded a failed attempt" });
   }
 
-  const settings = await loadPaymentSettings(supabase, order.org_id);
-  const connection = await loadOrgConnection(supabase, order.org_id, {
-    conversationId: order.conversation_id,
+  const settings = await loadPaymentSettings(supabase, orgId);
+  const connection = await loadOrgConnection(supabase, orgId, {
+    conversationId: order!.conversation_id,
   });
 
   await supabase
     .from("store_orders")
     .update({ payment_status: event, updated_at: new Date().toISOString() })
-    .eq("id", order.id);
+    .eq("id", order!.id);
 
   await updateOrderStatus({
     supabase,
-    orgId: order.org_id,
-    orderId: order.id,
+    orgId,
+    orderId: order!.id,
     status: "paid",
     notify: connection
       ? {
           connection,
           body: fillTemplate(settings.payment_received_message, {
-            reference: order.reference,
-            total: formatAmount(order.total_cents, order.currency),
+            reference: order!.reference,
+            total: formatAmount(order!.total_cents, order!.currency),
           }),
         }
       : null,
   });
 
-  await dispatchWebhookEvent(supabase, order.org_id, "order.paid", {
-    reference: order.reference,
-    total_cents: order.total_cents,
-    currency: order.currency,
+  await dispatchWebhookEvent(supabase, orgId, "order.paid", {
+    reference: order!.reference,
+    total_cents: order!.total_cents,
+    currency: order!.currency,
     provider,
   });
 

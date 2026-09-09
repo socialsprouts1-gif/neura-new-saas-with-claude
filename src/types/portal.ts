@@ -202,6 +202,146 @@ export type BookingSession = {
   updated_at: string;
 };
 
+// --- invoicing -------------------------------------------------------------
+
+export const INVOICE_STATUSES = [
+  "draft",
+  "sent",
+  "partly_paid",
+  "paid",
+  "cancelled",
+] as const;
+export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
+
+/** Who is issuing, and how the numbers run. */
+export type InvoiceSettings = {
+  org_id: string;
+  business_name: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string;
+  gstin: string | null;
+  pan: string | null;
+  email: string | null;
+  phone: string | null;
+  logo_url: string | null;
+  signature_url: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_ifsc: string | null;
+  bank_name: string | null;
+  upi_id: string | null;
+  number_prefix: string;
+  /** What the next invoice will take. Claimed and stepped atomically. */
+  next_number: number;
+  number_padding: number;
+  default_terms_days: number;
+  default_tax_percent: number;
+  round_to_rupee: boolean;
+  currency: string;
+  timezone: string;
+  notes: string | null;
+  terms_text: string;
+  send_message: string;
+  payment_received_message: string;
+  reminder_message: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * An invoice.
+ *
+ * The customer's details are a snapshot rather than a join: renaming a
+ * contact next year must not rewrite what was issued to them last year.
+ */
+export type Invoice = {
+  id: string;
+  org_id: string;
+  contact_id: string | null;
+  conversation_id: string | null;
+  recurring_id: string | null;
+  /** Null on a draft. Assigned when the invoice is issued. */
+  number: string | null;
+  status: InvoiceStatus;
+  issued_on: string | null;
+  due_on: string | null;
+  customer_name: string | null;
+  customer_gstin: string | null;
+  customer_address: string | null;
+  customer_state: string | null;
+  customer_phone: string | null;
+  customer_email: string | null;
+  currency: string;
+  /** Decides IGST versus CGST+SGST. A property of the sale, so stored. */
+  inter_state: boolean;
+  subtotal_cents: number;
+  discount_cents: number;
+  taxable_cents: number;
+  cgst_cents: number;
+  sgst_cents: number;
+  igst_cents: number;
+  tax_cents: number;
+  round_off_cents: number;
+  total_cents: number;
+  amount_paid_cents: number;
+  paid_at: string | null;
+  notes: string | null;
+  terms_text: string | null;
+  payment_provider: string | null;
+  payment_link_url: string | null;
+  payment_reference: string | null;
+  /** Unguessable, because the page it opens needs no login. */
+  public_token: string;
+  sent_at: string | null;
+  last_reminded_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InvoiceItem = {
+  id: string;
+  invoice_id: string;
+  product_id: string | null;
+  description: string;
+  /** HSN for goods, SAC for services. */
+  hsn_code: string | null;
+  quantity: number;
+  unit_price_cents: number;
+  tax_percent: number;
+  discount_percent: number;
+  taxable_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  sort_order: number;
+  created_at: string;
+};
+
+/** A schedule that raises the same invoice again. */
+export type RecurringInvoice = {
+  id: string;
+  org_id: string;
+  contact_id: string | null;
+  title: string;
+  interval: "weekly" | "fortnightly" | "monthly" | "quarterly" | "yearly";
+  next_run_on: string;
+  last_run_on: string | null;
+  /** Null runs forever. */
+  occurrences_limit: number | null;
+  occurrences_done: number;
+  is_active: boolean;
+  /** Off, a run raises a draft for somebody to look at first. */
+  auto_send: boolean;
+  terms_days: number;
+  notes: string | null;
+  items: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
 export const TRANSACTION_STATUSES = ["pending", "paid", "failed", "refunded"] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
 
