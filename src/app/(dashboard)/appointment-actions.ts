@@ -14,6 +14,12 @@ import {
   type Weekday,
   type Window,
 } from "@/lib/appointments";
+import { dispatchDueReminders } from "@/lib/appointment-reminders";
+import {
+  deleteCalendarEvent,
+  loadGoogleCalendar,
+  upsertCalendarEvent,
+} from "@/lib/google-calendar";
 import type { ActionResult } from "./actions";
 
 // Everything the Appointments screen writes.
@@ -195,6 +201,16 @@ export async function saveBookingBot(formData: FormData): Promise<ActionResult> 
         "Sorry, there is nothing free in the next couple of weeks."
       ),
       cancelled_message: text("cancelled_message", "No problem — nothing has been booked."),
+      reminder_hours: Math.max(0, Math.min(168, number(formData, "reminder_hours", 3))),
+      // Blank means "no template", which is different from a template named
+      // "" — so it is stored as null rather than an empty string.
+      reminder_template: String(formData.get("reminder_template") ?? "").trim() || null,
+      reminder_template_language:
+        String(formData.get("reminder_template_language") ?? "").trim() || "en",
+      reminder_message: text(
+        "reminder_message",
+        "Reminder: your appointment is at {{time}} today. Reply here if you need to change it."
+      ),
       updated_at: new Date().toISOString(),
     },
     { onConflict: "org_id" }
@@ -370,6 +386,10 @@ export async function setBookingStatus(formData: FormData): Promise<ActionResult
 
   if (error) return { ok: false, error: error.message };
 
+  // A cancelled or completed booking should not stay in the diary as
+  // something somebody is expected to attend.
+  await syncBookingToCalendar(supabase, ctx.orgId, id);
+
   revalidatePath("/appointments");
   revalidatePath("/meetings");
   return { ok: true, message: "Updated." };
@@ -412,4 +432,235 @@ export async function currentAvailability(orgId: string) {
     .maybeSingle();
 
   return readSettings(data as unknown as Record<string, unknown> | null);
+}
+
+// -------------------------------------------------------------- reminders
+
+/**
+ * Sends the reminders that have come due, now.
+ *
+ * The same work a scheduler does. This project runs on a Vercel plan with no
+ * cron, so without a button the column that records a sent reminder would
+ * never be written and nobody would ever be reminded.
+ */
+export async function sendRemindersNow(): Promise<ActionResult> {
+  const ctx = await requireManager();
+  if (!ctx) return { ok: false, error: DENIED };
+
+  const result = await dispatchDueReminders(ctx.orgId);
+  revalidatePath("/appointments");
+
+  if (result.error) return { ok: false, error: result.error };
+  if (result.due === 0) {
+    return {
+      ok: true,
+      message: "Nothing due. Reminders go out inside the window you set before each appointment.",
+    };
+  }
+
+  const parts = [
+    `${result.sent} sent`,
+    result.skipped > 0 ? `${result.skipped} skipped` : null,
+    result.failed > 0 ? `${result.failed} failed` : null,
+  ].filter(Boolean);
+
+  return {
+    ok: result.failed === 0,
+    ...(result.failed === 0
+      ? { message: `${parts.join(", ")}.${result.firstError ? ` ${result.firstError}` : ""}` }
+      : { error: `${parts.join(", ")}. ${result.firstError}` }),
+  } as ActionResult;
+}
+
+// ------------------------------------------------------- manual bookings
+
+/**
+ * Books somebody in by hand — a phone call, a walk-in.
+ *
+ * Goes through the same availability check as the chat flow, so a manual
+ * booking cannot quietly double-book a slot the bot is still offering. The
+ * check can be overridden, because a business that wants to squeeze somebody
+ * in knows better than its own opening hours.
+ */
+export async function createBooking(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireOrg();
+
+  const date = String(formData.get("date") ?? "").trim();
+  const time = String(formData.get("time") ?? "").trim();
+  if (!date || !time) return { ok: false, error: "Pick a date and a time." };
+
+  const day = parseDate(date);
+  const clock = parseClock(time);
+  if (!day || clock === null) return { ok: false, error: "That date or time could not be read." };
+
+  const supabase = await createClient();
+  const settings = await currentAvailability(ctx.orgId);
+
+  const typeId = String(formData.get("appointment_type_id") ?? "").trim() || null;
+  const { data: type } = typeId
+    ? await supabase
+        .from("appointment_types")
+        .select("id, name, duration_minutes, location")
+        .eq("org_id", ctx.orgId)
+        .eq("id", typeId)
+        .maybeSingle()
+    : { data: null };
+
+  const duration = type?.duration_minutes ?? settings.slotMinutes;
+  const startsAt = zonedToUtc(
+    day.year,
+    day.month,
+    day.day,
+    Math.floor(clock / 60),
+    clock % 60,
+    settings.timezone
+  );
+
+  // The overlap check the chat flow gets for free from slot generation. Not
+  // the full generator: a manual booking is allowed outside opening hours,
+  // it just must not land on top of somebody else.
+  if (!formData.get("allow_overlap")) {
+    const windowStart = new Date(startsAt.getTime() - 12 * 3_600_000).toISOString();
+    const windowEnd = new Date(startsAt.getTime() + 12 * 3_600_000).toISOString();
+    const { data: nearby } = await supabase
+      .from("meetings")
+      .select("starts_at, duration_minutes")
+      .eq("org_id", ctx.orgId)
+      .eq("status", "scheduled")
+      .gte("starts_at", windowStart)
+      .lte("starts_at", windowEnd);
+
+    const from = startsAt.getTime();
+    const to = from + duration * 60_000;
+    const clashes = (nearby ?? []).filter((entry) => {
+      const otherFrom = new Date(entry.starts_at).getTime();
+      const otherTo = otherFrom + entry.duration_minutes * 60_000;
+      return from < otherTo && otherFrom < to;
+    }).length;
+
+    if (clashes >= settings.maxPerSlot) {
+      return {
+        ok: false,
+        error: `That time is already taken${
+          settings.maxPerSlot > 1 ? ` (${settings.maxPerSlot} per slot)` : ""
+        }. Tick “book anyway” to double up.`,
+      };
+    }
+  }
+
+  const contactId = String(formData.get("contact_id") ?? "").trim() || null;
+  const { data: contact } = contactId
+    ? await supabase
+        .from("contacts")
+        .select("name, wa_id")
+        .eq("org_id", ctx.orgId)
+        .eq("id", contactId)
+        .maybeSingle()
+    : { data: null };
+
+  const who = contact ? contact.name || contact.wa_id : String(formData.get("title") ?? "").trim();
+  const title = type ? `${type.name}${who ? ` — ${who}` : ""}` : who || "Appointment";
+
+  const { data: meeting, error } = await supabase
+    .from("meetings")
+    .insert({
+      org_id: ctx.orgId,
+      contact_id: contactId,
+      appointment_type_id: typeId,
+      created_by: ctx.user.id,
+      title,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      location: type?.location ?? null,
+      starts_at: startsAt.toISOString(),
+      duration_minutes: duration,
+      status: "scheduled",
+      source: "manual",
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  await syncBookingToCalendar(supabase, ctx.orgId, meeting.id);
+
+  revalidatePath("/appointments");
+  revalidatePath("/meetings");
+  return { ok: true, message: `Booked for ${date} at ${time}.` };
+}
+
+// --------------------------------------------------------------- calendar
+
+/**
+ * Pushes one booking to the connected calendar.
+ *
+ * Shared by the manual form and the status changes, so a cancelled booking
+ * disappears from the diary rather than sitting there for somebody to turn
+ * up to.
+ */
+async function syncBookingToCalendar(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  meetingId: string
+): Promise<void> {
+  try {
+    const credentials = await loadGoogleCalendar(supabase, orgId);
+    if (!credentials) return;
+
+    const { data: meeting } = await supabase
+      .from("meetings")
+      .select(
+        "title, notes, location, starts_at, duration_minutes, status, calendar_event_id"
+      )
+      .eq("org_id", orgId)
+      .eq("id", meetingId)
+      .maybeSingle();
+    if (!meeting) return;
+
+    // A booking that is no longer happening should not be in the diary.
+    if (meeting.status !== "scheduled") {
+      if (meeting.calendar_event_id) {
+        const removed = await deleteCalendarEvent(credentials, meeting.calendar_event_id);
+        await supabase
+          .from("meetings")
+          .update(
+            removed.ok
+              ? { calendar_event_id: null, calendar_error: null }
+              : { calendar_error: removed.error?.slice(0, 500) ?? null }
+          )
+          .eq("id", meetingId);
+      }
+      return;
+    }
+
+    const settings = await currentAvailability(orgId);
+    const result = await upsertCalendarEvent(
+      credentials,
+      {
+        summary: meeting.title,
+        description: meeting.notes ?? undefined,
+        location: meeting.location ?? undefined,
+        startsAt: meeting.starts_at,
+        durationMinutes: meeting.duration_minutes,
+        timezone: settings.timezone,
+      },
+      meeting.calendar_event_id
+    );
+
+    await supabase
+      .from("meetings")
+      .update(
+        result.ok
+          ? {
+              calendar_event_id: result.eventId,
+              calendar_synced_at: new Date().toISOString(),
+              calendar_error: null,
+            }
+          : { calendar_error: result.error.slice(0, 500) }
+      )
+      .eq("id", meetingId);
+  } catch (error) {
+    // The booking is saved either way. A calendar problem belongs on the
+    // booking, not in the operator's face as a failed save.
+    console.error("Calendar sync failed", error);
+  }
 }

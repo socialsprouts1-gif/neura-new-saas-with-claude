@@ -21,6 +21,11 @@ import {
   type BookingPrompt,
 } from "@/lib/booking-dialogue";
 import { sendAndLogText, type OrgConnection, type RunnerClient } from "@/lib/whatsapp-send";
+import {
+  loadGoogleCalendar,
+  upsertCalendarEvent,
+  type CalendarEvent,
+} from "@/lib/google-calendar";
 
 // The booking conversation, sending half.
 //
@@ -279,6 +284,19 @@ async function book(
 
   await clearSession(context);
 
+  // Into the business's calendar, if one is connected. After the meeting is
+  // written and never before: a calendar that is unreachable must not cost
+  // the customer their booking, so this can only ever add a note to a
+  // booking that already exists.
+  await pushToCalendar(context, meeting.id, {
+    summary: title,
+    location: type?.location ?? row.location ?? undefined,
+    startsAt,
+    durationMinutes: duration,
+    timezone: settings.timezone,
+    description: `Booked by ${context.contactName ?? context.contactWaId} on WhatsApp.`,
+  });
+
   const body = fillTemplate(row.confirmation, {
     date: zonedDateLabel(when, settings.timezone),
     time: zonedTimeLabel(when, settings.timezone),
@@ -518,4 +536,40 @@ async function send(
     outcome: sent.ok ? "replied" : "failed",
     error: sent.ok ? null : sent.error,
   };
+}
+
+// -------------------------------------------------------------- calendar
+
+/**
+ * Puts a booking in the connected calendar, and records what happened.
+ *
+ * Never throws and never reports failure upwards. The booking is already
+ * saved and the customer already told; a Google outage is something for the
+ * operator to see on the booking, not a reason to fail the conversation.
+ */
+async function pushToCalendar(
+  context: BookingContext,
+  meetingId: string,
+  event: CalendarEvent
+): Promise<void> {
+  try {
+    const credentials = await loadGoogleCalendar(context.supabase, context.orgId);
+    if (!credentials) return;
+
+    const result = await upsertCalendarEvent(credentials, event);
+    await context.supabase
+      .from("meetings")
+      .update(
+        result.ok
+          ? {
+              calendar_event_id: result.eventId,
+              calendar_synced_at: new Date().toISOString(),
+              calendar_error: null,
+            }
+          : { calendar_error: result.error.slice(0, 500) }
+      )
+      .eq("id", meetingId);
+  } catch (error) {
+    console.error("Calendar push failed", error);
+  }
 }

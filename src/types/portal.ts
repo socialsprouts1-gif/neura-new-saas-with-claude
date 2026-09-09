@@ -123,6 +123,10 @@ export type Meeting = {
   /** 'whatsapp' means the customer booked it themselves. */
   source: MeetingSource;
   reminder_sent_at: string | null;
+  /** The event id in the connected calendar, so a re-push moves it. */
+  calendar_event_id: string | null;
+  calendar_synced_at: string | null;
+  calendar_error: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -165,6 +169,12 @@ export type AppointmentSettingsRow = {
   confirmation: string;
   no_slots_message: string;
   cancelled_message: string;
+  /** Hours before the appointment to remind the customer. 0 is off. */
+  reminder_hours: number;
+  /** An approved template, for reminders outside the 24-hour window. */
+  reminder_template: string | null;
+  reminder_template_language: string;
+  reminder_message: string;
   created_at: string;
   updated_at: string;
 };

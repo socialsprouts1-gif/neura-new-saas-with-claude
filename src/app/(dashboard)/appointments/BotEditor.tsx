@@ -1,9 +1,9 @@
 "use client";
 
-import { MessageSquare } from "lucide-react";
+import { BellRing, MessageSquare } from "lucide-react";
 import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import type { Slot } from "@/lib/appointments";
-import { saveBookingBot } from "../appointment-actions";
+import { saveBookingBot, sendRemindersNow } from "../appointment-actions";
 
 /**
  * The booking conversation's words, and the switch that turns it on.
@@ -29,6 +29,10 @@ export default function BotEditor({
     confirmation: string;
     noSlots: string;
     cancelled: string;
+    reminderHours: number;
+    reminderTemplate: string;
+    reminderTemplateLanguage: string;
+    reminderMessage: string;
   };
   canManage: boolean;
   nextSlots: Slot[];
@@ -117,6 +121,49 @@ export default function BotEditor({
             defaultValue={messages.cancelled}
             hint="Sent when a customer taps “Not now” or types cancel mid-booking."
           />
+
+          <div className="pt-5 border-t border-white/8">
+            <h3 className="font-semibold mb-1">Reminders</h3>
+            <p className="text-xs text-white/45 mb-4 leading-relaxed">
+              A reminder is us starting the conversation, so WhatsApp&rsquo;s 24-hour window
+              applies. Name an approved template and it goes out whatever the window says; leave it
+              blank and the plain message below is used, but only for customers who have written to
+              you in the last day. The rest are recorded as skipped rather than failing quietly.
+            </p>
+
+            <div className="space-y-4">
+              <div className="grid sm:grid-cols-3 gap-4">
+                <Field
+                  label="Hours before"
+                  name="reminder_hours"
+                  type="number"
+                  defaultValue={String(messages.reminderHours)}
+                  hint="0 turns reminders off."
+                />
+                <Field
+                  label="Template name"
+                  name="reminder_template"
+                  defaultValue={messages.reminderTemplate}
+                  placeholder="appointment_reminder"
+                  hint="An approved UTILITY template with two body variables: date, then time."
+                />
+                <Field
+                  label="Template language"
+                  name="reminder_template_language"
+                  defaultValue={messages.reminderTemplateLanguage}
+                  placeholder="en"
+                />
+              </div>
+
+              <TextareaField
+                label="Plain reminder"
+                name="reminder_message"
+                rows={2}
+                defaultValue={messages.reminderMessage}
+                hint="Used when no template is named. Same placeholders as the confirmation."
+              />
+            </div>
+          </div>
         </div>
       </ActionForm>
 
@@ -149,6 +196,19 @@ export default function BotEditor({
             </ul>
           </>
         )}
+
+        {/* This project has no scheduler, so without a button the reminder
+            sweep never runs and nobody is ever reminded. */}
+        <div className="mt-5 pt-5 border-t border-white/8">
+          <ActionForm action={sendRemindersNow} submitLabel="Send reminders now" compact>
+            <p className="text-xs text-white/40 leading-relaxed flex items-start gap-2">
+              <BellRing className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              Sends whatever has come due. Point a scheduler at{" "}
+              <code className="text-white/55">/api/cron/appointment-reminders</code> to have it run
+              on its own.
+            </p>
+          </ActionForm>
+        </div>
       </div>
     </div>
   );

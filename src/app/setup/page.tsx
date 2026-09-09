@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SetupNotice from "@/components/SetupNotice";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { SCHEMA_MANIFEST } from "@/lib/schema-manifest";
 
 // Two distinct failures land here, and they need different instructions:
 // missing environment variables, or a reachable Supabase whose schema the
@@ -27,16 +28,17 @@ export default async function SetupPage({
         {looksLikeMissingSchema ? (
           <>
             <p className="text-white/60 text-sm mb-5">
-              Supabase is connected, but the tables this app needs don&apos;t exist. Run
-              the migration files in <code className="text-white/80">supabase/migrations/</code>{" "}
-              in filename order, in the Supabase SQL editor.
+              Supabase is connected, but the tables this app needs don&apos;t exist. Paste{" "}
+              <code className="text-white/80">supabase/setup.sql</code> into the Supabase SQL
+              editor and press Run. It contains every migration, in order, and is safe to run
+              more than once.
             </p>
-            <ol className="space-y-1.5 mb-6 text-xs font-mono text-accent-ink">
-              <li>20260818120000_schema.sql</li>
-              <li>20260818120100_rls_policies.sql</li>
-              <li>20260818120200_auth_signup_trigger.sql</li>
-              <li>20260820100000_admin_billing.sql</li>
-            </ol>
+            <p className="text-white/45 text-xs mb-6">
+              It creates {SCHEMA_MANIFEST.length} tables across{" "}
+              {new Set(SCHEMA_MANIFEST.map((entry) => entry.migration)).size} migrations. Once you
+              can sign in, Admin → Database lists exactly which of them are present, so a later
+              missing table never needs guessing at.
+            </p>
           </>
         ) : (
           <p className="text-white/60 text-sm mb-5">

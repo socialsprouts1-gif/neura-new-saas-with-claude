@@ -8,6 +8,7 @@ import { isClosedAllWeek } from "@/lib/appointments";
 import type { AppointmentBlackout, AppointmentType } from "@/types/portal";
 import { addBlackout, removeBlackout } from "../appointment-actions";
 import AvailabilityEditor from "./AvailabilityEditor";
+import NewBooking from "./NewBooking";
 import BookingList, { type BookingItem } from "./BookingList";
 import BotEditor from "./BotEditor";
 import ServiceEditor from "./ServiceEditor";
@@ -28,6 +29,7 @@ export default function AppointmentsBrowser({
   bookings,
   upcomingCount,
   nextSlots,
+  contacts,
 }: {
   canManage: boolean;
   migrated: boolean;
@@ -41,12 +43,17 @@ export default function AppointmentsBrowser({
     confirmation: string;
     noSlots: string;
     cancelled: string;
+    reminderHours: number;
+    reminderTemplate: string;
+    reminderTemplateLanguage: string;
+    reminderMessage: string;
   };
   types: AppointmentType[];
   blackouts: AppointmentBlackout[];
   bookings: BookingItem[];
   upcomingCount: number;
   nextSlots: Slot[];
+  contacts: Array<{ id: string; label: string }>;
 }) {
   const [tab, setTab] = useState<Tab>("Bookings");
   const now = Date.now();
@@ -58,9 +65,13 @@ export default function AppointmentsBrowser({
         <div className="text-sm text-white/65 leading-relaxed">
           <div className="font-semibold text-white mb-1">The appointment tables are missing</div>
           <p className="mb-2">
-            Run <code className="text-accent-ink">supabase/setup.sql</code> in the Supabase SQL
-            editor, then reload this page. Nothing else on the workspace is affected — booking is
-            simply off until it has run.
+            Run <code className="text-accent-ink">supabase/updates/2026-09.sql</code> in the
+            Supabase SQL editor, then reload this page. Nothing else on the workspace is affected —
+            booking is simply off until it has run.
+          </p>
+          <p className="mb-2 text-xs text-white/50">
+            Platform staff can see exactly which tables are missing, and which file creates each,
+            under Admin → Database.
           </p>
           {migrationError && (
             <p className="text-xs text-white/40 break-words">{migrationError}</p>
@@ -117,6 +128,8 @@ export default function AppointmentsBrowser({
 
       {tab === "Bookings" && (
         <div className="space-y-6">
+          <NewBooking types={types} contacts={contacts} timezone={settings.timezone} />
+
           <section>
             <h2 className="text-lg font-bold mb-3">
               Upcoming{" "}

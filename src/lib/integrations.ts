@@ -346,16 +346,26 @@ export const INTEGRATIONS: IntegrationDef[] = [
     slug: "google-calendar",
     name: "Google Calendar",
     category: "Productivity",
-    description: "Turn bookings into calendar events and send WhatsApp reminders before each one.",
-    capability: "credentials",
+    description:
+      "Every appointment booked on WhatsApp becomes an event in your calendar, and moves or disappears when the booking does.",
+    capability: "sync",
     prerequisite:
-      "Google Cloud Console → create an OAuth client, enable the Calendar API, then authorise once to get a refresh token.",
+      "Google Cloud Console → enable the Calendar API, create an OAuth client, then authorise once with the calendar scope to get a refresh token.",
     fields: [
-      { name: "client_id", label: "Client ID", required: true },
+      { name: "client_id", label: "Client ID", required: true, placeholder: "….apps.googleusercontent.com" },
       { name: "client_secret", label: "Client secret", type: "password", required: true },
       { name: "refresh_token", label: "Refresh token", type: "password", required: true },
+      {
+        name: "calendar_id",
+        label: "Calendar",
+        placeholder: "primary",
+        hint: "Leave blank for your main calendar, or paste an id from Google Calendar → Settings → Integrate calendar.",
+      },
     ],
     brand: "#4285F4",
+    featured: true,
+    note:
+      "Keep the OAuth consent screen out of Testing mode. A refresh token from a Testing app expires after seven days, and the calendar quietly stops updating.",
   },
 ];
 

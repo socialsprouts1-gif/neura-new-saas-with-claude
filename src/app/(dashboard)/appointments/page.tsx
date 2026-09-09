@@ -22,28 +22,35 @@ export default async function AppointmentsPage() {
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 
-  const [settingsRow, typesResult, blackoutsResult, bookingsResult] = await Promise.all([
-    supabase.from("appointment_settings").select("*").eq("org_id", orgId).maybeSingle(),
-    supabase
-      .from("appointment_types")
-      .select("*")
-      .eq("org_id", orgId)
-      .order("sort_order")
-      .limit(100),
-    supabase
-      .from("appointment_blackouts")
-      .select("*")
-      .eq("org_id", orgId)
-      .gte("ends_at", new Date().toISOString())
-      .order("starts_at")
-      .limit(100),
-    supabase
-      .from("meetings")
-      .select("*, contacts(name, wa_id)")
-      .eq("org_id", orgId)
-      .order("starts_at", { ascending: true })
-      .limit(300),
-  ]);
+  const [settingsRow, typesResult, blackoutsResult, bookingsResult, contactsResult] =
+    await Promise.all([
+      supabase.from("appointment_settings").select("*").eq("org_id", orgId).maybeSingle(),
+      supabase
+        .from("appointment_types")
+        .select("*")
+        .eq("org_id", orgId)
+        .order("sort_order")
+        .limit(100),
+      supabase
+        .from("appointment_blackouts")
+        .select("*")
+        .eq("org_id", orgId)
+        .gte("ends_at", new Date().toISOString())
+        .order("starts_at")
+        .limit(100),
+      supabase
+        .from("meetings")
+        .select("*, contacts(name, wa_id)")
+        .eq("org_id", orgId)
+        .order("starts_at", { ascending: true })
+        .limit(300),
+      supabase
+        .from("contacts")
+        .select("id, name, wa_id")
+        .eq("org_id", orgId)
+        .order("name")
+        .limit(500),
+    ]);
 
   // A database that has not run the appointments migration renders the page
   // with defaults and an explanation, rather than an error where the setup
@@ -134,12 +141,21 @@ export default async function AppointmentsPage() {
           confirmation: (settingsData?.confirmation as string | undefined) ?? "",
           noSlots: (settingsData?.no_slots_message as string | undefined) ?? "",
           cancelled: (settingsData?.cancelled_message as string | undefined) ?? "",
+          reminderHours: (settingsData?.reminder_hours as number | undefined) ?? 3,
+          reminderTemplate: (settingsData?.reminder_template as string | null) ?? "",
+          reminderTemplateLanguage:
+            (settingsData?.reminder_template_language as string | undefined) ?? "en",
+          reminderMessage: (settingsData?.reminder_message as string | undefined) ?? "",
         }}
         types={types}
         blackouts={blackouts}
         bookings={bookings}
         upcomingCount={upcoming.length}
         nextSlots={free.slice(0, 12)}
+        contacts={(contactsResult.data ?? []).map((contact) => ({
+          id: contact.id,
+          label: contact.name || contact.wa_id,
+        }))}
       />
     </div>
   );
