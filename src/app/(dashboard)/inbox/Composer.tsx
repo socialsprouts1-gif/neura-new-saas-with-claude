@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Send, Smile } from "lucide-react";
+import { useDismissable } from "@/hooks/use-dismissable";
 import EmojiPicker from "./EmojiPicker";
 import CopilotMenu from "./CopilotMenu";
 import PlusMenu from "./PlusMenu";
@@ -62,6 +63,15 @@ export default function Composer({
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<"emoji" | "canned" | null>(null);
 
+  // Each panel's region covers its own trigger too, so pressing the trigger
+  // again closes it instead of counting as a click outside.
+  const cannedRegion = useDismissable<HTMLDivElement>(() => setPanel(null), {
+    active: panel === "canned",
+  });
+  const emojiRegion = useDismissable<HTMLDivElement>(() => setPanel(null), {
+    active: panel === "emoji",
+  });
+
   const post = async (payload: Record<string, unknown>) => {
     setSending(true);
     setError(null);
@@ -112,45 +122,49 @@ export default function Composer({
 
   return (
     <div className="border-t border-white/8 bg-[var(--surface-1)]/60 flex-shrink-0">
-      <div className="px-4 pt-3 flex flex-wrap items-center gap-3">
-        <span className={`text-xs ${windowOpen ? "text-white/40" : "text-[#FACC15]"}`}>
-          {windowOpen
-            ? "Free-form messages allowed (24h window)"
-            : "Window closed — only an approved template will deliver"}
-        </span>
-        {canned.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setPanel(panel === "canned" ? null : "canned")}
-            className="ml-auto text-xs text-white/45 hover:text-white"
-          >
-            Canned replies
-          </button>
+      <div ref={cannedRegion}>
+        <div className="px-4 pt-3 flex flex-wrap items-center gap-3">
+          <span className={`text-xs ${windowOpen ? "text-white/40" : "text-[#FACC15]"}`}>
+            {windowOpen
+              ? "Free-form messages allowed (24h window)"
+              : "Window closed — only an approved template will deliver"}
+          </span>
+          {canned.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPanel(panel === "canned" ? null : "canned")}
+              className="ml-auto text-xs text-white/45 hover:text-white"
+            >
+              Canned replies
+            </button>
+          )}
+        </div>
+
+        {panel === "canned" && (
+          <div className="mx-4 mt-2 rounded-xl border border-white/12 bg-[var(--surface-1)] max-h-52 overflow-y-auto p-1.5">
+            {canned.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => {
+                  setBody(entry.body);
+                  setPanel(null);
+                  input.current?.focus();
+                }}
+                className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium truncate">{entry.title}</span>
+                  <code className="text-[10px] text-accent2-ink flex-shrink-0">
+                    /{entry.shortcut}
+                  </code>
+                </div>
+                <p className="text-[11px] text-white/40 line-clamp-1 mt-0.5">{entry.body}</p>
+              </button>
+            ))}
+          </div>
         )}
       </div>
-
-      {panel === "canned" && (
-        <div className="mx-4 mt-2 rounded-xl border border-white/12 bg-[var(--surface-1)] max-h-52 overflow-y-auto p-1.5">
-          {canned.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => {
-                setBody(entry.body);
-                setPanel(null);
-                input.current?.focus();
-              }}
-              className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{entry.title}</span>
-                <code className="text-[10px] text-accent2-ink flex-shrink-0">/{entry.shortcut}</code>
-              </div>
-              <p className="text-[11px] text-white/40 line-clamp-1 mt-0.5">{entry.body}</p>
-            </button>
-          ))}
-        </div>
-      )}
 
       {error && (
         <p className="text-xs text-red-400 px-4 pt-2" role="alert">
@@ -190,7 +204,7 @@ export default function Composer({
           className="flex-1 min-w-0 bg-white/5 border border-white/12 rounded-2xl px-4 py-3 text-sm text-white placeholder-white/35 focus:outline-none focus:border-accent/50 transition-all resize-none max-h-32"
         />
 
-        <div className="relative flex-shrink-0">
+        <div ref={emojiRegion} className="relative flex-shrink-0">
           <button
             type="button"
             onClick={() => setPanel(panel === "emoji" ? null : "emoji")}

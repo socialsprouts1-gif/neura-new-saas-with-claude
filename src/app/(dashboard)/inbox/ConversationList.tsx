@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -12,6 +12,7 @@ import {
   Tag,
   Users,
 } from "lucide-react";
+import { useDismissableDetails } from "@/hooks/use-dismissable";
 import NewMessageAlert from "./NewMessageAlert";
 
 export interface ConversationRow {
@@ -486,7 +487,7 @@ function Menu({
   width: string;
   children: React.ReactNode;
 }) {
-  const details = useRef<HTMLDetailsElement>(null);
+  const details = useDismissableDetails();
 
   // Closing by delegation rather than by handing a closure to every item:
   // picking anything dismisses the menu, except the controls marked to stay
@@ -619,7 +620,7 @@ function NumberMenu({
   onToggle: (id: string) => void;
   onClear: () => void;
 }) {
-  const details = useRef<HTMLDetailsElement>(null);
+  const details = useDismissableDetails();
 
   const summary =
     picked.length === 0

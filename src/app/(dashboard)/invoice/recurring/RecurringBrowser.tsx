@@ -4,8 +4,6 @@ import { useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
-  Pause,
-  Play,
   Plus,
   Repeat,
   Send,

@@ -87,17 +87,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Contact not found" }, { status: 404 });
   }
 
-  const { data: conversation, error: conversationError } = await supabase
-    .from("conversations")
-    .upsert(
-      { org_id: body.orgId, contact_id: contact.id },
-      { onConflict: "org_id,contact_id", ignoreDuplicates: false }
-    )
-    .select("id")
-    .single();
+  const conversation = await resolveConversation(supabase, {
+    orgId: body.orgId,
+    contactId: contact.id,
+    connectionId: connection.id,
+    conversationId: body.conversationId ?? null,
+  });
 
-  if (conversationError || !conversation) {
-    return NextResponse.json({ error: "Failed to resolve conversation" }, { status: 500 });
+  if ("error" in conversation) {
+    return NextResponse.json({ error: conversation.error }, { status: 500 });
   }
 
   const accessToken = connection.accessToken;
@@ -182,6 +180,101 @@ export async function POST(request: NextRequest) {
     console.error("Failed to send WhatsApp message", error);
     return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
   }
+}
+
+/**
+ * The thread this message belongs in.
+ *
+ * This used to be a one-line upsert naming `org_id,contact_id` as the
+ * conflict target. The multi-number migration replaced that constraint with
+ * one over `(org_id, contact_id, connection_id)`, and Postgres rejects an
+ * ON CONFLICT clause whose target no longer exists — so every send from the
+ * inbox failed with "Failed to resolve conversation" and no clue why.
+ *
+ * Written out longhand instead, because the right answer differs per caller:
+ * the composer already knows its thread, and a workspace with two numbers
+ * has two threads with the same person that must not be merged.
+ */
+async function resolveConversation(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    orgId: string;
+    contactId: string;
+    connectionId: string;
+    conversationId: string | null;
+  }
+): Promise<{ id: string } | { error: string }> {
+  // The caller named a thread. Checked against the org and the contact
+  // before it is believed — it arrives from the browser.
+  if (input.conversationId) {
+    const { data } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("id", input.conversationId)
+      .eq("org_id", input.orgId)
+      .eq("contact_id", input.contactId)
+      .maybeSingle();
+    if (data) return { id: data.id };
+  }
+
+  // The thread this person has on the number being replied from. An error
+  // here means the column is not there yet, which is a database behind the
+  // migrations rather than a reason to refuse the send.
+  const onNumber = await supabase
+    .from("conversations")
+    .select("id")
+    .eq("org_id", input.orgId)
+    .eq("contact_id", input.contactId)
+    .eq("connection_id", input.connectionId)
+    .maybeSingle();
+
+  if (onNumber.data) return { id: onNumber.data.id };
+  const columnMissing = onNumber.error !== null;
+
+  if (columnMissing) {
+    const anyThread = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("org_id", input.orgId)
+      .eq("contact_id", input.contactId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (anyThread.data) return { id: anyThread.data.id };
+  }
+
+  const row = {
+    org_id: input.orgId,
+    contact_id: input.contactId,
+    ...(columnMissing ? {} : { connection_id: input.connectionId }),
+  };
+
+  const created = await supabase.from("conversations").insert(row).select("id").maybeSingle();
+  if (created.data) return { id: created.data.id };
+
+  // 23505: something inserted the same thread between the select and the
+  // insert — an inbound message arriving while an agent typed. Read it back
+  // rather than reporting a collision as a failure.
+  if (created.error?.code === "23505") {
+    const existing = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("org_id", input.orgId)
+      .eq("contact_id", input.contactId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing.data) return { id: existing.data.id };
+  }
+
+  console.error("Could not resolve a conversation to send into", created.error);
+  return {
+    error: created.error
+      ? `Could not open a conversation: ${created.error.message}${
+          created.error.code ? ` (${created.error.code})` : ""
+        }`
+      : "Could not open a conversation for this contact.",
+  };
 }
 
 /**

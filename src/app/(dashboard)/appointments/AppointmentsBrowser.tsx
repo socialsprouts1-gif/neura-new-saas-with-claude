@@ -56,7 +56,11 @@ export default function AppointmentsBrowser({
   contacts: Array<{ id: string; label: string }>;
 }) {
   const [tab, setTab] = useState<Tab>("Bookings");
-  const now = Date.now();
+  // Read once, at mount. The boundary between "upcoming" and "past" must
+  // not move because something unrelated caused a re-render — a booking
+  // sliding between the two tabs mid-interaction is worse than one that is
+  // a few minutes stale.
+  const [now] = useState(() => Date.now());
 
   if (!migrated) {
     return (

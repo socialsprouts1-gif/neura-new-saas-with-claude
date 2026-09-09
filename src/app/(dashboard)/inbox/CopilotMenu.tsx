@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { useDismissable } from "@/hooks/use-dismissable";
 import { runCopilot, type CopilotAction } from "./actions";
 
 const ACTIONS: Array<{ label: string; build: (draft: string) => CopilotAction }> = [
@@ -59,8 +60,12 @@ export default function CopilotMenu({
     setTranslating(false);
   };
 
+  // On the wrapper, not the panel: the trigger has to count as inside, or
+  // clicking it to close would close and reopen in the same tick.
+  const shell = useDismissable<HTMLDivElement>(close, { active: open });
+
   return (
-    <div className="relative flex-shrink-0">
+    <div ref={shell} className="relative flex-shrink-0">
       <button
         type="button"
         onClick={() => (open ? close() : setOpen(true))}

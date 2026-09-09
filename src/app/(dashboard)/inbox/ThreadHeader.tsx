@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, MoreVertical, Pencil, X } from "lucide-react";
 import { assignConversation, renameContact, setContactOptIn } from "@/app/(dashboard)/actions";
+import { useDismissableDetails } from "@/hooks/use-dismissable";
 import { setAiMode, setConversationClosed, setPriority } from "./actions";
 import { AI_MODES, PRIORITIES, type AiMode, type Priority } from "@/types/portal";
 import type { Teammate } from "./ConversationList";
@@ -75,8 +76,10 @@ export default function ThreadHeader({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
-  const modeMenu = useRef<HTMLDetailsElement>(null);
-  const moreMenu = useRef<HTMLDetailsElement>(null);
+  // <details> has no outside-click behaviour of its own — these add it, so
+  // the menus shut when you click the conversation instead of hanging over it.
+  const modeMenu = useDismissableDetails();
+  const moreMenu = useDismissableDetails();
 
   const run = (work: () => Promise<{ ok: boolean; error?: string }>) =>
     startTransition(async () => {

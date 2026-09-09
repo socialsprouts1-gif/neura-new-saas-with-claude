@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +16,7 @@ import {
 import { toggleChatbotFlow, deleteChatbotFlow } from "../portal-actions";
 import type { FlowNode } from "@/types/flow";
 import NumberPicker, { type NumberOption } from "../numbers/NumberPicker";
+import { useDismissableDetails } from "@/hooks/use-dismissable";
 
 export interface BotRow {
   id: string;
@@ -220,7 +221,7 @@ function CopyableId({ id }: { id: string }) {
 
 function RowMenu({ bot }: { bot: BotRow }) {
   const router = useRouter();
-  const details = useRef<HTMLDetailsElement>(null);
+  const details = useDismissableDetails();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
 

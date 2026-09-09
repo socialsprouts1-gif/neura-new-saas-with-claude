@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, ExternalLink, FileText, Send, User } from "lucide-react";
+import { Copy, ExternalLink, FileText, User } from "lucide-react";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, type Tone } from "@/components/ui/primitives";
 import { formatInvoiceAmount, isOverdue } from "@/lib/invoices";

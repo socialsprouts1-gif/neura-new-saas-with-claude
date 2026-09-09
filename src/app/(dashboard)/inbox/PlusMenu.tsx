@@ -13,6 +13,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
+import { useDismissable } from "@/hooks/use-dismissable";
 import { addInternalNote, addReminder } from "./actions";
 import { assignConversation } from "@/app/(dashboard)/actions";
 import { updateContactDetails } from "./actions";
@@ -66,6 +67,10 @@ export default function PlusMenu({
     setMessage(null);
   };
 
+  // Wraps the button as well as the panel, so pressing [+] again closes it
+  // rather than being read as a click outside.
+  const shell = useDismissable<HTMLDivElement>(close, { active: open });
+
   const run = (work: () => Promise<{ ok: boolean; error?: string; message?: string }>) =>
     startTransition(async () => {
       const result = await work();
@@ -77,7 +82,7 @@ export default function PlusMenu({
     });
 
   return (
-    <div className="relative flex-shrink-0">
+    <div ref={shell} className="relative flex-shrink-0">
       <button
         type="button"
         onClick={() => (open ? close() : setOpen(true))}

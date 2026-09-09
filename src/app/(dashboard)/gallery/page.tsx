@@ -3,7 +3,7 @@ import { requireOrg } from "@/lib/org";
 import { saveMediaAsset } from "../portal-actions";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import GalleryBrowser from "./GalleryBrowser";
-import { Card, StatCard, EmptyState } from "@/components/ui/primitives";
+import { Card, EmptyState } from "@/components/ui/primitives";
 import type { MediaAsset } from "@/types/portal";
 
 export default async function GalleryPage() {
