@@ -337,6 +337,10 @@ export async function saveAssistantRules(formData: FormData): Promise<ActionResu
       memory_turns: Math.round(memoryTurns),
       use_knowledge_base: String(formData.get("use_knowledge_base") ?? "") === "true",
       stop_on_human: String(formData.get("stop_on_human") ?? "") === "true",
+      // Which forms this assistant may open. Absent from the payload means
+      // none were ticked, which is a real answer — the assistant loses the
+      // forms it had, rather than keeping them because nothing was sent.
+      form_ids: formData.getAll("form_ids").map((id) => String(id)).filter(Boolean),
       working_hours_enabled: enabled,
       working_hours_timezone: String(formData.get("working_hours_timezone") ?? "UTC"),
       working_hours_start: start,

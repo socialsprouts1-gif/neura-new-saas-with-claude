@@ -32,10 +32,21 @@ export default async function AssistantEditorPage({
     .or(`assistant_id.is.null,assistant_id.eq.${id}`)
     .order("created_at", { ascending: false });
 
+  // Only forms that exist at Meta. One that has never been uploaded cannot
+  // open in a chat, so offering it to the assistant would be offering it a
+  // way to fail in front of a customer.
+  const { data: forms } = await supabase
+    .from("whatsapp_flows")
+    .select("id, name, description, status")
+    .eq("org_id", orgId)
+    .not("meta_flow_id", "is", null)
+    .order("name");
+
   return (
     <AssistantEditor
       assistant={assistant as AiAssistant}
       knowledge={(knowledge ?? []) as AssistantKnowledge[]}
+      forms={forms ?? []}
       // Resolved here because it needs the decryption key and the env, and
       // neither may cross to the client.
       hasKey={isAssistantConfigured(assistant as AiAssistant)}

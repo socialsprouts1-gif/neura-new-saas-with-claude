@@ -29,6 +29,15 @@ export default async function FlowBuilderPage({
     status: connection.status,
   }));
 
+  // Only forms that exist at Meta — a Send Form node pointing at one that
+  // was never uploaded fails at the customer, which is the worst place.
+  const { data: forms } = await supabase
+    .from("whatsapp_flows")
+    .select("id, name, status")
+    .eq("org_id", orgId)
+    .not("meta_flow_id", "is", null)
+    .order("name");
+
   const { data: flow } = await supabase
     .from("chatbot_flows")
     .select("*")
@@ -82,6 +91,7 @@ export default async function FlowBuilderPage({
           initialNodes={nodes}
           initialEdges={(Array.isArray(flow.edges) ? flow.edges : []) as FlowEdge[]}
           numbers={numbers}
+          forms={forms ?? []}
         />
       </div>
     </div>

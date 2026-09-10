@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import {
+  ClipboardList,
   Clock,
   FileText,
   Image as ImageIcon,
@@ -14,10 +15,10 @@ import {
   X,
 } from "lucide-react";
 import { useDismissable } from "@/hooks/use-dismissable";
-import { addInternalNote, addReminder } from "./actions";
+import { addInternalNote, addReminder, sendFormToConversation } from "./actions";
 import { assignConversation } from "@/app/(dashboard)/actions";
 import { updateContactDetails } from "./actions";
-import type { MediaOption, TemplateOption } from "./Composer";
+import type { FormOption, MediaOption, TemplateOption } from "./Composer";
 import type { Teammate } from "./ConversationList";
 
 const REMINDERS: Array<[string, number]> = [
@@ -27,7 +28,7 @@ const REMINDERS: Array<[string, number]> = [
   ["Next week", 60 * 24 * 7],
 ];
 
-type View = "menu" | "note" | "reminder" | "tag" | "assign" | "media" | "template";
+type View = "menu" | "note" | "reminder" | "tag" | "assign" | "media" | "template" | "form";
 
 /**
  * Everything the composer used to wear as a row of icons. One button, six
@@ -41,6 +42,7 @@ export default function PlusMenu({
   assignedTo,
   media,
   templates,
+  forms,
   onInsert,
   onSendTemplate,
 }: {
@@ -51,6 +53,8 @@ export default function PlusMenu({
   assignedTo: string | null;
   media: MediaOption[];
   templates: TemplateOption[];
+  /** Forms that have been uploaded to WhatsApp and can actually open. */
+  forms: FormOption[];
   onInsert: (text: string) => void;
   onSendTemplate: (template: TemplateOption) => void;
 }) {
@@ -115,6 +119,9 @@ export default function PlusMenu({
               </Row>
               <Row icon={<FileText className="w-4 h-4" />} onClick={() => setView("template")}>
                 Template
+              </Row>
+              <Row icon={<ClipboardList className="w-4 h-4" />} onClick={() => setView("form")}>
+                Form
               </Row>
             </div>
           )}
@@ -296,6 +303,51 @@ export default function PlusMenu({
                   ))}
                 </div>
               )}
+            </Panel>
+          )}
+
+          {view === "form" && (
+            <Panel title="Send a form" onBack={() => setView("menu")} onClose={close}>
+              {forms.length === 0 ? (
+                <p className="text-[11px] text-white/40 leading-relaxed py-2">
+                  No forms are ready to send. Build one under Manage → WhatsApp Forms and press
+                  Update Flow — a form has to exist at WhatsApp before it can open in a chat.
+                </p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto">
+                  {forms.map((form) => (
+                    <button
+                      key={form.id}
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          sendFormToConversation({ conversationId, formId: form.id })
+                        )
+                      }
+                      className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm truncate">{form.name}</span>
+                        {form.status !== "published" && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15] flex-shrink-0">
+                            draft
+                          </span>
+                        )}
+                      </div>
+                      {form.description && (
+                        <p className="text-[11px] text-white/40 line-clamp-1 mt-0.5">
+                          {form.description}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="text-[10px] text-white/30 mt-2 leading-relaxed">
+                A draft form opens only for numbers on your own WhatsApp account — useful for
+                testing before you publish.
+              </p>
             </Panel>
           )}
 

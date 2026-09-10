@@ -1,5 +1,4 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
 import type { FlowGraph, FlowNode } from "@/types/flow";
 import type { ChatbotFlow } from "@/types/portal";
 import {
@@ -24,7 +23,6 @@ import {
   describeMetaError,
   MetaApiError,
   sendCtaUrl,
-  sendFlowMessage,
   sendInteractiveButtons,
   sendInteractiveList,
   sendMediaMessage,
@@ -33,6 +31,7 @@ import {
   type MetaMediaType,
 } from "@/lib/meta-whatsapp";
 import { generateAssistantReply } from "@/lib/ai-assistant";
+import { FORM_SEND_COLUMNS, sendFormToContact } from "@/lib/form-send";
 import { nodeDef } from "@/types/flow";
 import type { OrgConnection, RunnerClient } from "@/lib/whatsapp-send";
 
@@ -323,15 +322,15 @@ async function executeNode(
 
     case "send_form": {
       const formId = String(node.data.formId ?? "").trim();
-      const body = text("body");
-      if (!formId || !body) return { variables };
+      if (!formId) return { variables };
 
-      // Accept either the id shown on the Forms screen or the form's name,
-      // because nobody wants to paste a UUID into a chatbot node.
+      // The picker saves an id. A bot built before the picker existed saved
+      // the form's name, so both still resolve — but only one of them
+      // survives someone renaming the form.
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formId);
       const query = context.supabase
         .from("whatsapp_flows")
-        .select("id, meta_flow_id, status, screens")
+        .select(FORM_SEND_COLUMNS)
         .eq("org_id", context.orgId);
 
       const { data: form } = await (isUuid ? query.eq("id", formId) : query.eq("name", formId))
@@ -341,47 +340,34 @@ async function executeNode(
         throw new Error(`No form called "${formId}" in this workspace.`);
       }
 
-      if (!form?.meta_flow_id) {
-        throw new Error("That form hasn't been sent to WhatsApp yet — open it and press Update Flow.");
-      }
-
-      const screens = (form.screens ?? []) as Array<{ screenId?: string }>;
-      const firstScreen = screens[0]?.screenId;
-      if (!firstScreen) {
-        throw new Error("That form has no screens to open.");
-      }
-
-      // The token is what ties the answers back to this conversation; the
-      // webhook has nothing else to match a submission on.
-      const flowToken = randomUUID();
-
-      const result = await sendFlowMessage(
-        connection.phoneNumberId,
-        contactWaId,
-        connection.accessToken,
-        {
-          flowId: form.meta_flow_id,
-          flowToken,
-          cta: String(node.data.buttonText ?? "Open form").slice(0, 20) || "Open form",
-          body,
-          firstScreen,
-          footer: text("footer") || undefined,
-          draft: form.status !== "published",
-        }
-      );
-
-      await context.supabase.from("flow_sends").insert({
-        org_id: context.orgId,
-        flow_id: form.id,
-        contact_id: context.contactId,
-        conversation_id: context.conversationId,
-        wa_id: contactWaId,
-        flow_token: flowToken,
-        wa_message_id: result.messages[0]?.id ?? null,
+      // A blank body falls back to the form's own invitation, so the same
+      // form introduces itself the same way wherever it is sent from.
+      const sent = await sendFormToContact({
+        supabase: context.supabase,
+        connection,
+        form,
+        toWaId: contactWaId,
+        contactId: context.contactId,
+        conversationId: context.conversationId,
+        orgId: context.orgId,
+        source: "chatbot",
+        body: text("body") || null,
+        buttonText: String(node.data.buttonText ?? "") || null,
+        lastInboundAt: null,
+        // The flow is running because a message just arrived, so the
+        // 24-hour window is open by definition.
+        skipWindowCheck: true,
       });
 
-      await logOutbound(context, "interactive", { body, flow_id: form.meta_flow_id }, result.messages[0]?.id ?? null);
-      return { variables, reply: body };
+      if (!sent.ok) throw new Error(sent.error ?? "The form could not be sent.");
+
+      await logOutbound(
+        context,
+        "interactive",
+        { body: sent.body ?? "", form_id: form.id, form_name: form.name },
+        sent.waMessageId ?? null
+      );
+      return { variables, reply: sent.body ?? "" };
     }
 
     case "send_template": {

@@ -1,6 +1,12 @@
 import "server-only";
 import type { AiAssistant, AssistantKnowledge, ChatbotFlow, FaqEntry } from "@/types/portal";
 import { generateAssistantReply, type AssistantTurn } from "@/lib/ai-assistant";
+import {
+  FORM_SEND_COLUMNS,
+  logFormMessage,
+  sendFormToContact,
+  type SendableForm,
+} from "@/lib/form-send";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
 import {
   loadOrgConnection,
@@ -193,6 +199,7 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
 
     // The assistant is the one plan whose text does not exist yet.
     let body: string;
+    let offeredFormId: string | null = null;
     if (plan.kind === "assistant") {
       const assistant = resources.assistants.find((candidate) => candidate.id === plan.id)!;
       const generated = await generateAssistantReply({
@@ -205,6 +212,9 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
         knowledge: resources.knowledge.filter(
           (entry) => entry.assistant_id === null || entry.assistant_id === assistant.id
         ),
+        // Only the forms this assistant was given. The prompt says nothing
+        // about forms at all when the list is empty.
+        forms: resources.forms.filter((form) => (assistant.form_ids ?? []).includes(form.id)),
       });
 
       if (generated.status !== "replied") {
@@ -221,6 +231,9 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
         return;
       }
       body = generated.text;
+      // Sent after the sentence, below, so the customer reads why the form
+      // is arriving before it arrives.
+      offeredFormId = generated.formId ?? null;
     } else {
       body = plan.body;
     }
@@ -252,6 +265,42 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
       return;
     }
 
+    // The assistant asked for a form. Sent after its sentence so the
+    // customer reads what is coming before the card lands, and best-effort:
+    // the reply has already been delivered, so a form that fails to send is
+    // a note on the run rather than a failed run.
+    let formError: string | null = null;
+    if (offeredFormId) {
+      const form = resources.forms.find((candidate) => candidate.id === offeredFormId);
+      if (form) {
+        const handed = await sendFormToContact({
+          supabase,
+          connection,
+          form,
+          toWaId: event.contactWaId,
+          contactId: event.contactId,
+          conversationId: event.conversationId,
+          orgId: event.orgId,
+          source: "assistant",
+          lastInboundAt: null,
+          // Answering a message that just arrived, so the window is open.
+          skipWindowCheck: true,
+        });
+        if (handed.ok) {
+          await logFormMessage(
+            supabase,
+            event.conversationId,
+            { id: form.id, name: form.name },
+            handed.body ?? "",
+            handed.waMessageId ?? null
+          );
+        } else {
+          formError = handed.error ?? "The form could not be sent.";
+          console.error(`Assistant could not send "${form.name}": ${formError}`);
+        }
+      }
+    }
+
     await applySideEffects(supabase, event, plan, conversation);
 
     await finish({
@@ -260,6 +309,9 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
       matched_label: plan.label,
       reply_text: body,
       outcome: plan.kind === "handoff" ? "handoff" : "replied",
+      // The reply went out, so this is not a failure — but a form the
+      // customer was promised and never got needs to be visible somewhere.
+      ...(formError ? { error: `Reply sent, but the form did not: ${formError}` } : {}),
     });
   } catch (error) {
     console.error("Message runner crashed", error);
@@ -449,13 +501,16 @@ async function loadResources(
   supabase: RunnerClient,
   event: InboundEvent,
   conversation: ConversationState
-): Promise<RunnerResources & { orgName: string; knowledge: AssistantKnowledge[] }> {
+): Promise<
+  RunnerResources & { orgName: string; knowledge: AssistantKnowledge[]; forms: SendableForm[] }
+> {
   const [
     flowsResult,
     faqsResult,
     automationsResult,
     assistantsResult,
     knowledgeResult,
+    formsResult,
     orgResult,
     inboundCount,
   ] = await Promise.all([
@@ -488,6 +543,14 @@ async function loadResources(
         .eq("org_id", event.orgId)
         .eq("is_active", true)
         .order("created_at"),
+      // Forms that exist at Meta. An assistant is only told about the ones
+      // attached to it, but the filtering happens below rather than here —
+      // one query serves every assistant in the workspace.
+      supabase
+        .from("whatsapp_flows")
+        .select(FORM_SEND_COLUMNS)
+        .eq("org_id", event.orgId)
+        .not("meta_flow_id", "is", null),
       supabase.from("organizations").select("name").eq("id", event.orgId).maybeSingle(),
       supabase
         .from("messages")
@@ -504,6 +567,7 @@ async function loadResources(
     automations: (automationsResult.data ?? []) as AutomationFlow[],
     assistants: (assistantsResult.data ?? []) as AiAssistant[],
     knowledge: (knowledgeResult.data ?? []) as AssistantKnowledge[],
+    forms: (formsResult.data ?? []) as SendableForm[],
     // The message that triggered this run is already stored, so a first
     // message means exactly one inbound row exists.
     isFirstMessage: (inboundCount.count ?? 0) <= 1,

@@ -15,7 +15,14 @@ import {
   Toggle,
 } from "./EditorControls";
 
-export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
+export default function RulesTab({
+  assistant,
+  forms,
+}: {
+  assistant: AiAssistant;
+  /** Forms in this workspace that exist at Meta and could be offered. */
+  forms: Array<{ id: string; name: string; description: string | null; status: string }>;
+}) {
   const [memoryTurns, setMemoryTurns] = useState(assistant.memory_turns);
   const [useKnowledge, setUseKnowledge] = useState(assistant.use_knowledge_base);
   const [stopOnHuman, setStopOnHuman] = useState(assistant.stop_on_human);
@@ -28,6 +35,12 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
 
   const [followupOn, setFollowupOn] = useState(assistant.followup_enabled);
   const [maxFollowups, setMaxFollowups] = useState(assistant.max_followups);
+
+  const [formIds, setFormIds] = useState<string[]>(assistant.form_ids ?? []);
+  const toggleForm = (id: string) =>
+    setFormIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
+    );
 
   const toggleDay = (day: number) =>
     setDays((current) =>
@@ -105,6 +118,64 @@ export default function RulesTab({ assistant }: { assistant: AiAssistant }) {
               description="The agent stops when your team sends a message from the inbox, until you resume the bot on that chat."
             />
           </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Forms it can send"
+          description="Tick a form and the assistant may open it in the chat when the customer wants that thing."
+        >
+          {forms.length === 0 ? (
+            <p className="text-xs text-white/45 leading-relaxed">
+              No forms are ready yet. Build one under Manage → WhatsApp Forms and press Update
+              Flow — a form has to exist at WhatsApp before anything can open it.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                {forms.map((form) => {
+                  const on = formIds.includes(form.id);
+                  return (
+                    <label
+                      key={form.id}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        on
+                          ? "border-accent/35 bg-accent/8"
+                          : "border-white/10 bg-white/3 hover:border-white/20"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        name="form_ids"
+                        value={form.id}
+                        checked={on}
+                        onChange={() => toggleForm(form.id)}
+                        className="mt-0.5 accent-[var(--accent)]"
+                      />
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{form.name}</span>
+                          {form.status !== "published" && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15]">
+                              draft
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-[11px] text-white/45 leading-relaxed mt-0.5">
+                          {form.description?.trim() ||
+                            "No description — the assistant only has the name to go on. Add one on the form so it knows when to offer it."}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-white/35 leading-relaxed mt-3">
+                The assistant decides when to send one, and can only ever send a form ticked here.
+                A draft form opens for numbers on your own WhatsApp account only, so it is safe to
+                tick one while you are still testing.
+              </p>
+            </>
+          )}
         </SectionCard>
 
         <SectionCard

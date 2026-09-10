@@ -89,7 +89,9 @@ export type FieldKind =
   | "buttons"
   | "sections"
   | "variable"
-  | "numbers";
+  | "numbers"
+  /** A form from this workspace, picked from a list rather than typed. */
+  | "form";
 
 export interface NodeField {
   name: string;
@@ -262,7 +264,7 @@ export const NODE_DEFS: NodeDef[] = [
     description: "Opens a WhatsApp Form inside the chat and records the answers.",
     runtime: "ready",
     fields: [
-      { name: "formId", label: "Form name or id", kind: "text", placeholder: "Book an appointment" },
+      { name: "formId", label: "Which form", kind: "form" },
       { name: "body", label: "Body text", kind: "textarea", maxLength: 1024 },
       { name: "buttonText", label: "Button label", kind: "text", maxLength: 20, placeholder: "Open form" },
       { name: "footer", label: "Footer (optional)", kind: "text", maxLength: 60 },

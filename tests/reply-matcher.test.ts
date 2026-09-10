@@ -69,6 +69,7 @@ function assistant(overrides: Partial<AiAssistant> & { id: string; name: string 
     org_id: "org",
     connection_id: null,
     role: "Support agent",
+    form_ids: [],
     provider: "anthropic",
     model: "claude-sonnet-5",
     api_key_encrypted: null,

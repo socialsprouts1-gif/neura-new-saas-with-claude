@@ -35,7 +35,7 @@ import {
   type FormScreen,
   type InputType,
 } from "@/lib/flow-json";
-import { publishForm, saveForm, sendForm, syncForm } from "../flow-actions";
+import { publishForm, saveForm, saveFormDelivery, sendForm, syncForm } from "../flow-actions";
 
 /** What each component is called in the editor, in plain words. */
 const KIND_LABELS: Record<ComponentKind, string> = {
@@ -64,6 +64,9 @@ export default function FlowBuilder({
   initialName,
   initialCategory,
   initialScreens,
+  initialDescription,
+  initialInvitation,
+  initialButtonText,
   status,
   previewUrl,
   metaFlowId,
@@ -72,6 +75,12 @@ export default function FlowBuilder({
   initialName: string;
   initialCategory: string;
   initialScreens: FormScreen[];
+  /** What the form is for, in one line. The AI assistant reads it. */
+  initialDescription: string;
+  /** The message sent above the form. */
+  initialInvitation: string;
+  /** The CTA on the message bubble. */
+  initialButtonText: string;
   status: string;
   previewUrl: string | null;
   metaFlowId: string | null;
@@ -226,6 +235,13 @@ export default function FlowBuilder({
           {note.text}
         </div>
       )}
+
+      <DeliveryCard
+        id={id}
+        initialDescription={initialDescription}
+        initialInvitation={initialInvitation}
+        initialButtonText={initialButtonText}
+      />
 
       <div className="grid lg:grid-cols-[200px_minmax(0,1fr)_320px] gap-6 items-start">
         {/* Screens */}
@@ -931,5 +947,113 @@ function StatusPill({ status }: { status: string }) {
     <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-medium border ${tone}`}>
       {status}
     </span>
+  );
+}
+
+
+/**
+ * How this form introduces itself when something sends it.
+ *
+ * Saved apart from the screens, and saved to the database rather than to
+ * Meta — none of it is part of the Flow JSON. Keeping it on the form means
+ * the inbox, a chatbot node and the AI assistant all send the same message
+ * above the same button without anyone typing it three times.
+ */
+function DeliveryCard({
+  id,
+  initialDescription,
+  initialInvitation,
+  initialButtonText,
+}: {
+  id: string;
+  initialDescription: string;
+  initialInvitation: string;
+  initialButtonText: string;
+}) {
+  const [description, setDescription] = useState(initialDescription);
+  const [invitation, setInvitation] = useState(initialInvitation);
+  const [buttonText, setButtonText] = useState(initialButtonText);
+  const [note, setNote] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const dirty =
+    description !== initialDescription ||
+    invitation !== initialInvitation ||
+    buttonText !== initialButtonText;
+
+  return (
+    <div className="glass-card p-5 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="font-semibold">How it is sent</h2>
+          <p className="text-xs text-white/45 mt-1 leading-relaxed max-w-2xl">
+            What the customer sees above the form, and what the AI assistant is told about it.
+            None of this goes to WhatsApp with the form itself, so changing it needs no
+            republishing.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {note && <span className="text-xs text-white/50">{note}</span>}
+          <button
+            type="button"
+            disabled={pending || !dirty}
+            onClick={() =>
+              startTransition(async () => {
+                const data = new FormData();
+                data.set("id", id);
+                data.set("description", description);
+                data.set("invitation", invitation);
+                data.set("button_text", buttonText);
+                const result = await saveFormDelivery(data);
+                setNote(result.ok ? "Saved." : (result.error ?? "Could not save."));
+              })
+            }
+            className="btn-secondary text-sm disabled:opacity-40"
+          >
+            {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Save
+          </button>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="md:col-span-2">
+          <span className="block text-xs font-medium text-white/70 mb-1.5">
+            Message sent above the form
+          </span>
+          <input
+            value={invitation}
+            onChange={(event) => setInvitation(event.target.value)}
+            placeholder="Tap below to fill this in — it only takes a moment."
+            className={input}
+          />
+        </div>
+        <div>
+          <span className="block text-xs font-medium text-white/70 mb-1.5">Button label</span>
+          <input
+            value={buttonText}
+            onChange={(event) => setButtonText(event.target.value)}
+            maxLength={20}
+            placeholder="Open form"
+            className={input}
+          />
+        </div>
+        <div className="md:col-span-3">
+          <span className="block text-xs font-medium text-white/70 mb-1.5">
+            When should the AI assistant send this?
+          </span>
+          <input
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="When the customer wants to book a time with us."
+            className={input}
+          />
+          <p className="text-[11px] text-white/35 mt-1.5 leading-relaxed">
+            One line. The assistant sees this next to the form&rsquo;s name and uses it to decide
+            when the form is the right answer — without it, it only has the name to go on.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

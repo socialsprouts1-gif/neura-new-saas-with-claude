@@ -28,6 +28,7 @@ import {
   type FormScreen,
   type FlowCategory,
 } from "@/lib/flow-json";
+import { findTemplate, templateScreens } from "@/lib/form-templates";
 import type { ActionResult } from "../actions";
 import type { FlowStatus } from "@/types/portal";
 
@@ -70,7 +71,14 @@ function describeValidation(errors: MetaFlowValidationError[] | undefined): stri
 
 // --- the form itself ------------------------------------------------------
 
-/** A new form starts with one screen holding a heading and a question. */
+/**
+ * Creates a form, either blank or from one of the bundled templates.
+ *
+ * A template fills in the category, the screens, the invitation and the
+ * button as well as the fields — a form that arrives half-configured still
+ * has to be finished before it can be sent, which is most of the work a
+ * template was supposed to save.
+ */
 export async function createForm(formData: FormData): Promise<ActionResult & { id?: string }> {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
@@ -78,16 +86,32 @@ export async function createForm(formData: FormData): Promise<ActionResult & { i
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { ok: false, error: "Give the form a name." };
 
-  const first = newScreen(0);
-  first.fields = [newField("TextHeading"), newField("TextInput")];
+  const template = findTemplate(String(formData.get("template") ?? "").trim());
+
+  let screens;
+  if (template) {
+    screens = templateScreens(template);
+  } else {
+    const first = newScreen(0);
+    first.fields = [newField("TextHeading"), newField("TextInput")];
+    screens = [first];
+  }
+
+  // The chosen category wins over the template's, because the picker shows
+  // both and the one the person touched last is the one they meant.
+  const chosen = String(formData.get("category") ?? "").trim();
+  const category = (chosen || template?.category || "LEAD_GENERATION") as FlowCategory;
 
   const { data, error } = await supabase
     .from("whatsapp_flows")
     .insert({
       org_id: orgId,
       name,
-      categories: [String(formData.get("category") ?? "LEAD_GENERATION") as FlowCategory],
-      screens: [first] as unknown as Record<string, unknown>,
+      categories: [category],
+      screens: screens as unknown as Record<string, unknown>,
+      description: template?.description ?? null,
+      invitation: template?.invitation ?? null,
+      button_text: template?.buttonText ?? "Open form",
     })
     .select("id")
     .single();
@@ -95,7 +119,40 @@ export async function createForm(formData: FormData): Promise<ActionResult & { i
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/forms");
-  return { ok: true, id: data.id, message: "Form created." };
+  return {
+    ok: true,
+    id: data.id,
+    message: template ? `Created from the ${template.name} template.` : "Form created.",
+  };
+}
+
+/**
+ * Saves the description, invitation and button — the parts a bot needs to
+ * send the form without being told them again at every call site.
+ */
+export async function saveFormDelivery(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No form selected." };
+
+  const { error } = await supabase
+    .from("whatsapp_flows")
+    .update({
+      description: String(formData.get("description") ?? "").trim() || null,
+      invitation: String(formData.get("invitation") ?? "").trim() || null,
+      button_text: String(formData.get("button_text") ?? "").trim().slice(0, 20) || "Open form",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("org_id", orgId)
+    .eq("id", id);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/forms");
+  revalidatePath(`/forms/${id}`);
+  return { ok: true, message: "Saved." };
 }
 
 /**

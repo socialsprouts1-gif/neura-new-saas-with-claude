@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { createForm, deleteForm, syncAllForms } from "./flow-actions";
 import { FLOW_CATEGORIES } from "@/lib/flow-json";
+import { FORM_TEMPLATES } from "@/lib/form-templates";
 
 export function FormsToolbar() {
   const router = useRouter();
@@ -48,10 +49,24 @@ export function FormsToolbar() {
 
 function NewFormDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<string>("LEAD_GENERATION");
+  // "" is the blank form. A template is the common case, so it leads.
+  const [template, setTemplate] = useState<string>(FORM_TEMPLATES[0]?.slug ?? "");
+  const [name, setName] = useState(FORM_TEMPLATES[0]?.name ?? "");
+  const [category, setCategory] = useState<string>(
+    FORM_TEMPLATES[0]?.category ?? "LEAD_GENERATION"
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Picking a template fills the name and category too, because those are
+  // part of the template — a form called "Untitled" in the wrong category
+  // is not a saved step.
+  const chooseTemplate = (slug: string) => {
+    setTemplate(slug);
+    const picked = FORM_TEMPLATES.find((candidate) => candidate.slug === slug);
+    setName(picked?.name ?? "");
+    setCategory(picked?.category ?? "LEAD_GENERATION");
+  };
 
   return (
     <div
@@ -63,13 +78,51 @@ function NewFormDialog({ onClose }: { onClose: () => void }) {
         if (event.target === event.currentTarget && !pending) onClose();
       }}
     >
-      <div className="glass-card w-full max-w-md p-6 space-y-4">
+      <div className="glass-card w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div>
           <h3 className="font-semibold">New form</h3>
           <p className="text-xs text-white/45 mt-1.5 leading-relaxed">
-            Forms open inside the chat. The category tells WhatsApp what the form is for and
-            cannot be changed once it is published.
+            Forms open inside the chat. Start from a template and change what you like — every
+            one of them is already inside WhatsApp&apos;s field limits. The category tells
+            WhatsApp what the form is for and cannot be changed once it is published.
           </p>
+        </div>
+
+        <div>
+          <span className="block text-xs font-medium text-white/70 mb-1.5">Start from</span>
+          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+            {FORM_TEMPLATES.map((option) => (
+              <button
+                key={option.slug}
+                type="button"
+                onClick={() => chooseTemplate(option.slug)}
+                className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                  template === option.slug
+                    ? "border-accent/40 bg-accent/8"
+                    : "border-white/10 bg-white/3 hover:border-white/25"
+                }`}
+              >
+                <div className="text-sm font-medium">{option.name}</div>
+                <div className="text-[11px] text-white/45 leading-relaxed mt-0.5">
+                  {option.description}
+                </div>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => chooseTemplate("")}
+              className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                template === ""
+                  ? "border-accent/40 bg-accent/8"
+                  : "border-white/10 bg-white/3 hover:border-white/25"
+              }`}
+            >
+              <div className="text-sm font-medium">Blank form</div>
+              <div className="text-[11px] text-white/45 leading-relaxed mt-0.5">
+                One screen with a heading and a single question. Build the rest yourself.
+              </div>
+            </button>
+          </div>
         </div>
 
         <div>
@@ -111,6 +164,7 @@ function NewFormDialog({ onClose }: { onClose: () => void }) {
                 const data = new FormData();
                 data.set("name", name);
                 data.set("category", category);
+                if (template) data.set("template", template);
                 const result = await createForm(data);
                 if (!result.ok || !result.id) {
                   setError(result.error ?? "Could not create the form.");

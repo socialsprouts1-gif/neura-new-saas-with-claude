@@ -17,10 +17,13 @@ type Tab = (typeof TABS)[number];
 export default function AssistantEditor({
   assistant,
   knowledge,
+  forms,
   hasKey,
 }: {
   assistant: AiAssistant;
   knowledge: AssistantKnowledge[];
+  /** Forms in this workspace that exist at Meta and could be offered. */
+  forms: Array<{ id: string; name: string; description: string | null; status: string }>;
   /** Resolved on the server: an own key, or a platform key for this provider. */
   hasKey: boolean;
 }) {
@@ -134,7 +137,7 @@ export default function AssistantEditor({
           enabled={assistant.use_knowledge_base}
         />
       )}
-      {tab === "Agent Rules" && <RulesTab assistant={assistant} />}
+      {tab === "Agent Rules" && <RulesTab assistant={assistant} forms={forms} />}
     </div>
   );
 }

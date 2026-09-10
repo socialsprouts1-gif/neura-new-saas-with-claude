@@ -125,6 +125,13 @@ export interface BuilderNumber {
   status: string;
 }
 
+/** A form the Send Form node can pick. */
+export interface BuilderForm {
+  id: string;
+  name: string;
+  status: string;
+}
+
 /**
  * The workspace's numbers, for the trigger's Phone Numbers field.
  *
@@ -132,6 +139,9 @@ export interface BuilderNumber {
  * React Flow node, several layers below anything that could pass it down.
  */
 const NumbersContext = createContext<BuilderNumber[]>([]);
+
+/** The workspace's sendable forms, for the Send Form node. Same reason. */
+const FormsContext = createContext<BuilderForm[]>([]);
 
 function FieldEditor({
   field,
@@ -179,6 +189,9 @@ function FieldEditor({
           ))}
         </select>
       );
+
+    case "form":
+      return <FormPicker value={value} onChange={onChange} />;
 
     case "toggle":
       return (
@@ -653,6 +666,8 @@ interface BuilderProps {
   initialEdges: FlowEdge[];
   /** The workspace's numbers, for the trigger's Phone Numbers field. */
   numbers: BuilderNumber[];
+  /** Forms that exist at Meta, for the Send Form node. */
+  forms: BuilderForm[];
 }
 
 // `numbers` is deliberately not destructured: the field editor reads it
@@ -936,10 +951,70 @@ function Builder({
 export default function FlowBuilder(props: BuilderProps) {
   return (
     <NumbersContext.Provider value={props.numbers}>
-      <ReactFlowProvider>
-        <Builder {...props} />
-      </ReactFlowProvider>
+      <FormsContext.Provider value={props.forms}>
+        <ReactFlowProvider>
+          <Builder {...props} />
+        </ReactFlowProvider>
+      </FormsContext.Provider>
     </NumbersContext.Provider>
+  );
+}
+
+/**
+ * Which form a Send Form node opens.
+ *
+ * Stores the form's id, not its name. The runtime still accepts a name —
+ * bots built before this picker existed have one saved — but a name saved
+ * today would break the moment someone renamed the form.
+ */
+function FormPicker({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (next: unknown) => void;
+}) {
+  const forms = useContext(FormsContext);
+  const current = String(value ?? "");
+
+  if (forms.length === 0) {
+    return (
+      <p className="text-[11px] text-white/45 leading-relaxed">
+        No forms are ready. Build one under Manage → WhatsApp Forms and press Update Flow — a
+        form has to exist at WhatsApp before a bot can open it.
+      </p>
+    );
+  }
+
+  // A saved value that matches nothing is shown rather than silently
+  // replaced: it may be a form built in WhatsApp Manager, or one deleted
+  // since, and either way the author should see what the node still says.
+  const known = forms.some((form) => form.id === current);
+
+  return (
+    <>
+      <select
+        className={inputClass}
+        value={known ? current : ""}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="" className="bg-[var(--surface-1)]">
+          Choose a form…
+        </option>
+        {forms.map((form) => (
+          <option key={form.id} value={form.id} className="bg-[var(--surface-1)]">
+            {form.name}
+            {form.status !== "published" ? " (draft)" : ""}
+          </option>
+        ))}
+      </select>
+      {current && !known && (
+        <p className="text-[11px] text-[#FACC15] mt-1.5 leading-relaxed">
+          This node currently says &ldquo;{current}&rdquo;, which is not a form in this
+          workspace. Pick one above to replace it.
+        </p>
+      )}
+    </>
   );
 }
 

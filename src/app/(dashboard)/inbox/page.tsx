@@ -130,7 +130,14 @@ export default async function InboxPage({
     }
   }
 
-  const [{ data: members }, { data: canned }, { data: templates }, { data: media }, { data: pendingReminders }] =
+  const [
+    { data: members },
+    { data: canned },
+    { data: templates },
+    { data: media },
+    { data: forms },
+    { data: pendingReminders },
+  ] =
     await Promise.all([
       supabase.from("org_members").select("user_id").eq("org_id", orgId),
       supabase
@@ -151,6 +158,14 @@ export default async function InboxPage({
         .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(50),
+      // Only forms that exist at Meta. One that has never been uploaded
+      // cannot open in a chat, so offering it would be offering a failure.
+      supabase
+        .from("whatsapp_flows")
+        .select("id, name, description, status")
+        .eq("org_id", orgId)
+        .not("meta_flow_id", "is", null)
+        .order("name"),
       supabase
         .from("reminders")
         .select("conversation_id")
@@ -373,6 +388,7 @@ export default async function InboxPage({
             url: asset.url,
             type: asset.media_type,
           }))}
+          forms={forms ?? []}
         />
       ) : (
         <div className="flex-1 grid place-items-center text-sm text-white/40">

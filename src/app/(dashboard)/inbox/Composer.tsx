@@ -30,6 +30,14 @@ export interface MediaOption {
   type: string;
 }
 
+/** A form the agent can hand to this customer from the + menu. */
+export interface FormOption {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+}
+
 // Posts through the authenticated send endpoint rather than a server action,
 // so outbound sending has one code path shared with any future API client.
 export default function Composer({
@@ -40,6 +48,7 @@ export default function Composer({
   canned,
   templates,
   media,
+  forms,
   tags,
   teammates,
   assignedTo,
@@ -52,6 +61,7 @@ export default function Composer({
   canned: CannedMessage[];
   templates: TemplateOption[];
   media: MediaOption[];
+  forms: FormOption[];
   tags: string[];
   teammates: Teammate[];
   assignedTo: string | null;
@@ -182,6 +192,7 @@ export default function Composer({
           assignedTo={assignedTo}
           media={media}
           templates={templates}
+          forms={forms}
           onInsert={insert}
           onSendTemplate={(template) =>
             void post({

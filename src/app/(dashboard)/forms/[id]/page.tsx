@@ -48,6 +48,9 @@ export default async function FormBuilderPage({
       initialName={flow.name}
       initialCategory={flow.categories?.[0] ?? "LEAD_GENERATION"}
       initialScreens={screens}
+      initialDescription={flow.description ?? ""}
+      initialInvitation={flow.invitation ?? ""}
+      initialButtonText={flow.button_text ?? "Open form"}
       status={flow.status}
       previewUrl={flow.preview_url}
       metaFlowId={flow.meta_flow_id}

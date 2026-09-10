@@ -17,6 +17,8 @@ import type { AiCallConfig, AiTurn } from "@/lib/ai-call";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 import type { AiMode, LeadStage, Priority } from "@/types/portal";
 import type { Database } from "@/types/database";
+import { loadOrgConnection } from "@/lib/whatsapp-send";
+import { FORM_SEND_COLUMNS, logFormMessage, sendFormToContact } from "@/lib/form-send";
 
 // Everything the inbox does beyond sending a message. Sending stays on
 // /api/messages/send — one outbound path, one place the 24-hour window and
@@ -388,6 +390,81 @@ export async function updateContactDetails(
 }
 
 // --- notes and reminders --------------------------------------------------
+
+/**
+ * Sends a form into this conversation, by hand, from the inbox.
+ *
+ * The agent's version of what a chatbot node does. It logs the send into
+ * the thread as an outbound message, so the next person to open the
+ * conversation can see a form went out and the answers, when they arrive,
+ * are a reply to something visible.
+ */
+export async function sendFormToConversation(input: {
+  conversationId: string;
+  formId: string;
+  body?: string;
+}): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, contact_id, last_inbound_at, contacts(wa_id)")
+    .eq("org_id", orgId)
+    .eq("id", input.conversationId)
+    .maybeSingle();
+
+  const waId = (conversation?.contacts as { wa_id: string } | null)?.wa_id;
+  if (!conversation || !waId) {
+    return { ok: false, error: "That conversation is not in this workspace." };
+  }
+
+  const { data: form } = await supabase
+    .from("whatsapp_flows")
+    .select(FORM_SEND_COLUMNS)
+    .eq("org_id", orgId)
+    .eq("id", input.formId)
+    .maybeSingle();
+
+  if (!form) return { ok: false, error: "That form is not in this workspace." };
+
+  const connection = await loadOrgConnection(supabase, orgId, {
+    conversationId: conversation.id,
+  });
+  if (!connection) return { ok: false, error: "No active WhatsApp connection for this workspace." };
+
+  const sent = await sendFormToContact({
+    supabase,
+    connection,
+    form,
+    toWaId: waId,
+    contactId: conversation.contact_id,
+    conversationId: conversation.id,
+    orgId,
+    source: "inbox",
+    body: input.body ?? null,
+    lastInboundAt: conversation.last_inbound_at,
+  });
+
+  if (!sent.ok) return { ok: false, error: sent.error ?? "The form could not be sent." };
+
+  await logFormMessage(
+    supabase,
+    conversation.id,
+    { id: form.id, name: form.name },
+    sent.body ?? "",
+    sent.waMessageId ?? null
+  );
+
+  revalidatePath("/inbox");
+  return {
+    ok: true,
+    message:
+      form.status === "published"
+        ? `Sent "${form.name}".`
+        : `Sent "${form.name}" as a draft — only numbers on your own WhatsApp account can open it until you publish.`,
+  };
+}
 
 export async function addInternalNote(
   conversationId: string,

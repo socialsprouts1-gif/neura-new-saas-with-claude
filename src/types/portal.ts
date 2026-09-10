@@ -31,6 +31,8 @@ export type AiAssistant = {
   memory_turns: number;
   use_knowledge_base: boolean;
   stop_on_human: boolean;
+  /** whatsapp_flows this assistant may offer. Empty means it offers none. */
+  form_ids: string[];
 
   // Agent rules — working hours. Times are 'HH:MM'; working_days uses
   // JavaScript's getDay() numbering, 0 = Sunday.
@@ -711,6 +713,12 @@ export type WhatsappFlow = {
   id: string;
   org_id: string;
   name: string;
+  /** One line on what the form is for. The AI assistant reads it. */
+  description: string | null;
+  /** The message sent above the form. Null falls back to a generic line. */
+  invitation: string | null;
+  /** The CTA on the message bubble. 20 characters at most. */
+  button_text: string;
   meta_flow_id: string | null;
   categories: string[];
   status: FlowStatus;
@@ -733,6 +741,8 @@ export type FlowSend = {
   conversation_id: string | null;
   wa_id: string;
   flow_token: string;
+  /** How it went out: "inbox", "chatbot" or "assistant". */
+  source: string;
   wa_message_id: string | null;
   created_at: string;
 };

@@ -6,6 +6,7 @@ import ThreadHeader from "./ThreadHeader";
 import CustomerPanel, { type CustomerData } from "./CustomerPanel";
 import Composer, {
   type CannedMessage,
+  type FormOption,
   type MediaOption,
   type TemplateOption,
 } from "./Composer";
@@ -44,6 +45,7 @@ export default function Thread({
   canned,
   templates,
   media,
+  forms,
   customer,
 }: {
   /** Which of your numbers this conversation is on. */
@@ -69,6 +71,7 @@ export default function Thread({
   canned: CannedMessage[];
   templates: TemplateOption[];
   media: MediaOption[];
+  forms: FormOption[];
   customer: CustomerData;
 }) {
   const bottom = useRef<HTMLDivElement>(null);
@@ -212,6 +215,7 @@ export default function Thread({
           canned={canned}
           templates={templates}
           media={media}
+          forms={forms}
           tags={customer.tags}
           teammates={teammates}
           assignedTo={assignedTo}

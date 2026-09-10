@@ -1,6 +1,7 @@
 import "server-only";
 import { callProvider, resolveApiKey } from "@/lib/ai-call";
 import { isWithinWorkingHours } from "@/lib/working-hours";
+import { formInstructions, readFormOffer } from "@/lib/assistant-forms";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
 
 // The AI Assistant reply path. Everything else in the runner answers from
@@ -29,13 +30,19 @@ export interface AssistantContext {
   history: AssistantTurn[];
   /** Active entries only. Ignored when use_knowledge_base is off. */
   knowledge?: AssistantKnowledge[];
+  /**
+   * Forms this assistant may open, already narrowed to the ones attached to
+   * it and actually sendable. An assistant is never told about a form it
+   * cannot send — a model that hears about a capability will offer it.
+   */
+  forms?: Array<{ id: string; name: string; description?: string | null }>;
   /** Injectable for tests; defaults to now. */
   now?: Date;
 }
 
 export type AssistantReply =
-  /** Send this. */
-  | { status: "replied"; text: string }
+  /** Send this. `formId` is set when the assistant also asked for a form. */
+  | { status: "replied"; text: string; formId?: string }
   /** Deliberately silent — off duty, nothing to reply to. Not an error. */
   | { status: "skipped"; reason: string }
   /** Something broke. The reason names the fix. */
@@ -52,6 +59,7 @@ function buildSystemPrompt({
   orgName,
   contactName,
   knowledge,
+  forms,
 }: AssistantContext): string {
   const parts = [
     `You are ${assistant.name}, the ${assistant.role} for ${orgName}.`,
@@ -85,6 +93,9 @@ function buildSystemPrompt({
     "- Do not claim to have performed an action you cannot perform, such as placing an order or issuing a refund.",
     "- If the customer needs a human, say a team member will follow up rather than guessing."
   );
+
+  const formSection = formInstructions(forms ?? []);
+  if (formSection) parts.push(formSection);
 
   return parts.join("\n");
 }
@@ -143,5 +154,26 @@ export async function generateAssistantReply(
 
   const trimmed = generated.text.trim();
   if (!trimmed) return { status: "failed", error: "The assistant returned an empty reply." };
-  return { status: "replied", text: trimmed.slice(0, WHATSAPP_TEXT_LIMIT) };
+
+  // The marker comes out of the text whether or not it names a real form:
+  // a customer seeing "[[form: ...]]" in a chat is a broken-looking bot.
+  const forms = context.forms ?? [];
+  const offer = readFormOffer(
+    trimmed,
+    forms.map((form) => form.name)
+  );
+  const wanted = offer.formName
+    ? forms.find((form) => form.name === offer.formName)
+    : undefined;
+
+  // A model that wrote nothing but a marker still owes the customer a
+  // sentence, or the form arrives with no explanation of what it is.
+  const text = offer.text || (wanted ? `Here you go — tap below to open ${wanted.name}.` : "");
+  if (!text) return { status: "failed", error: "The assistant returned an empty reply." };
+
+  return {
+    status: "replied",
+    text: text.slice(0, WHATSAPP_TEXT_LIMIT),
+    ...(wanted ? { formId: wanted.id } : {}),
+  };
 }
