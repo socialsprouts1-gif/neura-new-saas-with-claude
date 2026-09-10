@@ -75,14 +75,19 @@ export const DEFAULT_HERO: HeroContent = {
   pills: ["AI Chatbots", "Bulk Campaigns", "CRM Built-in", "Auto Follow-ups", "Analytics"],
   primaryCta: { label: "Start Free Trial", href: "/auth/register" },
   secondaryCta: { label: "Watch Demo", href: "#how-it-works" },
-  showSocialProof: true,
-  rating: "4.9/5",
-  socialProofText: "Trusted by 50,000+ businesses worldwide",
+  // Off until there are real numbers to show. A customer count, a star
+  // rating and a message total are all claims a buyer can check, and being
+  // caught inventing one costs more than the section was ever worth.
+  showSocialProof: false,
+  rating: "",
+  socialProofText: "",
+  // Facts about how the product is built, not counts of who uses it. Each
+  // of these is true today and stays true as the business grows.
   stats: [
-    { value: "50K+", label: "Active Businesses" },
-    { value: "2.4B", label: "Messages Automated" },
-    { value: "98.2%", label: "Delivery Rate" },
-    { value: "12x", label: "Faster Response" },
+    { value: "Direct", label: "Meta Cloud API" },
+    { value: "Yours", label: "WhatsApp number & data" },
+    { value: "0%", label: "Markup on messages" },
+    { value: "24/7", label: "Automated replies" },
   ],
   floatingCards: [
     { title: "AI Reply Sent", subtitle: "Response time: 0.3s", color: "#00FF87" },

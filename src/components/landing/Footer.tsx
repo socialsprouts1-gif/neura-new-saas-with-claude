@@ -30,8 +30,8 @@ export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent
               <span className="gradient-text-green">WhatsApp growth?</span>
             </h3>
             <p className="text-white/60 mb-8 max-w-lg mx-auto">
-              Join 50,000+ businesses already using Neura Chat to grow faster.
-              Start your 14-day free trial today.
+              Connect your own WhatsApp number, keep your own data, and let the
+              AI handle the repetitive half of every conversation.
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <Link href="/auth/register" className="btn-primary px-8 py-3.5">
