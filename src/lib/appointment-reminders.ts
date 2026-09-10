@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { durationLabel, readSettings, zonedDateLabel, zonedTimeLabel } from "@/lib/appointments";
 import { fillTemplate } from "@/lib/booking-dialogue";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
+import { findContactConversation } from "@/lib/contact-conversation";
 import {
   MetaApiError,
   describeMetaError,
@@ -161,12 +162,11 @@ async function remindOne(
     return { status: "skipped", reason: "Contact has opted out" };
   }
 
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("id, last_inbound_at")
-    .eq("org_id", meeting.org_id)
-    .eq("contact_id", meeting.contact_id)
-    .maybeSingle();
+  const conversation = await findContactConversation(
+    supabase,
+    meeting.org_id,
+    meeting.contact_id
+  );
 
   const connection = await loadOrgConnection(supabase, meeting.org_id, {
     conversationId: conversation?.id ?? null,

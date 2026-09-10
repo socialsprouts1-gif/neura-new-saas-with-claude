@@ -16,6 +16,7 @@ import {
   setCommerceSettings,
 } from "@/lib/meta-whatsapp";
 import { loadOrgConnection } from "@/lib/whatsapp-send";
+import { findContactConversation } from "@/lib/contact-conversation";
 import { loadPaymentSettings, requestPayment, updateOrderStatus } from "@/lib/commerce";
 import { STORE_ORDER_STATUSES } from "@/types/portal";
 import { isPaymentProvider } from "@/lib/provider-meta";
@@ -669,12 +670,7 @@ export async function chargeCustomer(formData: FormData): Promise<ActionResult> 
   // A charge needs a conversation to be sent into, and a conversation is
   // also what proves the customer has written to us — which is what makes
   // the 24-hour window open.
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("org_id", ctx.orgId)
-    .eq("contact_id", contactId)
-    .maybeSingle();
+  const conversation = await findContactConversation(supabase, ctx.orgId, contactId);
 
   if (!conversation) {
     return {

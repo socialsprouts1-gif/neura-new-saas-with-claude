@@ -18,6 +18,7 @@ import { createPaymentLink, type PaymentConnection } from "@/lib/payment-links";
 import { isPaymentProvider } from "@/lib/provider-meta";
 import { loadPaymentSettings } from "@/lib/commerce";
 import { loadOrgConnection, sendAndLogText, type RunnerClient } from "@/lib/whatsapp-send";
+import { findContactConversation } from "@/lib/contact-conversation";
 import { toE164 } from "@/lib/crm";
 import type { Invoice, InvoiceSettings } from "@/types/portal";
 
@@ -384,12 +385,14 @@ export async function sendInvoice(
     return { ok: false, error: "This contact has opted out of messages from you." };
   }
 
-  const { data: conversation } = await supabase
-    .from("conversations")
-    .select("id, last_inbound_at")
-    .eq("org_id", orgId)
-    .eq("contact_id", invoice.contact_id)
-    .maybeSingle();
+  // The thread it was raised in, when there is one, otherwise the one the
+  // customer last used. Never assume a contact has exactly one.
+  const conversation = await findContactConversation(
+    supabase,
+    orgId,
+    invoice.contact_id,
+    invoice.conversation_id
+  );
 
   if (!conversation) {
     return {
