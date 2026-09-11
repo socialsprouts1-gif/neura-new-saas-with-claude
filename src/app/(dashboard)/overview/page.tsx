@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Send, Inbox as InboxIcon, Users, Bot } from "lucide-react";
+import { ArrowRight, Lock, Send, Inbox as InboxIcon, Users, Bot } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { featureDef } from "@/lib/features";
 import { Card, Badge } from "@/components/ui/primitives";
 import { formatDateTime } from "@/types/admin";
 
@@ -14,8 +15,18 @@ function startOfDay(offsetDays: number): Date {
   return date;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ off?: string }>;
+}) {
   const { orgId, orgName } = await requireOrg();
+
+  // Where requireFeature() sends somebody who opened a page their workspace
+  // does not have. Saying which one beats a silent bounce to the dashboard,
+  // which reads as the link being broken.
+  const { off } = await searchParams;
+  const blocked = off ? featureDef(off) : undefined;
   const supabase = await createClient();
 
   const windowStart = startOfDay(DAYS - 1).toISOString();
@@ -105,6 +116,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8">
+      {blocked && (
+        <div className="flex items-start gap-2.5 mb-5 rounded-xl border border-white/12 bg-white/4 px-4 py-3">
+          <Lock className="w-4 h-4 text-white/40 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-white/60 leading-relaxed">
+            <span className="text-white/80 font-medium">{blocked.label}</span> is not part of your
+            plan, so that page is off for this workspace. Ask us about it and we can switch it on.
+          </p>
+        </div>
+      )}
+
       {/* Welcome banner */}
       <div className="relative overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-[var(--surface-1)] to-accent2/8 p-6 md:p-8 mb-6">
         <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-accent/10 blur-3xl pointer-events-none" />

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { createAutomation, toggleAutomation } from "../actions";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
@@ -31,7 +31,7 @@ const OUTCOME_TONE: Record<string, "green" | "grey" | "red" | "purple"> = {
 };
 
 export default async function AutomationsPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("automations");
   const supabase = await createClient();
 
   const [{ data: flows, error }, { data: runs }] = await Promise.all([

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { INTEGRATIONS, integrationBySlug } from "@/lib/integrations";
 import { CRM_PROVIDERS } from "@/lib/crm";
 import { LEAD_PROVIDERS, PAYMENT_PROVIDERS, STORE_PROVIDERS } from "@/lib/provider-meta";
@@ -34,7 +34,7 @@ export default async function IntegrationsPage({
   // The Embedded Signup callback reports its outcome by redirecting here.
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("integrations");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

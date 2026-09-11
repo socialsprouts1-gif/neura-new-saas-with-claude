@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { loadInvoiceSettings, readScheduleItems } from "@/lib/invoice-engine";
 import { invoiceTotals, todayIn } from "@/lib/invoices";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
@@ -12,7 +12,7 @@ import RecurringBrowser, { type ScheduleRow } from "./RecurringBrowser";
 // retroactively rewrite the invoices already sent.
 
 export default async function RecurringInvoicePage() {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("invoicing");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

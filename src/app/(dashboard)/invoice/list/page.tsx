@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { loadInvoiceSettings } from "@/lib/invoice-engine";
 import { formatInvoiceAmount, isOverdue, todayIn } from "@/lib/invoices";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
@@ -14,7 +14,7 @@ import type { InvoiceListRow } from "./InvoiceRow";
 // figure next to "₹80,000 overdue".
 
 export default async function InvoiceListPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("invoicing");
   const supabase = await createClient();
 
   const settings = await loadInvoiceSettings(supabase, orgId);

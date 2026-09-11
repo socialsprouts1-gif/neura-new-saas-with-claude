@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { EmptyState } from "@/components/ui/primitives";
 import FlowBuilder from "./FlowBuilder";
 import { repairScreens, type FormScreen } from "@/lib/flow-json";
@@ -11,7 +11,7 @@ export default async function FormBuilderPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const { data: flow } = await supabase

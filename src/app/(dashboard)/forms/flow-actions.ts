@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { resolveConnection } from "@/lib/connections";
 import {
   createFlow,
@@ -80,7 +80,7 @@ function describeValidation(errors: MetaFlowValidationError[] | undefined): stri
  * template was supposed to save.
  */
 export async function createForm(formData: FormData): Promise<ActionResult & { id?: string }> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -131,7 +131,7 @@ export async function createForm(formData: FormData): Promise<ActionResult & { i
  * send the form without being told them again at every call site.
  */
 export async function saveFormDelivery(formData: FormData): Promise<ActionResult> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const id = String(formData.get("id") ?? "").trim();
@@ -168,7 +168,7 @@ export async function saveForm(input: {
   categories: string[];
   screens: FormScreen[];
 }): Promise<ActionResult & { validationErrors?: MetaFlowValidationError[] }> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   // Repaired here too, not only in the builder: an older client or a
@@ -270,7 +270,7 @@ export async function saveForm(input: {
 
 /** Publishing makes the form sendable to customers rather than test numbers. */
 export async function publishForm(id: string): Promise<ActionResult> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const { data: flow } = await supabase
@@ -323,7 +323,7 @@ export async function publishForm(id: string): Promise<ActionResult> {
 
 /** Reconciles status with Meta and refreshes the preview link. */
 export async function syncForm(id: string): Promise<ActionResult & { previewUrl?: string }> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const { data: flow } = await supabase
@@ -363,7 +363,7 @@ export async function syncForm(id: string): Promise<ActionResult & { previewUrl?
 
 /** Imports forms built directly in WhatsApp Manager. */
 export async function syncAllForms(): Promise<ActionResult & { synced?: number }> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const credentials = await wabaCredentials(supabase, orgId);
@@ -412,7 +412,7 @@ export async function syncAllForms(): Promise<ActionResult & { synced?: number }
 }
 
 export async function deleteForm(formData: FormData): Promise<ActionResult> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
 
@@ -466,7 +466,7 @@ export async function sendForm(input: {
   cta: string;
   body: string;
 }): Promise<ActionResult> {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const { data: flow } = await supabase

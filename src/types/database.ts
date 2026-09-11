@@ -57,7 +57,9 @@ import type {
   WebhookDelivery,
 } from "./portal";
 
-export type OrgRole = "owner" | "admin" | "member";
+/** Owner manages the workspace, admin manages the work, member does it. */
+export const ORG_ROLES = ["owner", "admin", "member"] as const;
+export type OrgRole = (typeof ORG_ROLES)[number];
 export type WabaStatus = "pending" | "active" | "disabled" | "error";
 export type ConversationStatus = "open" | "pending" | "resolved" | "closed";
 export type MessageDirection = "inbound" | "outbound";
@@ -79,9 +81,24 @@ export interface Database {
   public: {
     Tables: {
       organizations: {
-        Row: { id: string; name: string; created_at: string };
+        Row: {
+          id: string;
+          name: string;
+          created_at: string;
+          /** Per-workspace feature on/off. Wins over the plan. */
+          feature_overrides: Record<string, boolean>;
+          suspended_at: string | null;
+          suspended_reason: string | null;
+        };
         Insert: { id?: string; name: string; created_at?: string };
-        Update: { id?: string; name?: string; created_at?: string };
+        Update: {
+          id?: string;
+          name?: string;
+          created_at?: string;
+          feature_overrides?: Record<string, boolean>;
+          suspended_at?: string | null;
+          suspended_reason?: string | null;
+        };
         Relationships: [];
       };
       org_members: {
@@ -984,6 +1001,15 @@ export interface Database {
       claim_invoice_number: {
         Args: { target_org: string };
         Returns: number;
+      };
+      /**
+       * Creates a workspace and its owner membership for a user who has
+       * neither, under an advisory lock on the user so that concurrent
+       * callers get one workspace rather than one each.
+       */
+      provision_org_for_user: {
+        Args: { target_user: string; org_name: string };
+        Returns: string;
       };
     };
   };

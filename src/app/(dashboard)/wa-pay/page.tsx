@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { loadPaymentSettings } from "@/lib/commerce";
 import { HeroHeader, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
 import { formatAmount } from "@/lib/orders";
@@ -21,7 +21,7 @@ import ChargeForm from "./ChargeForm";
 // invitation.
 
 export default async function WaPayPage() {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("wa_pay");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

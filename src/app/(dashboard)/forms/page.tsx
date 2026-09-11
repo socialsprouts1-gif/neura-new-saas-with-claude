@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import {
   PageHeader,
   Card,
@@ -17,7 +17,7 @@ import { formatAnswer } from "@/lib/flow-reply";
 import type { FormScreen } from "@/lib/flow-json";
 
 export default async function FormsPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
   const [{ data: flows, error }, { data: connection }, { data: responses }, { data: sends }] =

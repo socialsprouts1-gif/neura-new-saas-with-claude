@@ -24,7 +24,10 @@ export type Plan = {
   message_limit: number | null;
   contact_limit: number | null;
   seat_limit: number | null;
+  /** Marketing bullets shown on the pricing page. */
   features: string[];
+  /** Feature keys this tier includes. Empty means all of them. */
+  feature_keys: string[];
   is_active: boolean;
   sort_order: number;
   created_at: string;

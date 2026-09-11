@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { saveReminder, cancelReminder } from "../portal-actions";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, Badge, Table, Td, EmptyState, statusTone } from "@/components/ui/primitives";
@@ -14,7 +14,7 @@ function formatWhen(iso: string) {
 }
 
 export default async function RemindersPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("reminders");
   const supabase = await createClient();
 
   const [{ data: reminders, error }, { data: contacts }] = await Promise.all([

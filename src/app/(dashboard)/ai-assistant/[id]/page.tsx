@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { isAssistantConfigured } from "@/lib/ai-assistant";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
 import AssistantEditor from "./AssistantEditor";
@@ -11,7 +11,7 @@ export default async function AssistantEditorPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("ai_assistant");
   const supabase = await createClient();
 
   const { data: assistant } = await supabase

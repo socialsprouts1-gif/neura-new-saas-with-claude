@@ -113,6 +113,7 @@ export default async function AdminUsersPage() {
                     email={auth?.email ?? m.user_id.slice(0, 8)}
                     suspended={auth?.suspended ?? false}
                     isSelf={m.user_id === me.id}
+                    role={m.role}
                   />
                 </Td>
               </tr>

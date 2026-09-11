@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandMark from "@/components/ui/BrandMark";
+import { pathAllowed } from "@/lib/features";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -110,8 +111,31 @@ const MAIN: NavItem[] = [
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
-export default function Sidebar({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
+export default function Sidebar({
+  isPlatformAdmin = false,
+  features = {},
+}: {
+  isPlatformAdmin?: boolean;
+  /** Feature key → allowed. A key that is absent counts as allowed. */
+  features?: Record<string, boolean>;
+}) {
   const pathname = usePathname();
+
+  // Hidden here and refused on the page itself. Hiding alone would leave a
+  // bookmarked URL working, which is not what "off" means to anyone.
+  const visible = (items: NavItem[]): NavItem[] =>
+    items
+      .filter((item) => pathAllowed(item.href, features))
+      .map((item) =>
+        item.children
+          ? { ...item, children: item.children.filter((child) => pathAllowed(child.href, features)) }
+          : item
+      )
+      // A parent whose every child is switched off has nothing left to open.
+      .filter((item) => !item.children || item.children.length > 0);
+
+  const platform = visible(PLATFORM);
+  const main = visible(MAIN);
 
   return (
     <aside className="flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
@@ -130,13 +154,13 @@ export default function Sidebar({ isPlatformAdmin = false }: { isPlatformAdmin?:
           Platform
         </div>
         <div className="space-y-0.5 mb-4">
-          {PLATFORM.map((item) => (
+          {platform.map((item) => (
             <NavEntry key={item.label} item={item} pathname={pathname} />
           ))}
         </div>
 
         <div className="space-y-0.5">
-          {MAIN.map((item) => (
+          {main.map((item) => (
             <NavEntry key={item.label} item={item} pathname={pathname} />
           ))}
         </div>

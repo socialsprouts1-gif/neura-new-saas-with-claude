@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { listActiveConnections, optionLabel } from "@/lib/connections";
 import { HeroHeader, EmptyState } from "@/components/ui/primitives";
 import AssistantTable, { type AssistantRow } from "./AssistantTable";
 import type { AiAssistant } from "@/types/portal";
 
 export default async function AiAssistantPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("ai_assistant");
   const supabase = await createClient();
 
   const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({

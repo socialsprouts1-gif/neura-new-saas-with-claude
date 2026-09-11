@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { listActiveConnections, optionLabel } from "@/lib/connections";
 import {
   PageHeader,
@@ -16,7 +16,7 @@ import { variablesIn } from "@/lib/template-spec";
 import { TemplateToolbar, DeleteTemplateButton, EditTemplateButton } from "./TemplateToolbar";
 
 export default async function TemplatesPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("campaigns");
   const supabase = await createClient();
 
   const [{ data: templates, error }, connections] = await Promise.all([

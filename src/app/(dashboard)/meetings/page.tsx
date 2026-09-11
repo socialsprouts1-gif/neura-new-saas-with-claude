@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { HeroHeader, EmptyState, StatCard } from "@/components/ui/primitives";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { saveMeeting } from "../leads-actions";
 import MeetingRow, { type MeetingItem } from "./MeetingRow";
 
 export default async function MeetingsPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("meetings");
   const supabase = await createClient();
 
   const [{ data: meetings, error }, { data: contacts }] = await Promise.all([

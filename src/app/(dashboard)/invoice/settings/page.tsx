@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { loadInvoiceSettings } from "@/lib/invoice-engine";
 import { HeroHeader } from "@/components/ui/primitives";
 import InvoiceSettingsForm from "./InvoiceSettingsForm";
@@ -11,7 +11,7 @@ import InvoiceSettingsForm from "./InvoiceSettingsForm";
 // can file.
 
 export default async function InvoiceSettingsPage() {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("invoicing");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

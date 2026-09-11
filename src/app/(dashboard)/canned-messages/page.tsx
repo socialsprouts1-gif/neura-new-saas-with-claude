@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { saveCannedMessage, deleteCannedMessage } from "../manage-actions";
 import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, EmptyState } from "@/components/ui/primitives";
 
 export default async function CannedMessagesPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("canned");
   const supabase = await createClient();
 
   const { data: replies, error } = await supabase

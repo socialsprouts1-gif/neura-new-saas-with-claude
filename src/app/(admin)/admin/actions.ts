@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
-import type { OrgRole } from "@/types/database";
+import { ORG_ROLES, type OrgRole } from "@/types/database";
+import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
@@ -328,7 +329,6 @@ export async function saveSiteSection(
 }
 
 /** The roles org_members accepts, most privileged first. */
-const ORG_ROLES: OrgRole[] = ["owner", "admin", "member"];
 
 // --- user administration --------------------------------------------------
 //
@@ -495,4 +495,205 @@ export async function saveTrialLength(formData: FormData): Promise<ActionResult>
     ok: true,
     message: `New workspaces now get ${days} days. Trials already running keep the length they started with.`,
   };
+}
+
+// --- feature access -------------------------------------------------------
+
+/**
+ * Switches features on or off for one workspace.
+ *
+ * The form posts a checkbox per togglable feature, so what arrives is the
+ * complete new state rather than a diff — an unticked box sends nothing,
+ * which is exactly how "off" has to be expressed over a form post.
+ *
+ * Only keys that differ from what the plan already gives are stored. An
+ * override that agrees with the plan is noise: it would go on overriding
+ * after the customer changed tier, which is never what anyone meant.
+ */
+export async function saveOrgFeatures(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const orgId = String(formData.get("org_id") ?? "").trim();
+  if (!orgId) return { ok: false, error: "No organization selected." };
+
+  const supabase = await createClient();
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("id, subscriptions(plans(feature_keys))")
+    .eq("id", orgId)
+    .maybeSingle();
+
+  if (!org) return { ok: false, error: "That organization no longer exists." };
+
+  const subscription = Array.isArray(org.subscriptions)
+    ? (org.subscriptions[0] as { plans?: { feature_keys?: unknown } | null } | undefined)
+    : (org.subscriptions as { plans?: { feature_keys?: unknown } | null } | null | undefined);
+
+  const fromPlan = resolveFeatures({ plan: subscription?.plans?.feature_keys });
+  const ticked = new Set(formData.getAll("features").map((key) => String(key)));
+
+  const overrides: Record<string, boolean> = {};
+  for (const key of togglableKeys()) {
+    const wanted = ticked.has(key);
+    if (wanted !== fromPlan[key]) overrides[key] = wanted;
+  }
+
+  const { error } = await supabase
+    .from("organizations")
+    .update({ feature_overrides: overrides })
+    .eq("id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/organizations");
+  // Every screen the customer sees is decided by this, so their whole
+  // workspace is stale until it is re-rendered.
+  revalidatePath("/", "layout");
+
+  const count = Object.keys(overrides).length;
+  return {
+    ok: true,
+    message: count === 0 ? "Back to exactly what the plan includes." : `${count} override${count === 1 ? "" : "s"} saved.`,
+  };
+}
+
+/** The features a new workspace starts with, before any plan applies. */
+export async function saveDefaultFeatures(formData: FormData): Promise<ActionResult> {
+  const admin = await requirePlatformAdmin();
+
+  const ticked = new Set(formData.getAll("features").map((key) => String(key)));
+  const value: Record<string, boolean> = {};
+  for (const key of togglableKeys()) {
+    // Only the offs are stored. Everything is on by default, so a stored
+    // "true" says nothing and would have to be maintained forever.
+    if (!ticked.has(key)) value[key] = false;
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("platform_settings").upsert(
+    {
+      key: "feature_defaults",
+      value,
+      description: "Features a new workspace starts with. Only the ones switched off are listed.",
+      updated_at: new Date().toISOString(),
+      updated_by: admin.id,
+    },
+    { onConflict: "key" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Defaults saved. Existing workspaces keep what they have." };
+}
+
+/** What a plan includes. Empty means everything. */
+export async function savePlanFeatures(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const planId = String(formData.get("plan_id") ?? "").trim();
+  if (!planId) return { ok: false, error: "No plan selected." };
+
+  const all = togglableKeys();
+  const ticked = all.filter((key) =>
+    formData.getAll("features").map((value) => String(value)).includes(key)
+  );
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("plans")
+    // Everything ticked is stored as [] — "no restriction" — so a tier that
+    // includes the lot does not have to be edited every time a feature is
+    // added to the product.
+    .update({ feature_keys: ticked.length === all.length ? [] : ticked })
+    .eq("id", planId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/plans");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Plan features saved." };
+}
+
+/**
+ * Suspends a workspace, or lifts a suspension.
+ *
+ * Billing and Settings stay reachable either way: locking someone out of
+ * the page that explains the problem is how a late payment becomes a lost
+ * customer rather than a paying one.
+ */
+export async function setOrgSuspended(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const orgId = String(formData.get("org_id") ?? "").trim();
+  if (!orgId) return { ok: false, error: "No organization selected." };
+
+  const suspend = String(formData.get("suspend") ?? "") === "true";
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("organizations")
+    .update(
+      suspend
+        ? { suspended_at: new Date().toISOString(), suspended_reason: reason || null }
+        : { suspended_at: null, suspended_reason: null }
+    )
+    .eq("id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/organizations");
+  revalidatePath("/", "layout");
+  return { ok: true, message: suspend ? "Workspace suspended." : "Suspension lifted." };
+}
+
+/**
+ * Changes what somebody can do inside a workspace.
+ *
+ * The last owner cannot be demoted. A workspace with no owner is one
+ * nobody can invite to, bill, or delete — an unrecoverable state reached by
+ * one careless dropdown.
+ */
+export async function setMemberRole(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const orgId = String(formData.get("org_id") ?? "").trim();
+  const userId = String(formData.get("user_id") ?? "").trim();
+  const role = String(formData.get("role") ?? "").trim();
+
+  if (!orgId || !userId) return { ok: false, error: "No membership selected." };
+  if (!ORG_ROLES.includes(role as OrgRole)) return { ok: false, error: "Unknown role." };
+
+  const supabase = await createClient();
+
+  if (role !== "owner") {
+    const { data: owners } = await supabase
+      .from("org_members")
+      .select("user_id")
+      .eq("org_id", orgId)
+      .eq("role", "owner");
+
+    const others = (owners ?? []).filter((owner) => owner.user_id !== userId);
+    if ((owners ?? []).some((owner) => owner.user_id === userId) && others.length === 0) {
+      return {
+        ok: false,
+        error:
+          "This is the workspace's only owner. Make somebody else an owner first, or the workspace ends up with nobody who can manage it.",
+      };
+    }
+  }
+
+  const { error } = await supabase
+    .from("org_members")
+    .update({ role: role as OrgRole })
+    .eq("org_id", orgId)
+    .eq("user_id", userId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/users");
+  return { ok: true, message: `Role set to ${role}.` };
 }

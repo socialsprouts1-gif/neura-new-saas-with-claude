@@ -3,6 +3,9 @@ import { requirePlatformAdmin } from "@/lib/org";
 import { savePlatformSetting } from "../actions";
 import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, EmptyState } from "@/components/ui/primitives";
+import FeatureGrid from "../FeatureGrid";
+import { saveDefaultFeatures } from "../actions";
+import { resolveFeatures } from "@/lib/features";
 import { formatDate } from "@/types/admin";
 
 export default async function AdminSettingsPage() {
@@ -14,12 +17,27 @@ export default async function AdminSettingsPage() {
     .select("*")
     .order("key");
 
+  const defaults = settings?.find((row) => row.key === "feature_defaults");
+
   return (
     <div className="p-6 md:p-8 max-w-4xl">
       <PageHeader
         title="Platform settings"
         subtitle="Global configuration stored in the database, editable without a redeploy."
       />
+
+      {/* The feature defaults get a real editor rather than the raw JSON
+          box below, because a typo here silently hides a screen from every
+          workspace created afterwards. */}
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">What a new workspace starts with</h2>
+        <FeatureGrid
+          action={saveDefaultFeatures}
+          enabled={resolveFeatures({ platform: defaults?.value })}
+          note="Applies to workspaces created from now on. Existing ones keep whatever they have — changing the default must never take a screen away from somebody already using it. A plan can narrow this further, and a single workspace can be given an exception on its own Access screen."
+          submitLabel="Save defaults"
+        />
+      </Card>
 
       <div className="space-y-6">
         {error ? (

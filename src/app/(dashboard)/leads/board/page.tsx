@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { HeroHeader, EmptyState } from "@/components/ui/primitives";
 import LeadBoard, { type LeadCard } from "./LeadBoard";
 import type { LeadStage } from "@/types/portal";
 
 export default async function LeadBoardPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("leads");
   const supabase = await createClient();
 
   const { data: contacts, error } = await supabase

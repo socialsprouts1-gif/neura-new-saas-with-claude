@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { createApiKey, revokeApiKey } from "../portal-actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
@@ -32,7 +32,7 @@ const ENDPOINTS = [
 ];
 
 export default async function ApiEndpointsPage() {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("api");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

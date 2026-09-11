@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { renameOrganization } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, Badge } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
 
 export default async function OrganizationsPage() {
-  const { orgId, orgName, role, user } = await requireOrg();
+  const { orgId, orgName, role, user } = await requireFeature("organizations");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

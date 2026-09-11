@@ -1,11 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { saveFaqEntry, deleteFaqEntry } from "../portal-actions";
 import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
 
 export default async function FaqBotPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("faq_bot");
   const supabase = await createClient();
 
   const { data: entries, error } = await supabase

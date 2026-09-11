@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { HeroHeader, EmptyState, StatCard } from "@/components/ui/primitives";
 import { LEAD_STAGES, type LeadStage } from "@/types/portal";
 
@@ -28,7 +28,7 @@ const STAGE_HELP: Record<LeadStage, string> = {
 // are fixed by the database check constraint, so this reports on them rather
 // than pretending they can be renamed here.
 export default async function LeadStatusPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("leads");
   const supabase = await createClient();
 
   const { data: contacts, error } = await supabase

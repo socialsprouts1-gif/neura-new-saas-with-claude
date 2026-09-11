@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
 import {
   DEFAULT_SETTINGS,
@@ -18,7 +18,7 @@ import type { BookingItem } from "./BookingList";
 // for once it is set up.
 
 export default async function AppointmentsPage() {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("appointments");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

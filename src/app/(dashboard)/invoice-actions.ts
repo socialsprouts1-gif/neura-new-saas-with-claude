@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import {
   RECURRENCE_INTERVALS,
   formatInvoiceAmount,
@@ -33,7 +33,7 @@ import type { ActionResult } from "./actions";
 // somebody else's workspace.
 
 async function requireManager() {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
   if (ctx.role !== "owner" && ctx.role !== "admin") return null;
   return ctx;
 }
@@ -209,7 +209,7 @@ function readLines(formData: FormData, defaultTax: number): StoredLine[] {
 export async function saveInvoice(
   formData: FormData
 ): Promise<ActionResult & { id?: string }> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const supabase = await createClient();
   const settings = await loadInvoiceSettings(supabase, ctx.orgId);
@@ -303,7 +303,7 @@ export async function saveInvoice(
 
 /** Claims a number and marks the invoice issued. */
 export async function issueInvoiceAction(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   if (!invoiceId) return { ok: false, error: "No invoice selected." };
@@ -324,7 +324,7 @@ export async function issueInvoiceAction(formData: FormData): Promise<ActionResu
  * issues an invoice in order to leave it sitting there.
  */
 export async function sendInvoiceAction(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   if (!invoiceId) return { ok: false, error: "No invoice selected." };
@@ -370,7 +370,7 @@ export async function sendInvoiceAction(formData: FormData): Promise<ActionResul
 
 /** Records money against an invoice, in part or in full. */
 export async function recordPayment(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   if (!invoiceId) return { ok: false, error: "No invoice selected." };
@@ -413,7 +413,7 @@ export async function recordPayment(formData: FormData): Promise<ActionResult> {
 
 /** Cancels an invoice. The number stays spent, deliberately. */
 export async function setInvoiceStatus(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
@@ -443,7 +443,7 @@ export async function setInvoiceStatus(formData: FormData): Promise<ActionResult
 
 /** Deletes a draft. Only a draft: an issued invoice has been sent to somebody. */
 export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   if (!invoiceId) return { ok: false, error: "No invoice selected." };
@@ -478,7 +478,7 @@ export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
 
 /** Copies an invoice into a new draft, for a repeat bill or a correction. */
 export async function duplicateInvoice(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   if (!invoiceId) return { ok: false, error: "No invoice selected." };
@@ -546,7 +546,7 @@ export async function duplicateInvoice(formData: FormData): Promise<ActionResult
 
 /** The link to give a customer, for pasting somewhere else. */
 export async function invoiceLink(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("invoicing");
 
   const invoiceId = String(formData.get("id") ?? "").trim();
   if (!invoiceId) return { ok: false, error: "No invoice selected." };

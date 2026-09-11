@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { saveMediaAsset } from "../portal-actions";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import GalleryBrowser from "./GalleryBrowser";
@@ -7,7 +7,7 @@ import { Card, EmptyState } from "@/components/ui/primitives";
 import type { MediaAsset } from "@/types/portal";
 
 export default async function GalleryPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("gallery");
   const supabase = await createClient();
 
   const { data: assets, error } = await supabase

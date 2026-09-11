@@ -7,8 +7,10 @@ import {
   createUserAccount,
   deleteUserAccount,
   removeMembership,
+  setMemberRole,
   setUserSuspended,
 } from "../actions";
+import { ORG_ROLES, type OrgRole } from "@/types/database";
 
 /** Creating an account by hand, for someone who cannot sign up themselves. */
 export function NewUserButton({ orgs }: { orgs: Array<{ id: string; name: string }> }) {
@@ -133,21 +135,21 @@ export function UserRowActions({
   email,
   suspended,
   isSelf,
+  role,
 }: {
   userId: string;
   orgId: string;
   email: string;
   suspended: boolean;
   isSelf: boolean;
+  /** Their role in this organization, for the dropdown. */
+  role: OrgRole;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState<"remove" | "delete" | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  if (isSelf) {
-    return <span className="text-[11px] text-white/25">That&apos;s you</span>;
-  }
 
   const run = (action: (data: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>, data: FormData) =>
     startTransition(async () => {
@@ -194,7 +196,35 @@ export function UserRowActions({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
+        {/* Role is editable even on your own row: changing what somebody
+            can do inside one workspace is not the same as being able to
+            lock yourself out of the platform, which the actions below are.
+            The server refuses to demote a workspace's last owner. */}
+        <select
+          value={role}
+          disabled={pending}
+          aria-label={`Role for ${email}`}
+          onChange={(event) => {
+            const data = new FormData();
+            data.set("user_id", userId);
+            data.set("org_id", orgId);
+            data.set("role", event.target.value);
+            run(setMemberRole, data);
+          }}
+          className="bg-white/5 border border-white/12 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[#A855F7]/50 disabled:opacity-50"
+        >
+          {ORG_ROLES.map((value) => (
+            <option key={value} value={value} className="bg-[var(--surface-3)]">
+              {value}
+            </option>
+          ))}
+        </select>
+
+        {isSelf ? (
+          <span className="text-[11px] text-white/25 pl-1">That&apos;s you</span>
+        ) : (
+        <>
         <button
           type="button"
           disabled={pending}
@@ -238,6 +268,8 @@ export function UserRowActions({
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
+        </>
+        )}
       </div>
       {note && <span className="text-[11px] text-[#F87171] max-w-[15rem] text-right">{note}</span>}
     </div>

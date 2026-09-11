@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { listConnections } from "@/lib/connections";
 import { loadPaymentSettings } from "@/lib/commerce";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
@@ -24,7 +24,7 @@ import type { OrderRow } from "./OrderList";
 // until a customer tries.
 
 export default async function CommercePage() {
-  const { orgId, role } = await requireOrg();
+  const { orgId, role } = await requireFeature("commerce");
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 

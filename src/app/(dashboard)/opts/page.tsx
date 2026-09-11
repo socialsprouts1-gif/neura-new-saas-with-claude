@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { setOptOut } from "../manage-actions";
 import ActionForm from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { formatDateTime } from "@/types/admin";
 
 export default async function OptsPage() {
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("opts");
   const supabase = await createClient();
 
   const [{ data: contacts, error }, { count: total }] = await Promise.all([

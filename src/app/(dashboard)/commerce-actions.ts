@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { listConnections } from "@/lib/connections";
 import {
   MetaApiError,
@@ -34,7 +34,7 @@ import type { ActionResult } from "./actions";
 // messages that let a customer browse and build a cart in the chat.
 
 async function requireManager() {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("commerce");
   if (ctx.role !== "owner" && ctx.role !== "admin") return null;
   return ctx;
 }
@@ -321,7 +321,7 @@ function parseMetaPrice(value: string | null): number {
 
 /** Sends one product, several, or the whole catalogue, into a conversation. */
 export async function sendProducts(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("commerce");
 
   const conversationId = String(formData.get("conversation_id") ?? "").trim();
   const retailerIds = String(formData.get("retailer_ids") ?? "")
@@ -430,7 +430,7 @@ export async function sendProducts(formData: FormData): Promise<ActionResult> {
 
 /** Asks the customer to pay for an order, whichever way is configured. */
 export async function askForPayment(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("commerce");
 
   const orderId = String(formData.get("order_id") ?? "").trim();
   if (!orderId) return { ok: false, error: "No order selected." };
@@ -487,7 +487,7 @@ export async function askForPayment(formData: FormData): Promise<ActionResult> {
 
 /** Moves an order along, and tells the customer. */
 export async function setOrderStatus(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("commerce");
 
   const orderId = String(formData.get("order_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
@@ -528,7 +528,7 @@ export async function setOrderStatus(formData: FormData): Promise<ActionResult> 
 
 /** Records the AWB so "where is my order?" has an answer. */
 export async function saveOrderShipping(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("commerce");
 
   const orderId = String(formData.get("order_id") ?? "").trim();
   if (!orderId) return { ok: false, error: "No order selected." };
@@ -645,7 +645,7 @@ export async function savePaymentSettings(formData: FormData): Promise<ActionRes
  * "what did we charge them for?" is a question somebody asks later.
  */
 export async function chargeCustomer(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("commerce");
 
   const contactId = String(formData.get("contact_id") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();

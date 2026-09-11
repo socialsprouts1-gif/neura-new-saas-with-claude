@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import {
   DEFAULT_HOURS,
   WEEKDAYS,
@@ -29,7 +29,7 @@ import type { ActionResult } from "./actions";
 // somebody else's workspace.
 
 async function requireManager() {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("appointments");
   if (ctx.role !== "owner" && ctx.role !== "admin") return null;
   return ctx;
 }
@@ -368,7 +368,7 @@ function parseDate(value: string): { year: number; month: number; day: number } 
 
 /** Marks a booking done, missed or cancelled from the Appointments screen. */
 export async function setBookingStatus(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("appointments");
   const id = String(formData.get("id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
 
@@ -483,7 +483,7 @@ export async function sendRemindersNow(): Promise<ActionResult> {
  * in knows better than its own opening hours.
  */
 export async function createBooking(formData: FormData): Promise<ActionResult> {
-  const ctx = await requireOrg();
+  const ctx = await requireFeature("appointments");
 
   const date = String(formData.get("date") ?? "").trim();
   const time = String(formData.get("time") ?? "").trim();

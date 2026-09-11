@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { requirePlatformAdmin } from "@/lib/org";
 import { savePlan, saveTrialLength, togglePlan } from "../actions";
+import PlanFeatureCard from "./PlanFeatureCard";
+import { resolveFeatures } from "@/lib/features";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
@@ -111,6 +113,30 @@ export default async function AdminPlansPage() {
           </ActionForm>
         </Card>
       </div>
+
+      {plans && plans.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-semibold mb-1">What each plan includes</h2>
+          <p className="text-sm text-white/45 mb-4 max-w-2xl leading-relaxed">
+            Switching a feature off here hides it from the sidebar and refuses the page for
+            everybody on that tier. A workspace can still be given an exception on its own
+            Access screen, which is where a customer who negotiated one belongs.
+          </p>
+          <div className="space-y-3">
+            {plans.map((plan) => (
+              <PlanFeatureCard
+                key={plan.id}
+                plan={{
+                  id: plan.id,
+                  name: plan.name,
+                  feature_keys: plan.feature_keys ?? [],
+                }}
+                enabled={resolveFeatures({ plan: plan.feature_keys })}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

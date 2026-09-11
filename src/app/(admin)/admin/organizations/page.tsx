@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { SlidersHorizontal } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requirePlatformAdmin } from "@/lib/org";
 import { assignPlan } from "../actions";
@@ -20,7 +22,7 @@ export default async function AdminOrganizationsPage() {
 
   const [{ data: orgs, error }, { data: plans }, { data: subs }, { data: members }, { data: connections }] =
     await Promise.all([
-      supabase.from("organizations").select("id, name, created_at").order("created_at", { ascending: false }).limit(200),
+      supabase.from("organizations").select("id, name, created_at, suspended_at, feature_overrides").order("created_at", { ascending: false }).limit(200),
       supabase
         .from("plans")
         .select("id, name, billing_interval")
@@ -50,7 +52,7 @@ export default async function AdminOrganizationsPage() {
       {error ? (
         <EmptyState title="Couldn't load organizations" description={error.message} />
       ) : orgs && orgs.length > 0 ? (
-        <Table head={["Organization", "Members", "WhatsApp", "Plan", "Created", "Assign plan"]}>
+        <Table head={["Organization", "Members", "WhatsApp", "Plan", "Created", "Assign plan", ""]}>
           {orgs.map((o) => {
             const sub = subByOrg.get(o.id);
             const plan = sub?.plans as { name: string } | null | undefined;
@@ -58,7 +60,21 @@ export default async function AdminOrganizationsPage() {
             return (
               <tr key={o.id} className="hover:bg-white/3 transition-colors">
                 <Td>
-                  <div className="font-medium">{o.name}</div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/admin/organizations/${o.id}`}
+                      className="font-medium hover:text-accent-ink transition-colors"
+                    >
+                      {o.name}
+                    </Link>
+                    {o.suspended_at && <Badge tone="red">suspended</Badge>}
+                    {Object.keys(o.feature_overrides ?? {}).length > 0 && (
+                      <Badge tone="purple">
+                        {Object.keys(o.feature_overrides).length} override
+                        {Object.keys(o.feature_overrides).length === 1 ? "" : "s"}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="font-mono text-[10px] text-white/30">{o.id.slice(0, 8)}…</div>
                 </Td>
                 <Td className="tabular-nums">{memberCount.get(o.id) ?? 0}</Td>
@@ -121,6 +137,15 @@ export default async function AdminOrganizationsPage() {
                       ))}
                     </select>
                   </ActionForm>
+                </Td>
+                <Td className="text-right whitespace-nowrap">
+                  <Link
+                    href={`/admin/organizations/${o.id}`}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/60 hover:text-white hover:bg-white/8 transition-colors"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    Access
+                  </Link>
                 </Td>
               </tr>
             );

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/org";
+import { requireFeature } from "@/lib/org";
 import { listConnections, optionLabel } from "@/lib/connections";
 import type { FlowEdge, FlowNode } from "@/types/flow";
 import FlowBuilder from "./FlowBuilder";
@@ -20,7 +20,7 @@ export default async function FlowBuilderPage({
   const { id } = await params;
   const query = await searchParams;
   const built = Array.isArray(query.built) ? query.built[0] : query.built;
-  const { orgId } = await requireOrg();
+  const { orgId } = await requireFeature("chatbot");
   const supabase = await createClient();
 
   const numbers = (await listConnections(supabase, orgId)).map((connection) => ({
