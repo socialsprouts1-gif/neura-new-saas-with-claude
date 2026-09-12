@@ -376,3 +376,49 @@ body {
   fill: color-mix(in oklab, var(--color-white) 55%, transparent) !important;
   font-size: 12px;
 }
+
+/* The mobile navigation drawer sliding in from the left. Short enough to
+   feel instant; long enough that it reads as a drawer rather than a flash. */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Nothing should scroll the page sideways.
+   A single element a few pixels too wide — an absolutely positioned card,
+   a long unbroken word, a table that forgot its scroll container — makes
+   the whole page slide under the thumb on a phone, which reads as the site
+   being broken rather than as one element being wrong. Catching it here
+   means one bad element clips instead of moving everything. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* A pasted URL, an API key, a long email address: without this they push
+   their container wider than the screen instead of wrapping. */
+body {
+  overflow-wrap: break-word;
+}
+
+/* Tap targets. Under about 40px a control is genuinely hard to hit, and
+   the inbox was full of 28px icon buttons that were fine with a mouse. */
+@media (max-width: 767px) {
+  button,
+  [role="button"],
+  a.btn-primary,
+  a.btn-secondary {
+    min-height: 40px;
+  }
+
+  /* Except where the button is deliberately inline in a line of text. */
+  button.inline-hit,
+  [role="button"].inline-hit {
+    min-height: 0;
+  }
+}

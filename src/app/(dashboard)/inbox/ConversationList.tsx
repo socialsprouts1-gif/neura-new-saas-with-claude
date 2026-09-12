@@ -158,7 +158,14 @@ export default function ConversationList({
         : (teammates.find((mate) => mate.userId === scope)?.name ?? "assigned");
 
   return (
-    <aside className="w-80 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0">
+    <aside
+      className={`border-r border-white/8 flex-col flex-shrink-0 min-h-0 w-full md:w-80 ${
+        // One pane at a time on a phone. With the list pinned at 320px
+        // beside the thread there were about seventy pixels left for the
+        // conversation, which is not a two-pane layout, it is a broken one.
+        activeId ? "hidden md:flex" : "flex"
+      }`}
+    >
       <div className="flex items-center gap-2 px-3 h-14 border-b border-white/8 flex-shrink-0">
         {/* Which numbers' conversations to show. A pill rather than an
             icon: with several numbers connected, which one you are looking

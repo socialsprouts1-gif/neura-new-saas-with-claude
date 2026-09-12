@@ -391,7 +391,7 @@ export default async function InboxPage({
           forms={forms ?? []}
         />
       ) : (
-        <div className="flex-1 grid place-items-center text-sm text-white/40">
+        <div className="hidden md:grid flex-1 place-items-center text-sm text-white/40">
           Select a conversation
         </div>
       )}

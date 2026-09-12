@@ -111,13 +111,20 @@ const MAIN: NavItem[] = [
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
-export default function Sidebar({
+/**
+ * Everything below the brand mark. Shared by the desktop rail and the
+ * mobile drawer so the two can never drift — one list, rendered twice.
+ */
+export function SidebarNav({
   isPlatformAdmin = false,
   features = {},
+  onNavigate,
 }: {
   isPlatformAdmin?: boolean;
   /** Feature key → allowed. A key that is absent counts as allowed. */
   features?: Record<string, boolean>;
+  /** Called when a link is followed, so the drawer can shut behind it. */
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -138,30 +145,20 @@ export default function Sidebar({
   const main = visible(MAIN);
 
   return (
-    <aside className="flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
-      <div className="flex items-center gap-2.5 px-4 h-16 border-b border-white/8 flex-shrink-0">
-        <BrandMark size={34} />
-        <div className="min-w-0">
-          <div className="font-bold text-sm leading-tight whitespace-nowrap">
-            Neura <span className="gradient-text-green">Chat</span>
-          </div>
-          <div className="text-[9px] uppercase tracking-widest text-white/30">Business inbox</div>
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+    <>
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4 overscroll-contain">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 px-3 mb-2">
           Platform
         </div>
         <div className="space-y-0.5 mb-4">
           {platform.map((item) => (
-            <NavEntry key={item.label} item={item} pathname={pathname} />
+            <NavEntry key={item.label} item={item} pathname={pathname} onNavigate={onNavigate} />
           ))}
         </div>
 
         <div className="space-y-0.5">
           {main.map((item) => (
-            <NavEntry key={item.label} item={item} pathname={pathname} />
+            <NavEntry key={item.label} item={item} pathname={pathname} onNavigate={onNavigate} />
           ))}
         </div>
       </nav>
@@ -172,6 +169,7 @@ export default function Sidebar({
         <div className="border-t border-white/8 p-3 flex-shrink-0">
           <Link
             href="/admin"
+            onClick={onNavigate}
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#A855F7] hover:bg-[#A855F7]/10 transition-all"
           >
             <Shield className="w-4 h-4 flex-shrink-0" />
@@ -179,6 +177,44 @@ export default function Sidebar({
           </Link>
         </div>
       )}
+    </>
+  );
+}
+
+/** The brand block at the top of both the rail and the drawer. */
+export function SidebarBrand() {
+  return (
+    <div className="flex items-center gap-2.5 px-4 h-16 border-b border-white/8 flex-shrink-0">
+      <BrandMark size={34} />
+      <div className="min-w-0">
+        <div className="font-bold text-sm leading-tight whitespace-nowrap">
+          Neura <span className="gradient-text-green">Chat</span>
+        </div>
+        <div className="text-[9px] uppercase tracking-widest text-white/30">Business inbox</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The permanent rail, on screens wide enough to spare 240px for it.
+ *
+ * Below that it is not rendered at all rather than hidden with CSS — on a
+ * phone it was taking most of the screen and pushing every page off the
+ * right edge, which is what made the whole product unusable on a phone.
+ * The same list appears in MobileNav's drawer instead.
+ */
+export default function Sidebar({
+  isPlatformAdmin = false,
+  features = {},
+}: {
+  isPlatformAdmin?: boolean;
+  features?: Record<string, boolean>;
+}) {
+  return (
+    <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
+      <SidebarBrand />
+      <SidebarNav isPlatformAdmin={isPlatformAdmin} features={features} />
     </aside>
   );
 }
@@ -191,7 +227,15 @@ export default function Sidebar({
  * would break the sequence, and linking it would promise a page that does
  * nothing.
  */
-function NavEntry({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavEntry({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   const inside = item.children?.some((child) => pathname === child.href) ?? false;
   const [open, setOpen] = useState(inside);
 
@@ -202,7 +246,7 @@ function NavEntry({ item, pathname }: { item: NavItem; pathname: string }) {
           type="button"
           onClick={() => setOpen((current) => !current)}
           aria-expanded={open || inside}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
             inside ? "text-accent-ink" : "text-white/60 hover:text-white hover:bg-white/5"
           }`}
         >
@@ -224,7 +268,8 @@ function NavEntry({ item, pathname }: { item: NavItem; pathname: string }) {
                 <Link
                   key={child.href}
                   href={child.href}
-                  className={`block px-3 py-1.5 rounded-lg text-[13px] transition-colors ${
+                  onClick={onNavigate}
+                  className={`block px-3 py-2 rounded-lg text-[13px] transition-colors ${
                     pathname === child.href
                       ? "text-accent-ink bg-accent/8"
                       : "text-white/50 hover:text-white hover:bg-white/5"
@@ -248,7 +293,8 @@ function NavEntry({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <Link
       href={item.href}
-      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+      onClick={onNavigate}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
         isActive
           ? "bg-accent/10 text-accent-ink border border-accent/20"
           : "text-white/60 hover:text-white hover:bg-white/5"

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { loadSiteContent } from "@/lib/site-content-server";
 import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
@@ -21,6 +21,21 @@ const FACEBOOK_DOMAIN_VERIFICATION =
  * database. It falls back to the defaults on its own, so an unmigrated or
  * unreachable database still produces a correctly titled page.
  */
+/**
+ * The viewport. Without this, mobile Safari and Chrome render the page at a
+ * ~980px desktop width and then shrink it to fit, which is why everything
+ * looked microscopic and had to be pinched — no amount of responsive CSS
+ * helps until the browser is told the real width.
+ *
+ * `maximumScale` is deliberately left alone: blocking zoom on a page with
+ * small print is a real accessibility problem, and saves nothing.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#050508",
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const { brand } = await loadSiteContent();
 

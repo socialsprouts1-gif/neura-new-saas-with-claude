@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, MoreVertical, Pencil, X } from "lucide-react";
+import { ArrowLeft, Check, Loader2, MoreVertical, Pencil, X } from "lucide-react";
 import { assignConversation, renameContact, setContactOptIn } from "@/app/(dashboard)/actions";
 import { useDismissableDetails } from "@/hooks/use-dismissable";
 import { setAiMode, setConversationClosed, setPriority } from "./actions";
@@ -95,7 +96,17 @@ export default function ThreadHeader({
 
   return (
     <header className="px-4 md:px-5 py-3 border-b border-white/8 flex-shrink-0">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
+        {/* On a phone the list and the thread are one pane at a time, so
+            this is the only way back to the list. */}
+        <Link
+          href="/inbox"
+          aria-label="Back to conversations"
+          className="md:hidden -ml-1.5 p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/8 transition-colors flex-shrink-0"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+
         <button
           type="button"
           onClick={onOpenPanel}

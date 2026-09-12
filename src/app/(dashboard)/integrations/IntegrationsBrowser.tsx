@@ -78,7 +78,7 @@ export default function IntegrationsBrowser({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white/4 border border-white/8 mb-7 max-w-2xl">
+      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white/4 border border-white/8 mb-7 max-w-2xl text-xs sm:text-sm">
         {TABS.map((option) => (
           <button
             key={option}

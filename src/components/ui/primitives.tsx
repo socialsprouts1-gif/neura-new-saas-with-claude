@@ -13,12 +13,14 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:justify-between gap-3 sm:gap-4 mb-6">
+      <div className="min-w-0">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{title}</h1>
         {subtitle && <p className="text-sm text-white/50 mt-1">{subtitle}</p>}
       </div>
-      {action}
+      {/* Below sm the action drops under the title and fills the width
+          rather than being squeezed onto the same line as a long heading. */}
+      {action && <div className="flex-shrink-0 [&>*]:w-full sm:[&>*]:w-auto">{action}</div>}
     </div>
   );
 }
@@ -57,7 +59,7 @@ export function Card({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={`glass-card p-6 ${className}`}>{children}</div>;
+  return <div className={`glass-card p-4 sm:p-6 ${className}`}>{children}</div>;
 }
 
 export function EmptyState({
@@ -70,7 +72,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="glass-card p-12 text-center">
+    <div className="glass-card p-8 sm:p-12 text-center">
       <h3 className="font-semibold mb-1.5">{title}</h3>
       <p className="text-sm text-white/50 max-w-sm mx-auto">{description}</p>
       {action && <div className="mt-5">{action}</div>}
@@ -88,11 +90,13 @@ export function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="glass-card p-5">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
+    <div className="glass-card p-4 sm:p-5 min-w-0">
+      {/* Wraps rather than truncating: two of these sit side by side on a
+          phone, and half a word is worse than two lines. */}
+      <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider sm:tracking-widest text-white/40 leading-tight">
         {label}
       </div>
-      <div className="text-2xl font-bold mt-2 tabular-nums">{value}</div>
+      <div className="text-xl sm:text-2xl font-bold mt-2 tabular-nums truncate">{value}</div>
       {hint && <div className="text-xs text-white/40 mt-1">{hint}</div>}
     </div>
   );
@@ -161,7 +165,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
               {head.map((h) => (
                 <th
                   key={h}
-                  className="text-left px-5 py-3 text-[11px] font-semibold uppercase tracking-widest text-white/40 whitespace-nowrap"
+                  className="text-left px-4 sm:px-5 py-3 text-[11px] font-semibold uppercase tracking-widest text-white/40 whitespace-nowrap"
                 >
                   {h}
                 </th>
@@ -176,5 +180,5 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
 }
 
 export function Td({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <td className={`px-5 py-3.5 align-middle ${className}`}>{children}</td>;
+  return <td className={`px-4 sm:px-5 py-3.5 align-middle ${className}`}>{children}</td>;
 }

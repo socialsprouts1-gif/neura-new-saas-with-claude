@@ -79,7 +79,7 @@ export default function CrmPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         <Stat label="Contacts" value={totalCount.toLocaleString("en-IN")} />
         <Stat label="Synced" value={syncedCount.toLocaleString("en-IN")} />
         <Stat

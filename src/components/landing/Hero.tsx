@@ -41,8 +41,8 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
       <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-accent2/5 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute top-1/3 right-1/4 w-[300px] h-[300px] bg-purple-500/5 rounded-full blur-[80px] pointer-events-none" />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left Content */}
           <div className="space-y-8">
             {/* Badge */}
@@ -64,10 +64,10 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
               transition={{ duration: 0.6, delay: 0.1 }}
               className="space-y-2"
             >
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight">
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.08] tracking-tight">
                 {content.headline}
               </h1>
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight gradient-text-green">
+              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black leading-[1.08] tracking-tight gradient-text-green">
                 {content.headlineAccent}
               </h1>
             </motion.div>
@@ -242,14 +242,16 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
               </div>
             </div>
 
-            {/* Floating notification cards */}
+            {/* Floating notification cards. Hidden below lg: they hang off
+                the mockup on negative offsets, so on a phone they were half
+                off the screen with their text cut mid-word. */}
             {floatingCards.map((card) => (
               <motion.div
                 key={card.title}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.5 + card.delay, duration: 0.4 }}
-                className={`absolute ${card.pos} glass-card px-3 py-2.5 flex items-center gap-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] min-w-[170px]`}
+                className={`hidden lg:flex absolute ${card.pos} glass-card px-3 py-2.5 items-center gap-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] min-w-[170px]`}
                 style={{ zIndex: 10 }}
               >
                 <div
@@ -272,7 +274,7 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.6 }}
-          className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5 rounded-2xl overflow-hidden border border-white/10"
+          className="mt-12 md:mt-20 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5 rounded-2xl overflow-hidden border border-white/10"
         >
           {stats.map((stat) => (
             <div key={stat.label} className="bg-[var(--surface-1)] px-8 py-6 text-center hover:bg-white/5 transition-colors">

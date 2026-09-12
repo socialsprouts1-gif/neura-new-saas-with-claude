@@ -14,7 +14,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-screen bg-[var(--app-bg)] overflow-hidden">
       <Sidebar isPlatformAdmin={isPlatformAdmin} features={features} />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <TopBar orgName={orgName} userEmail={user.email ?? ""} />
+        <TopBar
+          orgName={orgName}
+          userEmail={user.email ?? ""}
+          isPlatformAdmin={isPlatformAdmin}
+          features={features}
+        />
         <BillingBanner orgId={orgId} />
         {suspended && <SuspendedBanner reason={suspended.reason} />}
         {/* Scrolls for ordinary pages; the inbox fills exactly this height
