@@ -51,7 +51,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/inbox");
+    router.push("/overview");
     router.refresh();
   };
 

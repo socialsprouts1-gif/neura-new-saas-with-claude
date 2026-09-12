@@ -109,7 +109,7 @@ export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
 
       <div className="border-t border-white/8 p-3 flex-shrink-0">
         <Link
-          href="/inbox"
+          href="/overview"
           onClick={onNavigate}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-all"
         >

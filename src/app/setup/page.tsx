@@ -58,7 +58,7 @@ export default async function SetupPage({
         )}
 
         <div className="flex gap-3">
-          <Link href="/inbox" className="btn-primary text-sm">
+          <Link href="/overview" className="btn-primary text-sm">
             Try again
           </Link>
           <Link href="/auth/login" className="btn-secondary text-sm">

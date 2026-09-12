@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { SidebarBrand, SidebarNav } from "./Sidebar";
@@ -62,7 +63,15 @@ export default function MobileNav({
         <Menu className="w-5 h-5" />
       </button>
 
-      {open && (
+      {/* Through a portal to <body>, not rendered in place.
+          The top bar carries backdrop-blur, and a backdrop-filter makes an
+          element a containing block for its fixed-position descendants — so
+          "fixed inset-0" resolved to the 64px header rather than the
+          screen, and the drawer came out as a squashed strip with the page
+          showing through it. Nothing in the CSS can fix that from inside;
+          the drawer has to leave the blurred subtree. */}
+      {open &&
+        createPortal(
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -94,7 +103,8 @@ export default function MobileNav({
               onNavigate={() => setOpenedAt(null)}
             />
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

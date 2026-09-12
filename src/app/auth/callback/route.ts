@@ -18,7 +18,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 // login page rather than being flattened into a generic message.
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
-  const next = searchParams.get("next") ?? "/inbox";
+  const next = searchParams.get("next") ?? "/overview";
 
   const error = searchParams.get("error");
   const errorCode = searchParams.get("error_code");

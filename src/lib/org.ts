@@ -182,7 +182,7 @@ export async function requirePlatformAdmin(): Promise<User> {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!data) redirect("/inbox");
+  if (!data) redirect("/overview");
 
   return user;
 }

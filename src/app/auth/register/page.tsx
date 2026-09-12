@@ -69,7 +69,7 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/inbox");
+    router.push("/overview");
     router.refresh();
   };
 
