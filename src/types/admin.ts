@@ -80,6 +80,11 @@ export type Order = {
   status: OrderStatus;
   provider: string | null;
   provider_reference: string | null;
+  /** The gateway link, so an abandoned checkout can be resumed. */
+  payment_link_url: string | null;
+  billing_interval: string | null;
+  /** What the coupon took off. Never recomputed from the coupon. */
+  discount_cents: number;
   created_at: string;
   paid_at: string | null;
 }

@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured, SUPABASE_NOT_CONFIGURED_MESSAGE } from "@/lib/supabase/env";
 import { resolveConnection } from "@/lib/connections";
+import { loadEntitlement, loadUsage } from "@/lib/entitlement";
+import { checkLimit } from "@/lib/limits";
 import {
   sendTemplateMessage,
   sendTextMessage,
@@ -74,6 +76,20 @@ export async function POST(request: NextRequest) {
 
   if ("error" in connection) {
     return NextResponse.json({ error: connection.error }, { status: 404 });
+  }
+
+  // The plan's monthly message allowance. Checked before Meta is called,
+  // because a message Meta has accepted is a message that has been sent —
+  // there is no undoing it once the allowance turns out to be spent.
+  const [entitlement, usage] = await Promise.all([
+    loadEntitlement(supabase, body.orgId),
+    loadUsage(supabase, body.orgId),
+  ]);
+  const allowance = checkLimit("messages", entitlement.limits.message_limit, usage.messages);
+  if (!allowance.ok) {
+    // 402: the request is well-formed and authorised, and payment is what
+    // is missing. The composer renders `error` verbatim.
+    return NextResponse.json({ error: allowance.reason }, { status: 402 });
   }
 
   const { data: contact, error: contactError } = await supabase

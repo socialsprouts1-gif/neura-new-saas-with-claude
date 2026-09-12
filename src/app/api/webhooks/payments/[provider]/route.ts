@@ -10,6 +10,8 @@ import { formatAmount } from "@/lib/orders";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { loadInvoiceSettings, recordInvoicePayment } from "@/lib/invoice-engine";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
+import { orderIdFromReference } from "@/lib/checkout";
+import { activateSubscription } from "@/lib/subscription-activate";
 
 // Where a gateway tells us a payment landed.
 //
@@ -69,16 +71,68 @@ export async function POST(
   }
 
   const supabase = createAdminClient();
+
+  // A plan payment first, because its reference shape is unambiguous and
+  // it is the only one that has to be checked before the two lookups
+  // below — all three land on this same endpoint.
+  const planOrderId = orderIdFromReference(reference);
+  if (planOrderId) {
+    const { data: planOrder } = await supabase
+      .from("orders")
+      .select("id, org_id, status")
+      .eq("id", planOrderId)
+      .maybeSingle();
+
+    if (!planOrder) {
+      return NextResponse.json({ ok: true, note: "No such plan order" });
+    }
+
+    const stored = await loadIntegration(supabase, planOrder.org_id, provider);
+    const secret = stored?.values.webhook_secret ?? process.env[envKeyFor(provider)] ?? "";
+    const verdict = verify(provider, request, raw, secret);
+    if (verdict !== "ok") {
+      console.error(`Refused a ${provider} webhook for plan order ${reference}: ${verdict}`);
+      return NextResponse.json({ error: verdict }, { status: 401 });
+    }
+
+    const event = eventNameOf(provider, payload, request);
+    if (FAILED_EVENTS[provider].some((name) => event.includes(name))) {
+      await supabase.from("orders").update({ status: "failed" }).eq("id", planOrder.id);
+      return NextResponse.json({ ok: true, note: "Plan payment failed" });
+    }
+    if (!PAID_EVENTS[provider].some((name) => event.includes(name))) {
+      return NextResponse.json({ ok: true, note: `Ignoring ${event}` });
+    }
+
+    const activated = await activateSubscription(supabase, planOrder.id, {
+      provider,
+      reference,
+    });
+    if (!activated.ok) {
+      return NextResponse.json({ error: activated.error }, { status: 500 });
+    }
+
+    if (!activated.alreadyDone) {
+      await dispatchWebhookEvent(supabase, planOrder.org_id, "order.paid", {
+        kind: "subscription",
+        plan: activated.planName,
+        provider,
+      });
+    }
+
+    return NextResponse.json({ ok: true, kind: "subscription" });
+  }
+
   const { data: order } = await supabase
     .from("store_orders")
     .select("id, org_id, reference, status, currency, total_cents, conversation_id")
     .eq("reference", reference)
     .maybeSingle();
 
-  // Not an order? It may be an invoice. Invoice numbers and order references
-  // never share a shape — "INV-0042" against "NC-260909-ABCDE" — so one
-  // reference can only ever match one of the two, and looking in both means
-  // a gateway needs one webhook rather than two.
+  // Not a store order? It may be an invoice. The three reference shapes
+  // never collide — "SUB-<uuid>", "INV-0042", "NC-260909-ABCDE" — so one
+  // reference can only ever match one of them, and looking in all three
+  // means a gateway needs one webhook rather than three.
   const invoice = order
     ? null
     : (

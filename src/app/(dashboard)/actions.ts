@@ -4,6 +4,8 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { loadEntitlement, loadUsage } from "@/lib/entitlement";
+import { checkLimit } from "@/lib/limits";
 import { resolveConnection } from "@/lib/connections";
 import { encryptToken, decryptToken } from "@/lib/crypto";
 import { checkAccessToken } from "@/lib/access-token";
@@ -192,6 +194,16 @@ export async function createContact(formData: FormData): Promise<ActionResult> {
   if (!waId) return { ok: false, error: "A WhatsApp number is required (digits only, with country code)." };
 
   const supabase = await createClient();
+
+  // The plan's contact allowance. Checked before the insert rather than
+  // relying on a database constraint, so the answer is a sentence about
+  // the plan rather than a unique-violation code.
+  const [entitlement, usage] = await Promise.all([
+    loadEntitlement(supabase, orgId),
+    loadUsage(supabase, orgId),
+  ]);
+  const room = checkLimit("contacts", entitlement.limits.contact_limit, usage.contacts);
+  if (!room.ok) return { ok: false, error: room.reason ?? "No room for another contact." };
   const { error } = await supabase
     .from("contacts")
     .upsert({ org_id: orgId, wa_id: waId, name: name || null, tags }, { onConflict: "org_id,wa_id" });

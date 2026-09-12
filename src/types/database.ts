@@ -21,6 +21,7 @@ import type {
 import type {
   AiAssistant,
   AssistantKnowledge,
+  OrgInvite,
   Profile,
   ConversationNote,
   CampaignStep,
@@ -99,6 +100,17 @@ export interface Database {
           suspended_at?: string | null;
           suspended_reason?: string | null;
         };
+        Relationships: [];
+      };
+      org_invites: {
+        Row: OrgInvite;
+        Insert: Partial<OrgInvite> & {
+          org_id: string;
+          email: string;
+          token: string;
+          expires_at: string;
+        };
+        Update: Partial<OrgInvite>;
         Relationships: [];
       };
       org_members: {
@@ -1010,6 +1022,14 @@ export interface Database {
       provision_org_for_user: {
         Args: { target_user: string; org_name: string };
         Returns: string;
+      };
+      /**
+       * Counts one redemption against a coupon under the row's own lock.
+       * False when it ran out between the price being quoted and paid.
+       */
+      redeem_coupon: {
+        Args: { target_coupon: string };
+        Returns: boolean;
       };
     };
   };

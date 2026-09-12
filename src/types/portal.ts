@@ -758,3 +758,21 @@ export type FlowResponse = {
   answers: Record<string, unknown>;
   created_at: string;
 };
+
+// --- team invitations -----------------------------------------------------
+
+/** One invitation to join a workspace. The token is the capability. */
+export type OrgInvite = {
+  id: string;
+  org_id: string;
+  /** Lower-cased on write. */
+  email: string;
+  role: "admin" | "member";
+  token: string;
+  invited_by: string | null;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};

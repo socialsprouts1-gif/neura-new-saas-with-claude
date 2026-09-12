@@ -72,4 +72,5 @@ export const SCHEMA_MANIFEST: SchemaTable[] = [
   { table: "recurring_invoices", migration: "20260914090000_invoicing.sql", bundle: "2026-09" },
   { table: "invoices", migration: "20260914090000_invoicing.sql", bundle: "2026-09" },
   { table: "invoice_items", migration: "20260914090000_invoicing.sql", bundle: "2026-09" },
+  { table: "org_invites", migration: "20260918090000_invites_checkout.sql", bundle: "2026-09" },
 ];

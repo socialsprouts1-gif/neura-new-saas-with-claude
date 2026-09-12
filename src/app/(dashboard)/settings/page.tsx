@@ -5,12 +5,20 @@ import { renameOrganization, createSupportTicket } from "../actions";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, statusTone } from "@/components/ui/primitives";
 import { formatMoney, formatDate } from "@/types/admin";
+import { loadEntitlement } from "@/lib/entitlement";
+import TeamPanel from "./TeamPanel";
 
 export default async function SettingsPage() {
-  const { orgId, orgName, role } = await requireOrg();
+  const { orgId, orgName, role, user } = await requireOrg();
   const supabase = await createClient();
 
-  const [{ data: connections }, { data: members }, { data: subscription }, { data: tickets }] =
+  const [
+    { data: connections },
+    { data: members },
+    { data: subscription },
+    { data: tickets },
+    { data: invites },
+  ] =
     await Promise.all([
       supabase.from("waba_connections").select("*").eq("org_id", orgId).order("created_at"),
       supabase.from("org_members").select("user_id, role, created_at").eq("org_id", orgId),
@@ -21,7 +29,28 @@ export default async function SettingsPage() {
         .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(5),
+      supabase
+        .from("org_invites")
+        .select("id, email, role, expires_at")
+        .eq("org_id", orgId)
+        .is("accepted_at", null)
+        .is("revoked_at", null)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false }),
     ]);
+
+  // Names for the team list. profiles has no declared foreign key to
+  // org_members, so PostgREST cannot embed one in the other.
+  const memberIds = (members ?? []).map((member) => member.user_id);
+  const { data: profiles } = memberIds.length
+    ? await supabase.from("profiles").select("user_id, email, full_name").in("user_id", memberIds)
+    : { data: [] };
+  const profileById = new Map((profiles ?? []).map((row) => [row.user_id, row]));
+
+  const entitlement = await loadEntitlement(supabase, orgId);
+  const seatLimit = entitlement.limits.seat_limit;
+  const seatsUsed = (members?.length ?? 0) + (invites?.length ?? 0);
+  const seatsLeft = seatLimit === null ? null : Math.max(0, seatLimit - seatsUsed);
 
   const canManage = role === "owner" || role === "admin";
   const plan = subscription?.plans as { name: string; price_cents: number; currency: string } | null | undefined;
@@ -93,21 +122,27 @@ export default async function SettingsPage() {
 
         {/* ---------------- Team ---------------- */}
         <Card>
-          <h2 className="font-semibold mb-1">Team</h2>
-          <p className="text-sm text-white/50 mb-5">
-            {members?.length ?? 0} member{members?.length === 1 ? "" : "s"} in this organization.
-          </p>
-          <div className="space-y-2">
-            {(members ?? []).map((m) => (
-              <div
-                key={m.user_id}
-                className="flex items-center justify-between bg-white/3 border border-white/8 rounded-xl px-4 py-3"
-              >
-                <span className="font-mono text-xs text-white/60 truncate">{m.user_id}</span>
-                <Badge tone={m.role === "owner" ? "green" : "grey"}>{m.role}</Badge>
-              </div>
-            ))}
-          </div>
+          <TeamPanel
+            members={(members ?? []).map((member) => {
+              const profile = profileById.get(member.user_id);
+              return {
+                userId: member.user_id,
+                email: profile?.email ?? profile?.full_name ?? null,
+                role: member.role,
+                isSelf: member.user_id === user.id,
+              };
+            })}
+            invites={(invites ?? []).map((invite) => ({
+              id: invite.id,
+              email: invite.email,
+              role: invite.role,
+              expiresAt: invite.expires_at,
+            }))}
+            canManage={canManage}
+            isOwner={role === "owner"}
+            seatsLeft={seatsLeft}
+            seatLimit={seatLimit}
+          />
         </Card>
 
         {/* ---------------- Support ---------------- */}

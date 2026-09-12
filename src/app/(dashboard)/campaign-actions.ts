@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import { loadEntitlement, loadUsage } from "@/lib/entitlement";
+import { checkLimit } from "@/lib/limits";
 import { resolveConnection, listActiveConnections, describe } from "@/lib/connections";
 import {
   createMessageTemplate,
@@ -459,6 +461,24 @@ export async function createCampaign(input: {
   if (scheduled && Number.isNaN(scheduled.getTime())) {
     return { ok: false, error: "That schedule date is not valid." };
   }
+
+  // The whole audience is checked against the allowance before a single
+  // recipient is queued. A limit discovered halfway through a broadcast
+  // has already half-sent it, which leaves the customer having paid for a
+  // campaign that reached an arbitrary fraction of their list.
+  const [entitlement, usage] = await Promise.all([
+    loadEntitlement(supabase, orgId),
+    loadUsage(supabase, orgId),
+  ]);
+  // Each step is another message to everybody.
+  const wanted = recipients.rows.length * (1 + input.steps.length);
+  const allowance = checkLimit(
+    "messages",
+    entitlement.limits.message_limit,
+    usage.messages,
+    wanted
+  );
+  if (!allowance.ok) return { ok: false, error: allowance.reason ?? "Over the plan's limit." };
 
   const { data: campaign, error } = await supabase
     .from("campaigns")

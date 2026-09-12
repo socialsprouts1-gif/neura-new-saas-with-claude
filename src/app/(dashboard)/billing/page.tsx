@@ -2,9 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { PageHeader, Card, StatCard, Badge, Table, Td, EmptyState, statusTone } from "@/components/ui/primitives";
 import { formatMoney, formatDate } from "@/types/admin";
+import { loadEntitlement, loadUsage } from "@/lib/entitlement";
+import { daysRemaining } from "@/lib/checkout";
+import PlanPicker from "./PlanPicker";
+import UsageBars from "./UsageBars";
 
 export default async function BillingPage() {
-  const { orgId } = await requireOrg();
+  const { orgId, role } = await requireOrg();
   const supabase = await createClient();
 
   const [{ data: subscription }, { data: orders }, { data: plans }, { data: usage }] =
@@ -24,6 +28,14 @@ export default async function BillingPage() {
       supabase.from("messages").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     ]);
 
+  // Counted the same way everywhere. A limit that reads one number here
+  // and another in the error that blocked a send is worse than no limit.
+  const [entitlement, liveUsage] = await Promise.all([
+    loadEntitlement(supabase, orgId),
+    loadUsage(supabase, orgId),
+  ]);
+  const left = daysRemaining(entitlement.subscription);
+
   const plan = subscription?.plans as
     | { name: string; price_cents: number; currency: string; message_limit: number | null; contact_limit: number | null; seat_limit: number | null }
     | null
@@ -34,6 +46,7 @@ export default async function BillingPage() {
     .reduce((s, o) => s + o.amount_cents, 0);
 
   const messagesUsed = usage?.length ?? 0;
+  void messagesUsed;
 
   return (
     <div className="p-6 md:p-8">
@@ -102,44 +115,34 @@ export default async function BillingPage() {
         </Card>
 
         <Card>
-          <h2 className="font-semibold mb-4">Available plans</h2>
-          <div className="space-y-3">
-            {(plans ?? []).map((p) => {
-              const current = p.id === subscription?.plan_id;
-              return (
-                <div
-                  key={p.id}
-                  className={`rounded-xl border p-4 ${
-                    current ? "border-accent/30 bg-accent/5" : "border-white/8 bg-white/3"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm">{p.name}</span>
-                        {current && <Badge tone="green">current</Badge>}
-                      </div>
-                      <p className="text-[11px] text-white/40 mt-0.5">{p.description}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="font-bold tabular-nums">
-                        {formatMoney(p.price_cents, p.currency)}
-                      </div>
-                      <div className="text-[10px] text-white/35">
-                        /{p.billing_interval === "yearly" ? "yr" : "mo"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-white/35 mt-4">
-            Self-serve upgrades need a payment provider, which isn&apos;t connected yet. Ask
-            support to change your plan.
-          </p>
+          <PlanPicker
+            plans={(plans ?? []).map((option) => ({
+              id: option.id,
+              name: option.name,
+              description: option.description,
+              priceCents: option.price_cents,
+              currency: option.currency,
+              interval: option.billing_interval,
+              isCurrent: option.id === subscription?.plan_id && entitlement.active,
+            }))}
+            canManage={role === "owner" || role === "admin"}
+            hasSubscription={Boolean(subscription?.plan_id) && entitlement.active}
+            cancelling={Boolean(subscription?.cancel_at_period_end)}
+          />
         </Card>
       </div>
+
+      <Card className="mb-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+          <h2 className="font-semibold">Usage</h2>
+          {left !== null && (
+            <span className="text-xs text-white/40">
+              {left === 0 ? "The period has ended" : `${left} day${left === 1 ? "" : "s"} left in this period`}
+            </span>
+          )}
+        </div>
+        <UsageBars limits={entitlement.limits} usage={liveUsage} />
+      </Card>
 
       <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
         Payment history
