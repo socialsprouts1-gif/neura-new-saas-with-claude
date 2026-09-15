@@ -11,6 +11,7 @@ import {
   statusTone,
 } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
+import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 import { NewCampaignButton, CampaignRowActions, SendQueuedButton } from "./CampaignToolbar";
 import type { TemplateOption } from "./CampaignBuilder";
 
@@ -28,16 +29,22 @@ export default async function CampaignsPage() {
       supabase
         .from("campaigns")
         .select(
-          "id, name, status, scheduled_at, created_at, completed_at, is_drip, audience, last_error, message_templates(name)"
+          "id, name, status, scheduled_at, created_at, completed_at, is_drip, audience, last_error, message_templates(name, status)"
         )
         .eq("org_id", orgId)
         .order("created_at", { ascending: false })
         .limit(50),
+      // Not just the approved ones. Meta's review takes minutes to a day,
+      // and a builder that lists nothing during it reads as the feature
+      // being missing — which is exactly how someone concludes campaigns
+      // do not work. A campaign built against a template under review is
+      // queued and sends itself on approval, so offering it is honest.
+      // Rejected and disabled templates stay out: those never become
+      // sendable on their own.
       supabase
         .from("message_templates")
-        .select("id, name, language, category, body_text, header_text, footer_text")
+        .select("id, name, language, category, status, body_text, header_text, footer_text")
         .eq("org_id", orgId)
-        .eq("status", "approved")
         .order("name"),
       // Tags live on the contact rows, so the list of them is derived here
       // rather than kept as a second table that can fall out of step.
@@ -63,7 +70,18 @@ export default async function CampaignsPage() {
     ...new Set((contacts ?? []).flatMap((contact) => contact.tags ?? []).filter(Boolean)),
   ].sort();
 
-  const options: TemplateOption[] = (templates ?? []) as TemplateOption[];
+  const usable = ((templates ?? []) as TemplateOption[]).filter(
+    (template) => templateReadiness(template.status) !== "blocked"
+  );
+  // Approved first: the ones that send today should not be buried under
+  // the ones that send tomorrow.
+  const options: TemplateOption[] = [
+    ...usable.filter((template) => templateReadiness(template.status) === "ready"),
+    ...usable.filter((template) => templateReadiness(template.status) !== "ready"),
+  ];
+  const approved = usable.filter(
+    (template) => templateReadiness(template.status) === "ready"
+  ).length;
 
   const live = rows.filter((row) => row.status === "running" || row.status === "scheduled").length;
   const totalSent = (progress ?? []).reduce((sum, entry) => sum + Number(entry.sent), 0);
@@ -90,7 +108,15 @@ export default async function CampaignsPage() {
         <StatCard label="Campaigns" value={rows.length} />
         <StatCard label="Live" value={live} hint="Running or scheduled" />
         <StatCard label="Messages sent" value={totalSent.toLocaleString()} />
-        <StatCard label="Approved templates" value={options.length} />
+        <StatCard
+          label="Approved templates"
+          value={approved}
+          hint={
+            options.length > approved
+              ? `${options.length - approved} in review`
+              : undefined
+          }
+        />
       </div>
 
       {error ? (
@@ -101,7 +127,10 @@ export default async function CampaignsPage() {
       ) : rows.length > 0 ? (
         <Table head={["Campaign", "Template", "Audience", "Progress", "Status", "Created", ""]}>
           {rows.map((campaign) => {
-            const template = campaign.message_templates as { name: string } | null;
+            const template = campaign.message_templates as {
+              name: string;
+              status: string;
+            } | null;
             const counts = byCampaign.get(campaign.id);
             const total = Number(counts?.total ?? 0);
             const sent = Number(counts?.sent ?? 0);
@@ -124,7 +153,16 @@ export default async function CampaignsPage() {
                 </Td>
                 <Td className="text-xs">
                   {template ? (
-                    <code className="text-accent2-ink">{template.name}</code>
+                    <>
+                      <code className="text-accent2-ink">{template.name}</code>
+                      {/* A campaign sitting at nought sent with nothing on
+                          screen explaining why reads as broken. */}
+                      {templateReadiness(template.status) !== "ready" && (
+                        <div className="text-[11px] text-[#FACC15] mt-1 max-w-xs leading-relaxed">
+                          {describeReadiness(template.status)}
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <span className="text-white/30">—</span>
                   )}

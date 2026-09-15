@@ -9,6 +9,7 @@ import {
   type MetaTemplateComponent,
 } from "@/lib/meta-whatsapp";
 import { variablesIn } from "@/lib/template-spec";
+import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 
 // Draining the campaign queue.
 //
@@ -71,6 +72,8 @@ export async function dispatchDueCampaigns(): Promise<DispatchResult> {
     const context = cache.get(key)!;
 
     if (!context.ok) {
+      // Waiting leaves the row pending, so the next drain tries again.
+      if ("wait" in context && context.wait) continue;
       await markFailed(supabase, recipient.id, context.error);
       failed += 1;
       continue;
@@ -177,8 +180,20 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
     .maybeSingle();
 
   if (!template) return { ok: false as const, error: "The template no longer exists" };
-  if (template.status !== "approved") {
-    return { ok: false as const, error: `The template is ${template.status}, not approved` };
+
+  // Not yet approved is not the same as refused. Meta's review takes
+  // minutes to a day, and marking every recipient failed for it burns the
+  // whole audience over a wait — campaign_recipients has no un-fail, so
+  // those people are permanently recorded as attempted and failed when
+  // nothing was ever sent to them. Hold instead: they stay pending and the
+  // next drain picks them up, which makes a campaign created during review
+  // send itself the moment approval lands.
+  const readiness = templateReadiness(template.status);
+  if (readiness === "waiting") {
+    return { ok: false as const, wait: true, error: describeReadiness(template.status)! };
+  }
+  if (readiness === "blocked") {
+    return { ok: false as const, error: describeReadiness(template.status)! };
   }
 
   // The campaign's own number when it names one, otherwise the workspace

@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
-import { submitTemplate } from "@/app/(dashboard)/campaign-actions";
+import { ExternalLink, Loader2, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import { submitTemplate, syncTemplates } from "@/app/(dashboard)/campaign-actions";
 import {
   HEADER_FORMATS,
   LIMITS,
@@ -80,6 +80,11 @@ export default function TemplateBuilder({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
+  // Set when Meta refused the account rather than the template, which is
+  // the one failure a person cannot fix by editing anything on this form.
+  const [blockedWaba, setBlockedWaba] = useState<string | null>(null);
+  const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [syncing, startSync] = useTransition();
 
   const editing = initial !== undefined;
   const originalName = initial?.name ?? "";
@@ -150,6 +155,7 @@ export default function TemplateBuilder({
       if (!result.ok) {
         setError(result.error ?? "Meta refused the template.");
         setDetail(result.detail ?? null);
+        setBlockedWaba(result.blockedByAccount ? (result.wabaId ?? null) : null);
         return;
       }
       router.refresh();
@@ -489,6 +495,53 @@ export default function TemplateBuilder({
                     front of an operator, but the readable sentence drops the
                     subcode and error_data — the only fields that ever say
                     which of several unrelated faults this actually is. */}
+                {/* The way round. Meta's own dashboard posts the same
+                    template to the same account and is accepted, and Sync
+                    reads it straight back — so the template is never
+                    actually out of reach, it just has to be typed
+                    somewhere else once. Saying that in a paragraph is not
+                    the same as putting both steps within reach of the
+                    cursor that is already here. */}
+                {blockedWaba && (
+                  <div className="mt-3 rounded-xl border border-white/12 bg-white/4 p-3">
+                    <p className="text-xs text-white/70 leading-relaxed">
+                      Meta&apos;s own dashboard can still create it. Make it there, then press
+                      Sync — it appears here with its review status and campaigns can send it.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <a
+                        href={`https://business.facebook.com/latest/whatsapp_manager/message_templates?asset_id=${encodeURIComponent(blockedWaba)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-secondary text-xs py-2 px-3"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Open WhatsApp Manager
+                      </a>
+                      <button
+                        type="button"
+                        disabled={syncing}
+                        onClick={() =>
+                          startSync(async () => {
+                            const result = await syncTemplates();
+                            setSyncNote(result.message ?? result.error ?? null);
+                            router.refresh();
+                          })
+                        }
+                        className="btn-secondary text-xs py-2 px-3 disabled:opacity-50"
+                      >
+                        {syncing ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        )}
+                        Sync from Meta
+                      </button>
+                    </div>
+                    {syncNote && <p className="text-[11px] text-white/50 mt-2.5">{syncNote}</p>}
+                  </div>
+                )}
+
                 {detail && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-[11px] text-white/40 hover:text-white/65 list-none">

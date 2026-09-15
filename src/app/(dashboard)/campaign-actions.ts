@@ -189,7 +189,9 @@ async function diagnoseSilently(credentials: {
  */
 export async function submitTemplate(
   formData: FormData
-): Promise<ActionResult & { id?: string; detail?: string }> {
+): Promise<
+  ActionResult & { id?: string; detail?: string; blockedByAccount?: boolean; wabaId?: string }
+> {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
@@ -351,6 +353,10 @@ export async function submitTemplate(
       ok: false,
       error: reason,
       detail: error instanceof MetaApiError ? JSON.stringify(error.body, null, 2) : undefined,
+      // Lets the dialog offer the route that works instead of only saying
+      // it in a paragraph nobody finishes reading.
+      blockedByAccount: verdict !== null,
+      wabaId: credentials.wabaId,
     };
   }
 }

@@ -6,8 +6,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  FileText,
   Loader2,
+  Megaphone,
   Plus,
+  RefreshCw,
   Send,
   Trash2,
   Upload,
@@ -17,6 +20,7 @@ import {
 import {
   createCampaign,
   previewAudience,
+  syncTemplates,
   type Audience,
 } from "@/app/(dashboard)/campaign-actions";
 import { fillVariables, variablesIn } from "@/lib/template-spec";
@@ -28,12 +32,15 @@ import {
   type ParsedAudience,
 } from "@/lib/audience";
 import { readXlsx } from "@/lib/xlsx";
+import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 
 export interface TemplateOption {
   id: string;
   name: string;
   language: string;
   category: string;
+  /** Meta's review state. A template under review can still be scheduled. */
+  status: string;
   body_text: string | null;
   header_text: string | null;
   footer_text: string | null;
@@ -88,6 +95,12 @@ export default function CampaignBuilder({
 
   const template = templates.find((option) => option.id === templateId) ?? null;
   const slots = useMemo(() => variablesIn(template?.body_text ?? ""), [template]);
+
+  // Meta's review is the normal state of a template someone just made, and
+  // a builder that refuses to proceed during it is the reason campaigns
+  // read as missing. The campaign is built, queued, and held by the
+  // dispatcher until approval lands.
+  const waiting = template ? describeReadiness(template.status) : null;
 
   // Numbers are parsed as they arrive so the count is honest before anything
   // is created — a list where a third of the rows are unreadable should say
@@ -201,32 +214,40 @@ export default function CampaignBuilder({
         if (event.target === event.currentTarget && !pending) onClose();
       }}
     >
-      <div className="glass-card w-full max-w-4xl mx-auto p-6">
-        <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 className="text-lg font-semibold">New campaign</h3>
-            <p className="text-xs text-white/45 mt-1.5">
-              Pick a template, choose who gets it, and send now or later.
-            </p>
+      <div className="glass-card w-full max-w-4xl mx-auto overflow-hidden">
+        {/* The header carries the accent so the dialog reads as one object
+            rather than a form floating on a dark rectangle. */}
+        <div className="relative border-b border-white/8 bg-gradient-to-br from-accent/12 via-accent/4 to-transparent px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <span className="grid place-items-center w-10 h-10 rounded-2xl bg-accent/15 border border-accent/25 shrink-0">
+                <Megaphone className="w-5 h-5 text-accent-ink" />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold leading-tight">New campaign</h3>
+                <p className="text-xs text-white/50 mt-1">
+                  Pick a template, choose who gets it, and send now or later.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              aria-label="Close"
+              className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/8 disabled:opacity-50"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            aria-label="Close"
-            className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/8 disabled:opacity-50"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
+        <div className="p-6">
+
         {templates.length === 0 ? (
-          <div className="rounded-xl border border-[#FACC15]/25 bg-[#FACC15]/8 p-4 text-sm text-white/70">
-            You have no approved templates yet. Create one under Templates and press Sync with
-            Meta once it is approved.
-          </div>
+          <NoTemplatesYet onClose={onClose} />
         ) : (
-          <div className="space-y-7">
+          <div className="space-y-8">
             <Section step={1} title="Message">
               <div className="grid md:grid-cols-2 gap-4">
                 <Field label="Campaign name" hint="Only you see this.">
@@ -268,11 +289,19 @@ export default function CampaignBuilder({
                     {templates.map((option) => (
                       <option key={option.id} value={option.id} className="bg-[var(--surface-3)]">
                         {option.name} · {option.language} · {option.category.toLowerCase()}
+                        {templateReadiness(option.status) === "ready" ? "" : "  (in review)"}
                       </option>
                     ))}
                   </select>
                 </Field>
               </div>
+
+              {waiting && (
+                <div className="mt-4 flex gap-2.5 rounded-xl border border-[#FACC15]/25 bg-[#FACC15]/8 p-3">
+                  <Clock className="w-4 h-4 text-[#FACC15] shrink-0 mt-0.5" />
+                  <p className="text-xs text-white/70 leading-relaxed">{waiting}</p>
+                </div>
+              )}
 
               {slots.length > 0 && (
                 <div className="mt-4 space-y-2">
@@ -573,6 +602,7 @@ export default function CampaignBuilder({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -741,17 +771,84 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section>
-      <div className="flex items-baseline gap-2.5 mb-3">
-        <span className="grid place-items-center w-5 h-5 rounded-full bg-white/8 text-[10px] font-semibold text-white/60 shrink-0">
-          {step}
-        </span>
-        <div>
-          <h4 className="text-sm font-semibold">{title}</h4>
-          {subtitle && <p className="text-[11px] text-white/40 mt-0.5">{subtitle}</p>}
-        </div>
+    // The numbered marker sits on a rule that runs the height of the step,
+    // so three sections read as one sequence instead of three stacked
+    // forms. The rule is the whole trick — without it the numbers are
+    // decoration and the eye has nothing to follow.
+    <section className="relative pl-9 last:pb-0 pb-1">
+      <span className="absolute left-[13px] top-8 bottom-0 w-px bg-white/8" aria-hidden />
+      <span className="absolute left-0 top-0 grid place-items-center w-7 h-7 rounded-full bg-accent/12 border border-accent/25 text-[11px] font-semibold text-accent-ink">
+        {step}
+      </span>
+      <div className="mb-3.5 min-h-[1.75rem] flex flex-col justify-center">
+        <h4 className="text-sm font-semibold leading-tight">{title}</h4>
+        {subtitle && <p className="text-[11px] text-white/40 mt-0.5">{subtitle}</p>}
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * What to show when there is nothing to send.
+ *
+ * This used to be a yellow note saying "create one under Templates", which
+ * is true and useless: it leaves someone inside a dialog they now have to
+ * close, on a page they have to find, to do a thing they were not told how
+ * to start. Both routes out are here instead — and Sync matters because
+ * templates made in WhatsApp Manager are invisible until it runs, which is
+ * the exact state of anyone who has just worked around a refusal there.
+ */
+function NoTemplatesYet({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [note, setNote] = useState<string | null>(null);
+
+  return (
+    <div className="text-center py-6 px-4">
+      <span className="grid place-items-center w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mx-auto mb-4">
+        <FileText className="w-5 h-5 text-white/40" />
+      </span>
+      <h4 className="text-sm font-semibold">No template to send yet</h4>
+      <p className="text-xs text-white/50 mt-2 max-w-sm mx-auto leading-relaxed">
+        A campaign sends a template, and WhatsApp requires Meta to review one before it goes
+        out. Make one here, or pull in the ones already on your WhatsApp Business Account.
+      </p>
+
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            router.push("/templates");
+          }}
+          className="btn-primary text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Create a template
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await syncTemplates();
+              setNote(result.message ?? result.error ?? null);
+              router.refresh();
+            })
+          }
+          className="btn-secondary text-sm disabled:opacity-50"
+        >
+          {pending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          Sync from Meta
+        </button>
+      </div>
+
+      {note && <p className="text-xs text-white/50 mt-4 max-w-sm mx-auto">{note}</p>}
+    </div>
   );
 }
