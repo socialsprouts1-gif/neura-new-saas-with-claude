@@ -129,7 +129,22 @@ const ACCOUNT_LEVEL_SUBCODES = new Set(["100:2388339"]);
  * in this codebase can change the answer.
  */
 const NOTHING_LEFT_TO_CHECK =
-  "everything this app can check on the account is in order: the number is on it, the token may manage it, and Meta reports it as approved and verified. Open that account in Meta → WhatsApp Manager → Message templates and create the same template there. If Meta refuses it in its own dashboard, the restriction is on the account and support is the only way through — quote the fbtrace_id below. If it succeeds there, send the same id and this response to support.";
+  "everything this app can check on the account is in order: the number is on it, the token may manage it, and Meta reports it as approved and verified. That leaves a refusal only Meta can explain — quote the fbtrace_id below to support.";
+
+/**
+ * The way round a refusal this app cannot lift.
+ *
+ * Creating a template and using one are different permissions on Meta's
+ * side, and only the first is refused here — WhatsApp Manager posts the
+ * same template to the same account and it is accepted. So the template
+ * itself is never out of reach; it just has to be typed somewhere else
+ * once. Sync pulls it back, campaigns use it, and nothing downstream knows
+ * the difference. Worth saying on the failure itself: an operator staring
+ * at a refusal has no reason to guess that the button on the next screen
+ * finishes the job.
+ */
+const CREATE_IT_IN_META_INSTEAD =
+  "You can still use this template: create it in Meta → WhatsApp Manager → Message templates, then press Sync on this page. It will appear here with its review status and campaigns can send it — only creating it from inside this app is refused.";
 const ACCOUNT_LEVEL_CODES = new Set([10, 200]);
 
 function isAccountLevel(error: unknown): boolean {
@@ -317,7 +332,7 @@ export async function submitTemplate(
 
     const reason = `${described} (WhatsApp Business Account ${credentials.wabaId})${
       verdict ? ` — ${verdict}` : ""
-    }`;
+    }${verdict ? ` ${CREATE_IT_IN_META_INSTEAD}` : ""}`;
 
     // Kept as a draft with the reason attached, so it can be fixed and
     // resubmitted rather than retyped.

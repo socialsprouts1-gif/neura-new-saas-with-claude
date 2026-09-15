@@ -102,7 +102,11 @@ async function describeTokenScope(input: TemplateAccess): Promise<string | null>
   }
 
   if (!held.has(WABA_MANAGEMENT_SCOPE)) {
-    return `The stored token may send from WhatsApp Business Account ${input.wabaId} but not manage it — Meta granted it messaging access and not whatsapp_business_management. That is why the inbox works and templates do not. Reconnect this number under Integrations and approve both WhatsApp permissions when Meta asks.`;
+    // Reconnecting alone will not fix this if the Embedded Signup
+    // configuration never asks for the permission — the dialog can only
+    // grant what the configuration requests, so the operator would repeat
+    // the connection and get the identical token back.
+    return `The stored token may send from WhatsApp Business Account ${input.wabaId} but not manage it — Meta granted it messaging access and not whatsapp_business_management. That is exactly why the inbox works and templates do not. Check the Embedded Signup configuration in Meta → WhatsApp → Configurations actually requests whatsapp_business_management; the dialog can only grant what the configuration asks for, so reconnecting without that change returns the same token. Then reconnect this number under Integrations.`;
   }
 
   return null;
