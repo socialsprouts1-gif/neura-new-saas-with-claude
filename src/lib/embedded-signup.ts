@@ -79,10 +79,17 @@ export function embeddedSignupUrl(input: {
     override_default_response_type: "true",
     // sessionInfoVersion 3 is what makes Meta register the number for the
     // Cloud API as part of the dialog instead of leaving it to us.
+    //
+    // `version` pins the Embedded Signup flow itself. Left unset, Meta
+    // picks a default, and v2 stops working on 8 October 2026 — a
+    // deprecation that would take onboarding down on a date nobody is
+    // watching. Meta's own dialog builder emits v4, so this matches what
+    // its tester produces rather than guessing.
     extras: JSON.stringify({
       setup: {},
       featureType: input.mode === "coexistence" ? COEXISTENCE_FEATURE : "",
       sessionInfoVersion: "3",
+      version: "v4",
     }),
   });
 
