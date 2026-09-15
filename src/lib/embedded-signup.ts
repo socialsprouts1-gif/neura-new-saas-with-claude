@@ -150,6 +150,27 @@ export async function wabaIdsForToken(
   token: string,
   env: EmbeddedSignupEnv
 ): Promise<string[]> {
+  return [...(await wabaScopesForToken(token, env)).keys()];
+}
+
+export const WABA_MANAGEMENT_SCOPE = "whatsapp_business_management";
+export const WABA_MESSAGING_SCOPE = "whatsapp_business_messaging";
+
+/**
+ * Which WhatsApp permissions each account was granted to this token.
+ *
+ * The two scopes are not interchangeable and the difference is invisible
+ * until it bites: messaging covers sending, management covers templates
+ * and flows. A token holding only messaging on an account runs an inbox
+ * perfectly and is refused the moment it creates a template, with an error
+ * that names no field — so collapsing both into one list of ids, which is
+ * what the callers used to get, throws away the only evidence that
+ * distinguishes that case from a broken account.
+ */
+export async function wabaScopesForToken(
+  token: string,
+  env: EmbeddedSignupEnv
+): Promise<Map<string, Set<string>>> {
   const params = new URLSearchParams({
     input_token: token,
     access_token: `${env.appId}|${env.appSecret}`,
@@ -158,14 +179,16 @@ export async function wabaIdsForToken(
   const data = await graph<DebugTokenResponse>(`${META_GRAPH_BASE_URL}/debug_token?${params}`);
   const scopes = data.data?.granular_scopes ?? [];
 
-  const ids = new Set<string>();
+  const granted = new Map<string, Set<string>>();
   for (const scope of scopes) {
-    if (scope.scope !== "whatsapp_business_management" && scope.scope !== "whatsapp_business_messaging") {
-      continue;
+    if (scope.scope !== WABA_MANAGEMENT_SCOPE && scope.scope !== WABA_MESSAGING_SCOPE) continue;
+    for (const id of scope.target_ids ?? []) {
+      const held = granted.get(id) ?? new Set<string>();
+      held.add(scope.scope);
+      granted.set(id, held);
     }
-    for (const id of scope.target_ids ?? []) ids.add(id);
   }
-  return [...ids];
+  return granted;
 }
 
 export interface SignupPhoneNumber {

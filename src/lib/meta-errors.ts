@@ -127,10 +127,13 @@ const META_SUBCODE_HELP: Record<string, string> = {
   "100:2388042":
     "A template with this name and language already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
   // Meta's own wording is "WhatsApp accounts cannot be used with this API",
-  // which is about the account being posted to rather than anything in the
-  // template — so the fields are the wrong place to go looking.
+  // which is about the WhatsApp Business Account being posted to rather than
+  // anything in the template — so the fields are the wrong place to look.
+  // What it does not say is which of several account-level gates is shut, so
+  // this names them in the order they actually occur and leaves the finding
+  // to the check that runs alongside it.
   "100:2388339":
-    "Meta will not create templates on the WhatsApp Business Account this number is attached to. The account id may not be a WhatsApp Business Account at all — the Business Portfolio id and the phone number id are both easy to paste into that field by mistake — or the account is not one this app may manage. Check the WABA id against Meta → WhatsApp → API Setup, and confirm the token's System User has that WhatsApp Account assigned.",
+    "This is about the WhatsApp Business Account, not the template — nothing in the name, body or buttons will change it. Meta refuses template creation on an account that has not passed review, on a business that is not verified, and on an account the stored token may send from but not manage. The check below says which.",
   "100:2388043":
     "A template with this name already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
 };
@@ -153,19 +156,22 @@ export function describeMetaError(status: number, body: unknown): string {
 
   const subcodeHelp =
     code !== null && subcode !== null ? META_SUBCODE_HELP[`${code}:${subcode}`] : undefined;
-  if (subcodeHelp) return `${subcodeHelp} (${reference})`;
 
-  // Meta's own user-facing wording beats our generic text whenever it
-  // exists: error_user_msg is what its dashboard shows, and for template
-  // rejections it is the only field that names the real fault while
-  // `message` stays a useless "Invalid parameter".
+  // Meta's own user-facing wording goes first, and our hint after it rather
+  // than instead of it. A subcode hint is a guess about why Meta said what
+  // it said — worth having, but it used to *replace* Meta's sentence, so an
+  // operator whose real fault was something the hint did not cover was sent
+  // to check the one thing that was already fine. Meta states the fault;
+  // we state what usually causes it.
   const metaSaid = userMessage ?? userTitle;
   if (metaSaid) {
     const both = userTitle && userMessage && userTitle !== userMessage
       ? `${userTitle}: ${userMessage}`
       : metaSaid;
-    return `Meta rejected this — ${both} (${reference})`;
+    return `Meta rejected this — ${both}${subcodeHelp ? ` ${subcodeHelp}` : ""} (${reference})`;
   }
+
+  if (subcodeHelp) return `${subcodeHelp} (${reference})`;
 
   const help = code !== null ? META_ERROR_HELP[code] : undefined;
 

@@ -9,6 +9,7 @@ import { checkLimit } from "@/lib/limits";
 import { resolveConnection } from "@/lib/connections";
 import { encryptToken, decryptToken } from "@/lib/crypto";
 import { checkAccessToken } from "@/lib/access-token";
+import { diagnoseTemplateAccess } from "@/lib/template-diagnosis";
 import { headers } from "next/headers";
 import {
   EMBEDDED_SIGNUP_SETUP_MESSAGE,
@@ -16,14 +17,13 @@ import {
   embeddedSignupUrl,
   type SignupMode,
   getEmbeddedSignupEnv,
-  wabaIdsForToken,
+  wabaScopesForToken,
 } from "@/lib/embedded-signup";
 import {
   MetaApiError,
   InvalidAccessTokenError,
   describeMetaError,
   getPhoneNumber,
-  listWabaPhoneNumbers,
   getWabaDetails,
   createMessageTemplate,
 } from "@/lib/meta-whatsapp";
@@ -507,12 +507,15 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
     // Templates and flows are the only things that read it, which is why a
     // wrong one stays invisible until the first template comes back refused
     // with an error that names nothing. Check it here instead.
-    const waba = await describeWabaMembership(
-      connection.waba_id,
-      connection.phone_number_id,
-      connection.meta_app_id,
-      accessToken
-    );
+    const problem = await diagnoseTemplateAccess({
+      wabaId: connection.waba_id,
+      phoneNumberId: connection.phone_number_id,
+      appId: connection.meta_app_id,
+      accessToken,
+    });
+    // Sending works off the phone number id alone, so it proves nothing
+    // about the account the template would be created on.
+    const waba = problem ? `This number sends fine, but ${problem[0].toLowerCase()}${problem.slice(1)}` : null;
 
     if (waba) {
       await supabase
@@ -553,109 +556,6 @@ export async function verifyWabaConnection(formData: FormData): Promise<ActionRe
  * faults it catches are silent everywhere else: a WABA the token cannot see,
  * and a WABA that exists but belongs to a different set of numbers.
  */
-async function describeWabaMembership(
-  wabaId: string,
-  phoneNumberId: string,
-  appId: string,
-  accessToken: string
-): Promise<string | null> {
-  let numbers: Awaited<ReturnType<typeof listWabaPhoneNumbers>>;
-
-  try {
-    numbers = await listWabaPhoneNumbers(wabaId, accessToken);
-  } catch (err) {
-    const why =
-      err instanceof MetaApiError ? describeMetaError(err.status, err.body) : "Meta did not answer.";
-    return `This number works, but Meta would not open WhatsApp Business Account ${wabaId} with this token, so templates and forms cannot be created. ${why}`;
-  }
-
-  if (numbers.some((number) => number.id === phoneNumberId)) {
-    const scope = await describeTokenScope(wabaId, appId, accessToken);
-    if (scope) return scope;
-
-    // The number belongs to the account, so the ids agree. What is left is
-    // whether the account is allowed to do anything: an unapproved or
-    // unverified account sends messages perfectly well and refuses template
-    // creation with a bare code 100 that names nothing.
-    return describeWabaStanding(wabaId, accessToken);
-  }
-
-  const listed = numbers
-    .map((number) => number.display_phone_number ?? number.id)
-    .filter(Boolean)
-    .join(", ");
-
-  return `This number sends fine, but it is not on WhatsApp Business Account ${wabaId} — that account holds ${
-    listed || "no numbers"
-  }. Templates and forms are created on the account, so they will keep failing until the WABA id is corrected under Integrations. Find the right one in Meta → WhatsApp Manager, on the account that lists this number.`;
-}
-
-/**
- * Whether the token itself was granted this account as an asset.
- *
- * With Standard access, whatsapp_business_management covers only the
- * accounts a token has actually been granted. Reads often pass on the app's
- * permission alone, so a token missing the asset sends messages, lists
- * numbers and reads templates — and is refused the moment it tries to create
- * one, with an error that names no field.
- *
- * Meta reports the grants on the token itself, so this asks. Silent unless
- * it can answer: the check needs the app secret, which is only available
- * when the connection belongs to this deployment's own Meta app.
- */
-async function describeTokenScope(
-  wabaId: string,
-  appId: string,
-  accessToken: string
-): Promise<string | null> {
-  const env = getEmbeddedSignupEnv();
-  if (!env || env.appId !== appId) return null;
-
-  let granted: string[];
-  try {
-    granted = await wabaIdsForToken(accessToken, env);
-  } catch {
-    return null;
-  }
-
-  // No grants listed at all means Meta reported nothing useful, not that the
-  // token is empty — an app-scoped token has no granular scopes to report.
-  if (granted.length === 0 || granted.includes(wabaId)) return null;
-
-  return `This number sends fine, but the stored token has not been granted WhatsApp Business Account ${wabaId}, so it cannot create templates or forms on it — only ${granted.join(", ")}. Assign that account to the token's System User in Business settings → Users → System users → Add assets, then generate a NEW token: assigning an asset does not change a token that already exists. Paste it here with Update access token.`;
-}
-
-/**
- * Account-level gates that block templates while sending keeps working.
- *
- * Returns a sentence when something is wrong, null when the account is clear.
- * Never fails the test on its own account — a token that cannot read these
- * fields is a narrower permission, not a broken connection.
- */
-async function describeWabaStanding(
-  wabaId: string,
-  accessToken: string
-): Promise<string | null> {
-  let waba;
-  try {
-    waba = await getWabaDetails(wabaId, accessToken);
-  } catch {
-    return null;
-  }
-
-  const review = waba.account_review_status?.toUpperCase();
-  if (review && review !== "APPROVED") {
-    return `This number sends fine, but Meta has not approved WhatsApp Business Account ${wabaId} — it reports the review status as ${waba.account_review_status}. Templates and forms cannot be created until that clears. Check Meta Business Suite → Account Quality.`;
-  }
-
-  const verification = waba.business_verification_status?.toLowerCase();
-  if (verification && verification !== "verified") {
-    return `This number sends fine, but the business behind WhatsApp Business Account ${wabaId} is not verified with Meta (${waba.business_verification_status}). Template creation is limited until verification completes — Meta Business Suite → Security Centre → Start verification.`;
-  }
-
-  return null;
-}
-
 /**
  * Asks Meta, in one go, everything that bears on creating a template.
  *
@@ -699,7 +599,16 @@ export async function diagnoseTemplates(
   const env = getEmbeddedSignupEnv();
   if (env && env.appId === connection.metaAppId) {
     try {
-      lines.push(`granted   ${JSON.stringify(await wabaIdsForToken(connection.accessToken, env))}`);
+      // Per account and per scope. Which accounts the token holds answers
+      // half the question; whether it holds *management* on this one
+      // answers the other half, and that is the half that decides whether
+      // a template can be created at all.
+      const granted = await wabaScopesForToken(connection.accessToken, env);
+      lines.push(
+        `granted   ${JSON.stringify(
+          Object.fromEntries([...granted].map(([id, scopes]) => [id, [...scopes].sort()]))
+        )}`
+      );
     } catch (error) {
       lines.push(`granted   unreadable — ${describeThrown(error)}`);
     }

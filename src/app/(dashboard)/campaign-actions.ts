@@ -15,6 +15,8 @@ import {
   type MetaTemplateSummary,
   MetaApiError,
 } from "@/lib/meta-whatsapp";
+import { metaErrorDetail } from "@/lib/meta-errors";
+import { diagnoseTemplateAccess } from "@/lib/template-diagnosis";
 import {
   buildComponents,
   normaliseName,
@@ -106,6 +108,48 @@ async function upsertTemplate(
 }
 
 
+
+// Codes where Meta is refusing the account rather than the template.
+// 100/2388339 is the bare "WhatsApp accounts cannot be used with this API";
+// 200 and 10 are the permission refusals. Anything else — a name clash, a
+// bad variable, an unreadable header file — is about the submission, and
+// pointing at Meta settings for those would be the same wrong turn in the
+// opposite direction.
+const ACCOUNT_LEVEL_SUBCODES = new Set(["100:2388339"]);
+const ACCOUNT_LEVEL_CODES = new Set([10, 200]);
+
+function isAccountLevel(error: unknown): boolean {
+  if (!(error instanceof MetaApiError)) return false;
+  const { code, subcode } = metaErrorDetail(error.body);
+  if (code === null) return false;
+  if (ACCOUNT_LEVEL_CODES.has(code)) return true;
+  return subcode !== null && ACCOUNT_LEVEL_SUBCODES.has(`${code}:${subcode}`);
+}
+
+/**
+ * The account check, on a path that has already failed.
+ *
+ * Never throws and never delays a verdict it cannot reach: the operator is
+ * waiting on an error message, and a diagnosis that fails is worth less
+ * than the message they are waiting for.
+ */
+async function diagnoseSilently(credentials: {
+  wabaId: string;
+  phoneNumberId: string;
+  appId: string;
+  token: string;
+}): Promise<string | null> {
+  try {
+    return await diagnoseTemplateAccess({
+      wabaId: credentials.wabaId,
+      phoneNumberId: credentials.phoneNumberId,
+      appId: credentials.appId,
+      accessToken: credentials.token,
+    });
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Saves a template and submits it to Meta for review.
@@ -243,7 +287,21 @@ export async function submitTemplate(
     // Which account refused it. Without this an account-level rejection reads
     // as a fault in the template, and the operator edits text that was never
     // the problem.
-    const reason = `${described} (WhatsApp Business Account ${credentials.wabaId})`;
+    //
+    // And then the answer, in place. Every cause of a template refusal that
+    // is not the template — an account still under review, an unverified
+    // business, a token that may send from the account but not manage it —
+    // is one Graph call away and none of them are visible from here. Making
+    // someone leave a dialog they have just filled in, find a diagnostic on
+    // another page and run it against the right number is a round trip that
+    // this can simply take on their behalf. Only for the codes that are
+    // about the account: a genuinely malformed template should not send
+    // anyone looking at their Meta settings.
+    const verdict = isAccountLevel(error) ? await diagnoseSilently(credentials) : null;
+
+    const reason = `${described} (WhatsApp Business Account ${credentials.wabaId})${
+      verdict ? ` — ${verdict}` : ""
+    }`;
 
     // Kept as a draft with the reason attached, so it can be fixed and
     // resubmitted rather than retyped.

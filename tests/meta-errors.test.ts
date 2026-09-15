@@ -190,8 +190,36 @@ test("2388339 points at the account, not at the template's fields", () => {
     },
   });
 
-  // The named subcode wins over Meta's terse wording: editing the body is
-  // the wrong response to an account-level refusal.
+  // Both halves. Meta states the refusal; our hint says what causes it and
+  // that the template's fields are not where to go looking.
+  assert.match(said, /WhatsApp accounts cannot be used with this API/);
   assert.match(said, /WhatsApp Business Account/i);
   assert.match(said, /100\/2388339/);
+});
+
+test("our hint never replaces what Meta actually said", () => {
+  // The bug this guards: a subcode we recognise used to suppress
+  // error_user_msg entirely, so an operator whose real fault was not the
+  // one the hint guesses at was sent to check something already correct.
+  const said = describeMetaError(400, {
+    error: {
+      message: "Invalid parameter",
+      code: 100,
+      error_subcode: 2388042,
+      error_user_title: "Template Name Already Exists",
+      error_user_msg: "A template named order_shipped already exists in en_US.",
+    },
+  });
+
+  assert.match(said, /order_shipped/);
+  assert.match(said, /Delete it in Meta/);
+});
+
+test("the hint still stands alone when Meta says nothing user-facing", () => {
+  const said = describeMetaError(400, {
+    error: { message: "Invalid parameter", code: 100, error_subcode: 2388042 },
+  });
+
+  assert.match(said, /already exists/i);
+  assert.match(said, /100\/2388042/);
 });
