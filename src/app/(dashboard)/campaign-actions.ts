@@ -116,6 +116,20 @@ async function upsertTemplate(
 // pointing at Meta settings for those would be the same wrong turn in the
 // opposite direction.
 const ACCOUNT_LEVEL_SUBCODES = new Set(["100:2388339"]);
+
+/**
+ * When the account refuses and everything checkable is in order.
+ *
+ * The diagnosis returning nothing means "none of the gates I can see are
+ * shut", which is not the same as "fine" — and left unsaid it reads as the
+ * app having no idea, which is where an operator starts rewriting a body
+ * that was never the problem. This names the one test that settles it, and
+ * it is a test they can run without us: Meta's own dashboard posts to the
+ * same endpoint with the same account. If it is refused there too, nothing
+ * in this codebase can change the answer.
+ */
+const NOTHING_LEFT_TO_CHECK =
+  "everything this app can check on the account is in order: the number is on it, the token may manage it, and Meta reports it as approved and verified. Open that account in Meta → WhatsApp Manager → Message templates and create the same template there. If Meta refuses it in its own dashboard, the restriction is on the account and support is the only way through — quote the fbtrace_id below. If it succeeds there, send the same id and this response to support.";
 const ACCOUNT_LEVEL_CODES = new Set([10, 200]);
 
 function isAccountLevel(error: unknown): boolean {
@@ -297,7 +311,9 @@ export async function submitTemplate(
     // this can simply take on their behalf. Only for the codes that are
     // about the account: a genuinely malformed template should not send
     // anyone looking at their Meta settings.
-    const verdict = isAccountLevel(error) ? await diagnoseSilently(credentials) : null;
+    const verdict = isAccountLevel(error)
+      ? ((await diagnoseSilently(credentials)) ?? NOTHING_LEFT_TO_CHECK)
+      : null;
 
     const reason = `${described} (WhatsApp Business Account ${credentials.wabaId})${
       verdict ? ` — ${verdict}` : ""
