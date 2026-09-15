@@ -1,4 +1,5 @@
 import { AlertTriangle, KeyRound, CheckCircle2 } from "lucide-react";
+import { NUMBER_PENDING } from "@/lib/number-identity";
 import ConnectWhatsApp from "./ConnectWhatsApp";
 import DiagnoseTemplates from "./DiagnoseTemplates";
 import { connectWaba, disconnectWaba, regenerateVerifyToken, verifyWabaConnection } from "../actions";
@@ -101,9 +102,17 @@ export default function WhatsAppCard({
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   {/* The number people recognise, with the id kept below —
-                      Meta asks for the id, humans read the number. */}
-                  <span className="font-semibold text-sm tabular-nums">
-                    {c.display_phone_number ?? c.phone_number_id}
+                      Meta asks for the id, humans read the number. Falling
+                      back to the id here just printed it twice and told
+                      nobody why the number was absent. */}
+                  <span
+                    className={
+                      c.display_phone_number
+                        ? "font-semibold text-sm tabular-nums"
+                        : "text-sm text-white/40"
+                    }
+                  >
+                    {c.display_phone_number ?? NUMBER_PENDING}
                   </span>
                   {(c.label ?? c.verified_name) && (
                     <span className="text-sm text-white/50">{c.label ?? c.verified_name}</span>

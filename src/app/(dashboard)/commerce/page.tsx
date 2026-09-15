@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
-import { listConnections } from "@/lib/connections";
+import { listConnections, optionLabel } from "@/lib/connections";
 import { loadPaymentSettings } from "@/lib/commerce";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
@@ -141,11 +141,7 @@ export default async function CommercePage() {
         settings={settings as unknown as PaymentSettings}
         connections={connections.map((connection) => ({
           id: connection.id,
-          label:
-            connection.label ||
-            connection.displayPhoneNumber ||
-            connection.verifiedName ||
-            connection.phoneNumberId,
+          label: optionLabel(connection),
         }))}
         catalogue={await loadCatalogueState(supabase, orgId)}
         // Which gateways and shops are actually connected, so the tabs can

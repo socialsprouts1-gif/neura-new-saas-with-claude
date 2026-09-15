@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { decryptToken } from "@/lib/crypto";
+import { syncMissingNumbers } from "@/lib/number-sync";
+import { describe } from "@/lib/number-identity";
 
 // Choosing which of a workspace's WhatsApp numbers to act on.
 //
@@ -31,6 +33,8 @@ export interface ConnectionSummary {
   metaAppId: string;
   status: string;
   isDefault: boolean;
+  /** When Meta was last asked about this number. */
+  lastCheckedAt: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
 }
@@ -44,13 +48,17 @@ export interface ResolvedConnection extends ConnectionSummary {
 // exist fails the whole query, so everything below can fall back to BASE —
 // otherwise a workspace that has not run the migration yet sees no numbers
 // at all and every picker hides itself, with nothing on screen saying why.
-const EXTRA = "display_phone_number, verified_name, label, quality_rating, is_default";
+const EXTRA =
+  "display_phone_number, verified_name, label, quality_rating, is_default, last_checked_at";
 const BASE =
   "id, org_id, phone_number_id, waba_id, meta_app_id, status, last_error, last_error_at";
 const COLUMNS = `${BASE}, ${EXTRA}`;
 
 /** What a row looks like before the migration has been applied. */
-type BaseRow = Omit<Row, "display_phone_number" | "verified_name" | "label" | "quality_rating" | "is_default">;
+type BaseRow = Omit<
+  Row,
+  "display_phone_number" | "verified_name" | "label" | "quality_rating" | "is_default" | "last_checked_at"
+>;
 
 function fillMissing(row: BaseRow): Row {
   return {
@@ -60,6 +68,7 @@ function fillMissing(row: BaseRow): Row {
     label: null,
     quality_rating: null,
     is_default: false,
+    last_checked_at: null,
   };
 }
 
@@ -85,6 +94,7 @@ type Row = {
   quality_rating: string | null;
   status: string;
   is_default: boolean;
+  last_checked_at: string | null;
   last_error: string | null;
   last_error_at: string | null;
 };
@@ -101,9 +111,33 @@ function toSummary(row: Row): ConnectionSummary {
     metaAppId: row.meta_app_id,
     status: row.status,
     isDefault: row.is_default,
+    lastCheckedAt: row.last_checked_at,
     lastError: row.last_error,
     lastErrorAt: row.last_error_at,
   };
+}
+
+/**
+ * Puts a readable number on rows that were saved without one.
+ *
+ * Connections made through Embedded Signup used to store only Meta's ids,
+ * so a picker offered "ID 898094333393091" — fifteen digits belonging to
+ * no phone, which the operator cannot match to anything they own. Asking
+ * Meta on the way past fixes those rows permanently on first sight; after
+ * that this costs one query and no network at all.
+ */
+async function fillMissingNumbers(
+  supabase: Client,
+  orgId: string,
+  summaries: ConnectionSummary[]
+): Promise<ConnectionSummary[]> {
+  const facts = await syncMissingNumbers(supabase, orgId, summaries);
+  if (facts.size === 0) return summaries;
+
+  return summaries.map((summary) => {
+    const found = facts.get(summary.id);
+    return found ? { ...summary, ...found } : summary;
+  });
 }
 
 /**
@@ -123,9 +157,12 @@ export async function listConnections(
     .order("is_default", { ascending: false })
     .order("created_at", { ascending: true });
 
-  if (!error && data) return (data as unknown as Row[]).map(toSummary);
+  if (!error && data) {
+    return await fillMissingNumbers(supabase, orgId, (data as unknown as Row[]).map(toSummary));
+  }
 
-  // Pre-migration: list what does exist rather than nothing.
+  // Pre-migration: the columns Meta's answer would be written to do not
+  // exist yet, so there is nothing to heal — list what does exist.
   const { data: basic } = await supabase
     .from("waba_connections")
     .select(BASE)
@@ -295,16 +332,7 @@ function asRows(data: unknown): Array<RowWithToken & BaseRow> {
   return (Array.isArray(data) ? data : [data]) as Array<RowWithToken & BaseRow>;
 }
 
-/** "Support (+91 92724 47307)", or the best label available. */
-export function describe(connection: ConnectionSummary): string {
-  const number = connection.displayPhoneNumber ?? connection.phoneNumberId;
-  const name = connection.label ?? connection.verifiedName;
-  return name ? `${name} (${number})` : number;
-}
-
-/** The short form for a picker option. */
-export function optionLabel(connection: ConnectionSummary): string {
-  const number = connection.displayPhoneNumber ?? `ID ${connection.phoneNumberId}`;
-  const name = connection.label ?? connection.verifiedName;
-  return name ? `${name} · ${number}` : number;
-}
+// How a number is named for a person lives in its own module because it
+// is pure, and because it is the one thing here every screen renders.
+export { optionLabel, NUMBER_PENDING } from "@/lib/number-identity";
+export { describe };

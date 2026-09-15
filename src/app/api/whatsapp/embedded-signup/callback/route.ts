@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/types/database";
 import { encryptToken } from "@/lib/crypto";
 import { randomBytes } from "node:crypto";
 import { MetaApiError, describeMetaError } from "@/lib/meta-whatsapp";
@@ -23,6 +24,8 @@ import {
 // signed state is what proves which org the flow belongs to.
 
 export const dynamic = "force-dynamic";
+
+type WabaConnectionInsert = Database["public"]["Tables"]["waba_connections"]["Insert"];
 
 function back(request: NextRequest, params: Record<string, string>): NextResponse {
   const url = new URL("/integrations", request.nextUrl.origin);
@@ -109,21 +112,31 @@ export async function GET(request: NextRequest) {
           .eq("phone_number_id", number.id)
           .maybeSingle();
 
-        const { error } = await supabase.from("waba_connections").upsert(
-          {
-            org_id: parsed.orgId,
-            waba_id: wabaId,
-            phone_number_id: number.id,
-            meta_app_id: env.appId,
-            access_token_encrypted: encrypted,
-            webhook_verify_token:
-              existing?.webhook_verify_token ?? randomBytes(24).toString("base64url"),
-            status: "active",
-            last_error: null,
-            last_error_at: null,
-          },
-          { onConflict: "phone_number_id" }
-        );
+        const row: WabaConnectionInsert = {
+          org_id: parsed.orgId,
+          waba_id: wabaId,
+          phone_number_id: number.id,
+          meta_app_id: env.appId,
+          access_token_encrypted: encrypted,
+          webhook_verify_token:
+            existing?.webhook_verify_token ?? randomBytes(24).toString("base64url"),
+          status: "active",
+          last_error: null,
+          last_error_at: null,
+        };
+
+        // Meta already told us what this number is called — keeping it is
+        // the difference between every picker in the app reading
+        // "Sales · +91 92724 47307" and reading a fifteen-digit id that
+        // matches no phone the operator owns. Set only when present, so a
+        // reconnect whose answer omits the field cannot blank out a name
+        // that is already right.
+        if (number.display_phone_number) row.display_phone_number = number.display_phone_number;
+        if (number.verified_name) row.verified_name = number.verified_name;
+
+        const { error } = await supabase
+          .from("waba_connections")
+          .upsert(row, { onConflict: "phone_number_id" });
 
         if (error) {
           console.error("Embedded Signup stored no connection", error);
