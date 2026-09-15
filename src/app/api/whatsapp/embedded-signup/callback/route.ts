@@ -91,8 +91,15 @@ export async function GET(request: NextRequest) {
       }
 
       for (const number of numbers) {
-        const problem = await registerPhoneNumber(number.id, token, generateRegistrationPin());
-        if (problem) notes.push(problem);
+        // Coexistence numbers are already live on the WhatsApp Business
+        // app, and Meta registers them as part of its own in-app approval.
+        // Registering again here is at best redundant and at worst takes
+        // the number off the app, which is the one thing the operator
+        // chose this mode to avoid.
+        if (parsed.mode !== "coexistence") {
+          const problem = await registerPhoneNumber(number.id, token, generateRegistrationPin());
+          if (problem) notes.push(problem);
+        }
 
         // Reuse the verify token if this number was connected before, so a
         // reconnect does not invalidate a webhook already registered.

@@ -11,8 +11,19 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const STATE_TTL_MS = 15 * 60 * 1000;
 
+/**
+ * How the operator chose to connect.
+ *
+ * "new" registers a number to the Cloud API outright. "coexistence" keeps
+ * the number on the WhatsApp Business app and adds the API alongside it —
+ * which changes what the callback is allowed to do, so it has to survive
+ * the round trip to Meta and back.
+ */
+export type SignupMode = "new" | "coexistence";
+
 interface StatePayload {
   orgId: string;
+  mode: SignupMode;
   nonce: string;
   ts: number;
 }
@@ -21,9 +32,14 @@ function sign(body: string, secret: string): string {
   return createHmac("sha256", secret).update(body).digest("base64url");
 }
 
-export function createSignupState(orgId: string, secret: string): string {
+export function createSignupState(
+  orgId: string,
+  secret: string,
+  mode: SignupMode = "new"
+): string {
   const payload: StatePayload = {
     orgId,
+    mode,
     nonce: randomBytes(12).toString("base64url"),
     ts: Date.now(),
   };
@@ -46,7 +62,9 @@ export function readSignupState(state: string, secret: string): StatePayload | n
     const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as StatePayload;
     if (!payload.orgId || typeof payload.ts !== "number") return null;
     if (Date.now() - payload.ts > STATE_TTL_MS) return null;
-    return payload;
+    // A state signed before coexistence existed carries no mode. Reading it
+    // as "new" keeps every link already in flight working.
+    return { ...payload, mode: payload.mode === "coexistence" ? "coexistence" : "new" };
   } catch {
     return null;
   }

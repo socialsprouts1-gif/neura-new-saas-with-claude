@@ -41,10 +41,32 @@ export { createSignupState, readSignupState } from "@/lib/signup-state";
 
 // --- the dialog -----------------------------------------------------------
 
+/**
+ * The dialog's two modes.
+ *
+ * "new" is the original flow: Meta asks for a number that is not on
+ * WhatsApp anywhere, and registers it to the Cloud API.
+ *
+ * "coexistence" is for the far commoner case — a business whose number is
+ * already running on the WhatsApp Business app, with years of chat history
+ * on it. Without this, Meta refuses that number outright ("already
+ * registered to a WhatsApp account"), and the only way forward is to
+ * delete the WhatsApp account and lose the history. With it, the app keeps
+ * working and the API is added alongside.
+ *
+ * It is a different value of one parameter, and it is the difference
+ * between a business being able to use this product and not.
+ */
+export type SignupMode = "new" | "coexistence";
+
+/** What Meta calls the Business-app onboarding flow. */
+const COEXISTENCE_FEATURE = "whatsapp_business_app_onboarding";
+
 export function embeddedSignupUrl(input: {
   env: EmbeddedSignupEnv;
   redirectUri: string;
   state: string;
+  mode?: SignupMode;
 }): string {
   const params = new URLSearchParams({
     client_id: input.env.appId,
@@ -57,7 +79,11 @@ export function embeddedSignupUrl(input: {
     override_default_response_type: "true",
     // sessionInfoVersion 3 is what makes Meta register the number for the
     // Cloud API as part of the dialog instead of leaving it to us.
-    extras: JSON.stringify({ setup: {}, featureType: "", sessionInfoVersion: "3" }),
+    extras: JSON.stringify({
+      setup: {},
+      featureType: input.mode === "coexistence" ? COEXISTENCE_FEATURE : "",
+      sessionInfoVersion: "3",
+    }),
   });
 
   return `https://www.facebook.com/${META_API_VERSION}/dialog/oauth?${params}`;

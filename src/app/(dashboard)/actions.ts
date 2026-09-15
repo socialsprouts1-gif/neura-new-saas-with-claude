@@ -14,6 +14,7 @@ import {
   EMBEDDED_SIGNUP_SETUP_MESSAGE,
   createSignupState,
   embeddedSignupUrl,
+  type SignupMode,
   getEmbeddedSignupEnv,
   wabaIdsForToken,
 } from "@/lib/embedded-signup";
@@ -739,7 +740,9 @@ function describeThrown(error: unknown): string {
  * facebook.com with no Supabase session cookie, so it needs the org id in a
  * form it can trust, and an abandoned dialog should leave nothing behind.
  */
-export async function startEmbeddedSignup(): Promise<ActionResult & { url?: string }> {
+export async function startEmbeddedSignup(
+  formData?: FormData
+): Promise<ActionResult & { url?: string }> {
   const { orgId, role } = await requireOrg();
   if (role !== "owner" && role !== "admin") {
     return { ok: false, error: "Only owners and admins can connect a WhatsApp number." };
@@ -752,6 +755,13 @@ export async function startEmbeddedSignup(): Promise<ActionResult & { url?: stri
   if (!host) return { ok: false, error: "Could not work out this deployment's address." };
   const origin = `${host.startsWith("localhost") ? "http" : "https"}://${host}`;
 
+  // Coexistence keeps the number on the WhatsApp Business app. Without it,
+  // Meta refuses any number that already has WhatsApp on it — which is
+  // most businesses — and the only way through is to delete the account
+  // and lose the chat history.
+  const mode: SignupMode =
+    String(formData?.get("mode") ?? "") === "coexistence" ? "coexistence" : "new";
+
   return {
     ok: true,
     url: embeddedSignupUrl({
@@ -759,7 +769,8 @@ export async function startEmbeddedSignup(): Promise<ActionResult & { url?: stri
       // Must match the callback exactly, and must be listed under Valid
       // OAuth Redirect URIs in the Meta app — Meta compares it twice.
       redirectUri: `${origin}/api/whatsapp/embedded-signup/callback`,
-      state: createSignupState(orgId, env.appSecret),
+      state: createSignupState(orgId, env.appSecret, mode),
+      mode,
     }),
   };
 }
