@@ -20,6 +20,7 @@ const JOBS = [
   "resume-flows",
   "appointment-reminders",
   "recurring-invoices",
+  "billing-emails",
 ] as const;
 
 interface JobResult {

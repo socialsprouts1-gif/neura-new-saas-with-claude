@@ -1,0 +1,191 @@
+// What the emails say.
+//
+// Pure, so the wording can be tested and so nothing here can accidentally
+// reach a mailbox from a unit test. Every message is built in both HTML
+// and plain text: a text part is what keeps a message out of the spam
+// folder and readable in a client that refuses HTML, and writing it as an
+// afterthought is how it ends up empty.
+//
+// Deliberately plain markup. Inline styles only, no images, no external
+// stylesheet, a single column — because Gmail strips <style> blocks,
+// Outlook ignores most of what survives, and a layout that needs either
+// one is a layout that breaks in the client most businesses actually use.
+
+export interface EmailBody {
+  subject: string;
+  html: string;
+  text: string;
+}
+
+export interface EmailBrand {
+  /** "Neura Chat". */
+  name: string;
+  /** Where the buttons point, with no trailing slash. */
+  appUrl: string;
+  /** Who replies go to. */
+  supportEmail: string;
+}
+
+function escape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * The shell every message shares.
+ *
+ * `preheader` is the line a mail client shows next to the subject in the
+ * list. Left unset it takes whatever text comes first, which is usually
+ * the logo's alt text or a greeting — so it is set deliberately and then
+ * hidden, which is the standard trick and the only way to control it.
+ */
+function layout(
+  brand: EmailBrand,
+  preheader: string,
+  body: string,
+  action?: { label: string; href: string }
+): string {
+  const button = action
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td style="border-radius:10px;background:#00E08F;">
+        <a href="${escape(action.href)}" style="display:inline-block;padding:13px 26px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#06251A;text-decoration:none;border-radius:10px;">${escape(action.label)}</a>
+      </td></tr></table>`
+    : "";
+
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#F4F6F8;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escape(preheader)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:32px 16px;">
+<tr><td align="center">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:14px;padding:36px 32px;font-family:Helvetica,Arial,sans-serif;">
+    <tr><td style="font-size:17px;font-weight:700;color:#0B1220;padding-bottom:22px;">${escape(brand.name)}</td></tr>
+    <tr><td style="font-size:15px;line-height:1.65;color:#25303F;">${body}${button}</td></tr>
+    <tr><td style="padding-top:26px;border-top:1px solid #E6EAEF;font-size:12px;line-height:1.6;color:#8894A5;">
+      Questions? Reply to this email or write to
+      <a href="mailto:${escape(brand.supportEmail)}" style="color:#8894A5;">${escape(brand.supportEmail)}</a>.
+    </td></tr>
+  </table>
+</td></tr></table>
+</body></html>`;
+}
+
+function plain(lines: string[], action?: { label: string; href: string }): string {
+  const body = lines.filter(Boolean).join("\n\n");
+  return action ? `${body}\n\n${action.label}: ${action.href}` : body;
+}
+
+const p = (text: string) => `<p style="margin:0 0 14px;">${text}</p>`;
+
+/** "3 days" / "1 day" / "today", for a sentence rather than a number. */
+export function inDays(days: number): string {
+  if (days <= 0) return "today";
+  return days === 1 ? "tomorrow" : `in ${days} days`;
+}
+
+// --- the messages ---------------------------------------------------------
+
+export function welcomeEmail(brand: EmailBrand, input: { trialDays: number }): EmailBody {
+  const action = { label: "Open the dashboard", href: `${brand.appUrl}/dashboard` };
+  const lines = [
+    "Your workspace is ready.",
+    `You have ${input.trialDays} days free — every feature, no card needed. Connect a WhatsApp number to start.`,
+    "The fastest first step is Integrations → Connect WhatsApp. It takes about two minutes.",
+  ];
+
+  return {
+    subject: `Welcome to ${brand.name}`,
+    html: layout(brand, `${input.trialDays} days free, starting now.`, lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+export function trialEndingEmail(brand: EmailBrand, input: { daysLeft: number }): EmailBody {
+  const when = inDays(input.daysLeft);
+  const action = { label: "See plans", href: `${brand.appUrl}/billing` };
+  const lines = [
+    `Your free trial ends ${when}.`,
+    "Pick a plan to keep your number connected, your automations running and your history where it is. Nothing is deleted if you do not — it simply stops sending.",
+  ];
+
+  return {
+    subject:
+      input.daysLeft <= 0
+        ? `Your ${brand.name} trial ends today`
+        : `Your ${brand.name} trial ends ${when}`,
+    html: layout(brand, `Choose a plan to keep sending.`, lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+export function trialExpiredEmail(brand: EmailBrand): EmailBody {
+  const action = { label: "Choose a plan", href: `${brand.appUrl}/billing` };
+  const lines = [
+    "Your free trial has ended.",
+    "Your workspace, contacts and chat history are all still here. Choose a plan and everything picks up exactly where it stopped.",
+  ];
+
+  return {
+    subject: `Your ${brand.name} trial has ended`,
+    html: layout(brand, "Your data is safe. Pick a plan to carry on.", lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+export function paymentReceivedEmail(
+  brand: EmailBrand,
+  input: { planName: string; amount: string; renewsOn: string; interval: string }
+): EmailBody {
+  const action = { label: "Go to billing", href: `${brand.appUrl}/billing` };
+  const lines = [
+    `Payment received — you're on ${input.planName}.`,
+    `${input.amount} paid. Renews on ${input.renewsOn}, ${input.interval}.`,
+    "Everything on the plan is available now. The receipt is on your billing page whenever you need it.",
+  ];
+
+  return {
+    subject: `Payment received — ${input.planName}`,
+    html: layout(brand, `${input.amount} received. ${input.planName} is active.`, lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+export function renewalReminderEmail(
+  brand: EmailBrand,
+  input: { planName: string; daysLeft: number; renewsOn: string }
+): EmailBody {
+  const when = inDays(input.daysLeft);
+  const action = { label: "Review billing", href: `${brand.appUrl}/billing` };
+  const lines = [
+    `Your ${input.planName} plan renews ${when}, on ${input.renewsOn}.`,
+    "Nothing is needed from you — this is just so the charge is not a surprise. You can change or cancel the plan before then from your billing page.",
+  ];
+
+  return {
+    subject: `${input.planName} renews ${when}`,
+    // No preheader about paying: this is a courtesy, and a subject line
+    // that reads like a demand for money on a plan already paid for is
+    // how a working product starts feeling like a debt collector.
+    html: layout(brand, `A heads-up, nothing to do.`, lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+export function subscriptionExpiredEmail(
+  brand: EmailBrand,
+  input: { planName: string | null }
+): EmailBody {
+  const plan = input.planName ? `Your ${input.planName} plan` : "Your plan";
+  const action = { label: "Renew now", href: `${brand.appUrl}/billing` };
+  const lines = [
+    `${plan} has ended and sending is paused.`,
+    "Your number stays connected and nothing has been deleted. Renew and it starts sending again straight away.",
+  ];
+
+  return {
+    subject: `${plan} has ended`,
+    html: layout(brand, "Sending is paused. Renew to start again.", lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}

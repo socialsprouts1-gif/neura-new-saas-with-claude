@@ -1,6 +1,10 @@
 import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { periodEnd, type BillingInterval } from "@/lib/checkout";
+import { emailBrand, sendEmail } from "@/lib/email";
+import { paymentReceivedEmail } from "@/lib/email-templates";
+import { ownerEmail } from "@/lib/billing-emails";
+import { formatMoney } from "@/types/admin";
 
 // Putting a workspace on a plan, once the money has arrived.
 //
@@ -105,5 +109,62 @@ export async function activateSubscription(
     }
   }
 
+  // After the money is recorded, never before, and never able to fail the
+  // activation: a confirmation that did not arrive is a bad day, and a
+  // payment that did not activate because the mail server was down is a
+  // refund and a support ticket.
+  await confirmPayment(admin, {
+    orgId: order.org_id,
+    orderId: order.id,
+    planName: plan.name,
+    amountCents: order.amount_cents,
+    interval,
+    periodEnd: periodEnd(now, interval),
+  });
+
   return { ok: true, alreadyDone: false, planName: plan.name };
+}
+
+/**
+ * Tells the owner the payment landed.
+ *
+ * Keyed on the order, so a gateway that redelivers its webhook cannot
+ * send a second receipt for one payment — the same protection the paid
+ * check above gives the money.
+ */
+async function confirmPayment(
+  admin: Admin,
+  input: {
+    orgId: string;
+    orderId: string;
+    planName: string;
+    amountCents: number;
+    interval: BillingInterval;
+    periodEnd: Date;
+  }
+): Promise<void> {
+  try {
+    const to = await ownerEmail(admin, input.orgId);
+    if (!to) return;
+
+    const brand = emailBrand();
+    await sendEmail({
+      to,
+      orgId: input.orgId,
+      kind: "payment_received",
+      dedupeKey: `${input.orgId}:payment_received:${input.orderId}`,
+      body: paymentReceivedEmail(brand, {
+        planName: input.planName,
+        amount: formatMoney(input.amountCents),
+        renewsOn: input.periodEnd.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+        interval: input.interval === "yearly" ? "yearly" : "monthly",
+      }),
+    });
+  } catch (error) {
+    console.error("Could not send the payment confirmation", error);
+  }
 }

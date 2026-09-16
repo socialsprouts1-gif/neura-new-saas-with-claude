@@ -1,0 +1,133 @@
+import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { EmailBody, EmailBrand } from "@/lib/email-templates";
+
+// Sending mail, and remembering that we did.
+//
+// Over Resend's REST API with fetch rather than its SDK, for the same
+// reason every other outbound call here does: one fewer dependency to keep
+// current, and the request is four lines.
+//
+// The remembering matters more than the sending. These go out on a
+// schedule nobody watches, and a sweep that runs twice — a retried cron, a
+// redeploy mid-run — would send the same "your trial ends tomorrow" again.
+// So the log row is written *before* the request, with a unique index on
+// the dedupe key doing the work: a second attempt loses the insert and
+// stops there, rather than both attempts checking, both finding nothing,
+// and both sending.
+
+export interface SendResult {
+  ok: boolean;
+  skipped?: "duplicate" | "not_configured" | "no_address";
+  error?: string;
+}
+
+export function emailBrand(): EmailBrand {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "https://neurachat.in").replace(/\/+$/, "");
+  return {
+    name: process.env.EMAIL_BRAND_NAME ?? "Neura Chat",
+    appUrl,
+    supportEmail: process.env.EMAIL_SUPPORT ?? "support@neurachat.in",
+  };
+}
+
+function config(): { apiKey: string; from: string } | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!apiKey || !from) return null;
+  return { apiKey, from };
+}
+
+/** Whether mail can be sent at all, for a screen that wants to say so. */
+export function isEmailConfigured(): boolean {
+  return config() !== null;
+}
+
+/**
+ * Sends one message, at most once per dedupe key.
+ *
+ * Never throws. Every caller is either a webhook or a cron sweep, where an
+ * exception costs something far more important than an email — a payment
+ * confirmation must not be able to fail the payment.
+ */
+export async function sendEmail(input: {
+  to: string;
+  orgId: string | null;
+  kind: string;
+  /** Unique per thing-being-notified-about. A repeat is refused by the index. */
+  dedupeKey: string;
+  body: EmailBody;
+}): Promise<SendResult> {
+  const to = input.to?.trim();
+  if (!to) return { ok: false, skipped: "no_address" };
+
+  const settings = config();
+  if (!settings) return { ok: false, skipped: "not_configured" };
+
+  const supabase = createAdminClient();
+
+  // Claim the send first. Losing this race is the correct outcome, not an
+  // error: it means another run already has it.
+  const { error: claimError } = await supabase.from("email_log").insert({
+    org_id: input.orgId,
+    to_email: to,
+    kind: input.kind,
+    dedupe_key: input.dedupeKey,
+    status: "sending",
+  });
+
+  if (claimError) {
+    // 23505 is the unique index doing its job.
+    if (claimError.code === "23505") return { ok: true, skipped: "duplicate" };
+    console.error("Could not claim an email send", claimError);
+    return { ok: false, error: claimError.message };
+  }
+
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${settings.apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        from: settings.from,
+        to: [to],
+        subject: input.body.subject,
+        html: input.body.html,
+        text: input.body.text,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      await mark(input.dedupeKey, "failed", `${response.status} ${detail}`.slice(0, 500));
+      return { ok: false, error: `Resend refused the message: ${response.status}` };
+    }
+
+    await mark(input.dedupeKey, "sent", null);
+    return { ok: true };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Unknown send failure";
+    await mark(input.dedupeKey, "failed", reason.slice(0, 500));
+    return { ok: false, error: reason };
+  }
+}
+
+/**
+ * Records how it went.
+ *
+ * A failed row is left in place rather than deleted, so a broken API key
+ * shows up as a list of failures somebody can look at — and so a retry
+ * storm cannot be caused by the retry itself clearing the lock.
+ */
+async function mark(dedupeKey: string, status: string, error: string | null): Promise<void> {
+  try {
+    await createAdminClient()
+      .from("email_log")
+      .update({ status, error, sent_at: status === "sent" ? new Date().toISOString() : null })
+      .eq("dedupe_key", dedupeKey);
+  } catch (problem) {
+    console.error("Could not record an email send", problem);
+  }
+}

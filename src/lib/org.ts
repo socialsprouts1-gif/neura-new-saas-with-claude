@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { featureForPath, resolveFeatures } from "@/lib/features";
+import { emailBrand, sendEmail } from "@/lib/email";
+import { welcomeEmail } from "@/lib/email-templates";
 import type { OrgRole } from "@/types/database";
 
 export interface OrgContext {
@@ -157,10 +159,55 @@ async function provisionOrgForUser(user: User): Promise<{ org_id: string; role: 
       return null;
     }
 
+    await welcome(admin, orgId, user.email ?? "");
+
     return { org_id: orgId, role: "owner" };
   } catch (error) {
     console.error("Organization provisioning failed", error);
     return null;
+  }
+}
+
+/**
+ * The one email a new workspace gets, on the day it is created.
+ *
+ * Keyed on the workspace, which matters more here than anywhere else:
+ * Next renders a page and its layout in parallel, so several requests
+ * reach provisioning at once for the same signup. The database function
+ * makes them agree on one workspace; without a dedupe key they would each
+ * still send a welcome, and a customer's first impression would be four
+ * identical emails.
+ *
+ * Never throws and never blocks the signup. Someone who cannot get into
+ * the product they just created because a mail server was slow is a far
+ * worse outcome than a missing welcome.
+ */
+async function welcome(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  email: string
+): Promise<void> {
+  if (!email) return;
+
+  try {
+    const { data: setting } = await admin
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "trial_days")
+      .maybeSingle();
+
+    const configured = (setting?.value as { trial_days?: number } | null)?.trial_days;
+    const trialDays = typeof configured === "number" && configured > 0 ? configured : 14;
+
+    await sendEmail({
+      to: email,
+      orgId,
+      kind: "welcome",
+      dedupeKey: `${orgId}:welcome`,
+      body: welcomeEmail(emailBrand(), { trialDays }),
+    });
+  } catch (error) {
+    console.error("Could not send the welcome email", error);
   }
 }
 

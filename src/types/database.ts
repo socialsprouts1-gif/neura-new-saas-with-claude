@@ -130,6 +130,36 @@ export interface Database {
           },
         ];
       };
+      email_log: {
+        Row: {
+          id: string;
+          org_id: string | null;
+          to_email: string;
+          kind: string;
+          dedupe_key: string;
+          status: string;
+          error: string | null;
+          sent_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id?: string | null;
+          to_email: string;
+          kind: string;
+          dedupe_key: string;
+          status?: string;
+          error?: string | null;
+          sent_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          status?: string;
+          error?: string | null;
+          sent_at?: string | null;
+        };
+        Relationships: [];
+      };
       waba_connections: {
         Row: {
           id: string;
