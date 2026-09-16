@@ -60,37 +60,51 @@ nothing set here. Everything except the AI Assistant works without all three.
 
 ### 3. Keep the schedulers running
 
-Two endpoints do work on a timer, and nothing calls either on its own:
+Four endpoints do work on a timer. Nothing in the product calls them on its
+own, so until one of the options below is in place the app only moves when
+somebody presses a button.
 
 | Endpoint | What stops without it |
 | --- | --- |
-| `GET /api/cron/resume-flows` | A chatbot Delay longer than ten seconds parks the conversation; this resumes it. |
 | `GET /api/cron/dispatch-campaigns` | Campaigns queue their recipients rather than sending inline; this drains the queue. Nothing is ever sent without it. |
+| `GET /api/cron/resume-flows` | A chatbot Delay longer than ten seconds parks the conversation; this resumes it. |
+| `GET /api/cron/appointment-reminders` | Booking reminders are never sent. |
+| `GET /api/cron/recurring-invoices` | Recurring invoices are never raised. |
+| `GET /api/cron/run-all` | Runs all four in order and reports each one. This is the URL to give a pinger. |
 
-On a Vercel **Pro** plan, add a `vercel.json`:
+All of them accept `Authorization: Bearer <CRON_SECRET>`, and Vercel's own
+cron invocations are recognised without it. `run-all` reaches the others
+over HTTP, so it needs `CRON_SECRET` to be set — it says so plainly rather
+than returning four unexplained 401s.
 
-```json
-{
-  "crons": [
-    { "path": "/api/cron/resume-flows", "schedule": "* * * * *" },
-    { "path": "/api/cron/dispatch-campaigns", "schedule": "* * * * *" }
-  ]
-}
-```
+**A `vercel.json` is committed** with one daily cron on `run-all`. Daily and
+one job, because Hobby allows at most two crons and rejects any schedule more
+frequent than daily — a deployment that breaks that rule stops shipping
+entirely. It is a safety net, not a schedule a campaign queue can live on.
 
-On **Hobby**, do not — Vercel rejects a deployment whose `vercel.json`
-declares a cron more often than daily, and every push stops shipping. Point a
-free pinger (cron-job.org, UptimeRobot) at both URLs once a minute instead,
-sending `Authorization: Bearer <CRON_SECRET>`.
+Pick one of these for the real cadence:
 
-Without them, everything still works except the part of a flow that comes
-after a Delay of more than ten seconds, and campaign delivery.
+- **Vercel Pro.** Change the schedule in `vercel.json` to `*/5 * * * *`, or
+  split the four routes into their own entries. Nothing else to set up.
+- **GitHub Actions.** `.github/workflows/scheduler.yml` is committed and runs
+  hourly on free minutes. Add two repository secrets under Settings → Secrets
+  and variables → Actions: `APP_URL` (e.g. `https://neurachat.in`, no
+  trailing slash) and `CRON_SECRET` (the same value as in Vercel). Run it once
+  by hand from the Actions tab to check it before trusting it.
+- **An external pinger.** cron-job.org, UptimeRobot and similar are free and
+  go down to the minute. Point one at `/api/cron/run-all` with the header
+  `Authorization: Bearer <CRON_SECRET>`.
+
+Campaign dispatch is the one that wants minutes rather than hours; the other
+three are content with hourly.
 
 ### 3. Connect a WhatsApp number
 
 In the app: **Settings → WhatsApp connection**. Then register the webhook on
 Meta's side — Settings shows both values Meta asks for (the callback URL and
-the per-connection verify token) and the `messages` field to subscribe to.
+the per-connection verify token) and the fields to subscribe to: `messages`,
+and `message_template_status_update` so Meta's approval of a template reaches
+the app instead of waiting for someone to press Sync.
 Until that is done, no inbound message reaches the app.
 
 ## How an inbound message is handled

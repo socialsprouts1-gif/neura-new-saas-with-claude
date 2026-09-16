@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { isCronAuthorised } from "@/lib/cron-auth";
 import { dispatchDueReminders } from "@/lib/appointment-reminders";
 
 // The appointment reminder sweep's scheduled entry point.
@@ -19,17 +20,11 @@ export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });
   }
-  if (!isAuthorised(request)) {
+  if (!isCronAuthorised(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const result = await dispatchDueReminders();
   if (result.error) return NextResponse.json({ error: result.error }, { status: 500 });
   return NextResponse.json(result);
-}
-
-function isAuthorised(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (secret && request.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return request.headers.get("x-vercel-cron") !== null;
 }

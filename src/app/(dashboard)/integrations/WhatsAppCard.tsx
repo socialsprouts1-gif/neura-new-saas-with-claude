@@ -254,6 +254,16 @@ export default function WhatsAppCard({
               Meta → your app → WhatsApp → Configuration, and subscribe to the{" "}
               <code className="text-white/70">messages</code> field.
             </p>
+            {/* The second field is easy to skip and the cost of skipping it
+                is invisible: everything works, templates simply never stop
+                saying "in review" until somebody presses Sync. */}
+            <p className="text-xs text-white/50 mb-4">
+              Subscribe to{" "}
+              <code className="text-white/70">message_template_status_update</code> on the
+              same screen. Without it, Meta&apos;s approval of a template never reaches this
+              app — templates sit at &ldquo;in review&rdquo; until you press Sync, and a
+              campaign waiting on one never starts.
+            </p>
 
             <div className="space-y-3">
               <div>

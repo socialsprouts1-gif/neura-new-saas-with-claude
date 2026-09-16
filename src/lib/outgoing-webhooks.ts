@@ -11,6 +11,9 @@ export const WEBHOOK_EVENTS = [
   "message.received",
   "message.status",
   "contact.created",
+  // Worth its own event: a CRM that keeps mailing someone who opted out
+  // here is the same complaint arriving by another route.
+  "contact.opted_out",
   "form.submitted",
   "order.created",
   "order.paid",

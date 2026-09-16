@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { isCronAuthorised } from "@/lib/cron-auth";
 import { graphOf, findNode } from "@/lib/flow-engine";
 import { runFlow, type FlowContext } from "@/lib/flow-runner";
 import { loadOrgConnection } from "@/lib/whatsapp-send";
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });
   }
-  if (!isAuthorised(request)) {
+  if (!isCronAuthorised(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -91,16 +92,7 @@ export async function GET(request: NextRequest) {
  * driven from anywhere else — an external uptime pinger, a manual curl —
  * without leaving it open to the internet.
  */
-function isAuthorised(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const header = request.headers.get("authorization");
-    if (header === `Bearer ${secret}`) return true;
-  }
-  // Vercel sets this on its own scheduled invocations and strips it from
-  // anything arriving from outside.
-  return request.headers.get("x-vercel-cron") !== null;
-}
+
 
 type DueConversation = {
   id: string;

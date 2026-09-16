@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { isCronAuthorised } from "@/lib/cron-auth";
 import { runDueRecurringInvoices } from "@/lib/invoice-engine";
 import { todayIn } from "@/lib/invoices";
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });
   }
-  if (!isAuthorised(request)) {
+  if (!isCronAuthorised(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -59,10 +60,4 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ ...totals, problems: problems.slice(0, 10) });
-}
-
-function isAuthorised(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (secret && request.headers.get("authorization") === `Bearer ${secret}`) return true;
-  return request.headers.get("x-vercel-cron") !== null;
 }

@@ -12,7 +12,13 @@ import {
 } from "@/lib/commerce";
 import { fillTemplate } from "@/lib/booking-dialogue";
 import { formatAmount } from "@/lib/orders";
-import { loadOrgConnection } from "@/lib/whatsapp-send";
+import { optOutConfirmation, readOptIntent } from "@/lib/opt-out";
+import { extractInboundText } from "@/lib/reply-matcher";
+import {
+  readTemplateDecision,
+  type TemplateStatusEvent,
+} from "@/lib/template-status";
+import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { readFlowReply } from "@/lib/flow-reply";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
@@ -23,6 +29,7 @@ interface MetaWebhookPayload {
     id: string;
     changes?: Array<{
       field: string;
+      /** `messages` fields carry this shape; other fields carry their own. */
       value: MetaWebhookValue;
     }>;
   }>;
@@ -175,10 +182,70 @@ async function processWebhookPayload(payload: MetaWebhookPayload) {
 
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
+      // Template decisions are not about a phone number and carry no
+      // metadata block — they are keyed by the WhatsApp Business Account
+      // in entry.id. Routed before processChangeValue for that reason: it
+      // opens with a phone_number_id lookup, so every template event used
+      // to be logged as a stray test payload and dropped, which is why
+      // approval was invisible until somebody pressed Sync.
+      if (change.field === "message_template_status_update") {
+        await handleTemplateStatus(supabase, entry.id, change.value as TemplateStatusEvent);
+        continue;
+      }
       if (change.field !== "messages") continue;
       await processChangeValue(supabase, change.value);
     }
   }
+}
+
+/**
+ * Records Meta's decision about a template.
+ *
+ * Matched on Meta's own id first. The name-and-language fallback exists
+ * for templates created before this app stored an id, and for ones made in
+ * WhatsApp Manager and pulled in by Sync — both are rows this event is
+ * the only news about.
+ */
+async function handleTemplateStatus(
+  supabase: ReturnType<typeof createAdminClient>,
+  wabaId: string,
+  value: TemplateStatusEvent
+): Promise<void> {
+  const decision = readTemplateDecision(value);
+
+  // Logged either way. An event this app does not recognise is exactly
+  // the thing someone will need to see the shape of later.
+  await logDelivery({
+    eventType: "message_template_status_update",
+    signatureValid: true,
+    payload: { wabaId, ...value },
+    error: decision ? null : `Unrecognised template event "${value.event ?? ""}"`,
+  });
+
+  if (!decision) return;
+
+  let query = supabase
+    .from("message_templates")
+    .update({
+      status: decision.status,
+      rejected_reason: decision.reason,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("waba_id", wabaId);
+
+  if (decision.templateId) {
+    query = query.eq("waba_template_id", decision.templateId);
+  } else if (decision.name && decision.language) {
+    query = query.eq("name", decision.name).eq("language", decision.language);
+  } else {
+    // Nothing to match on. Updating the whole account's templates on a
+    // half-formed event would be far worse than ignoring it.
+    return;
+  }
+
+  const { error } = await query;
+  if (error) console.error("Could not apply a template decision from Meta", error);
 }
 
 async function processChangeValue(
@@ -336,6 +403,91 @@ async function handleWhatsAppPayments(
   }
 }
 
+/**
+ * Records an opt-out or opt-in, and says so.
+ *
+ * Three things have to happen together, and the order matters. The flag
+ * goes first because it is what every future campaign reads. Queued
+ * recipients are cancelled next: a broadcast already sitting in the queue
+ * would otherwise reach someone who has just asked it not to, which is
+ * the exact complaint the flag exists to prevent — resolveAudience only
+ * filters at the moment a campaign is built. The confirmation goes last,
+ * because a customer with no acknowledgement assumes it did not work and
+ * blocks the number to be sure.
+ */
+async function applyOptIntent(
+  supabase: ReturnType<typeof createAdminClient>,
+  input: {
+    orgId: string;
+    connectionId: string;
+    intent: "stop" | "start";
+    contactId: string;
+    waId: string;
+    conversationId: string;
+    receivedAt: string;
+  }
+): Promise<void> {
+  const stopping = input.intent === "stop";
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("contacts")
+    .update({
+      opted_out: stopping,
+      opted_out_at: stopping ? now : null,
+      opt_out_reason: stopping ? "Replied STOP on WhatsApp" : null,
+      updated_at: now,
+    })
+    .eq("org_id", input.orgId)
+    .eq("id", input.contactId);
+
+  if (error) {
+    // Loud, because the alternative is carrying on messaging someone who
+    // asked us not to and never finding out.
+    console.error("Could not record an opt-out", error);
+    return;
+  }
+
+  if (stopping) {
+    await supabase
+      .from("campaign_recipients")
+      .update({ status: "failed", error: "Contact opted out" })
+      .eq("org_id", input.orgId)
+      .eq("contact_id", input.contactId)
+      .eq("status", "pending");
+  }
+
+  await dispatchWebhookEvent(supabase, input.orgId, "contact.opted_out", {
+    id: input.contactId,
+    wa_id: input.waId,
+    opted_out: stopping,
+  });
+
+  // The business's own name, so the confirmation does not read as coming
+  // from nowhere. Falling back rather than failing: an acknowledgement
+  // with a generic name still stops someone blocking the number.
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", input.orgId)
+    .maybeSingle();
+
+  const connection = await loadOrgConnection(supabase, input.orgId, {
+    connectionId: input.connectionId,
+  });
+  if (!connection) return;
+
+  await sendAndLogText({
+    supabase,
+    connection,
+    conversationId: input.conversationId,
+    toWaId: input.waId,
+    body: optOutConfirmation(input.intent, org?.name ?? ""),
+    // They messaged us a moment ago, so the window is open by definition.
+    lastInboundAt: input.receivedAt,
+  });
+}
+
 async function handleInboundMessages(
   supabase: ReturnType<typeof createAdminClient>,
   orgId: string,
@@ -412,6 +564,27 @@ async function handleInboundMessages(
       // message that never made it into the thread would leave the inbox
       // showing an answer to nothing.
       console.error("Failed to insert inbound message", messageError);
+      continue;
+    }
+
+    // Before anything automated answers them. A customer who says stop and
+    // gets a chatbot reply has been told the business is not listening,
+    // which is the moment they block the number instead — and a block is
+    // what the quality rating is actually made of.
+    // The words, not the payload: a text message keeps them under `body`
+    // and a tapped button reply under `text`, and the same helper the bot
+    // runner uses is what keeps those two agreeing.
+    const intent = readOptIntent(extractInboundText(message.type, content).text);
+    if (intent) {
+      await applyOptIntent(supabase, {
+        orgId,
+        connectionId,
+        intent,
+        contactId: contact.id,
+        waId,
+        conversationId: conversation.id,
+        receivedAt,
+      });
       continue;
     }
 
