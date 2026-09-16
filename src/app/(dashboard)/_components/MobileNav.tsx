@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { SidebarBrand, SidebarNav } from "./Sidebar";
+import type { AppBrand } from "@/lib/app-brand";
 
 /**
  * The navigation on a phone.
@@ -20,9 +21,11 @@ import { SidebarBrand, SidebarNav } from "./Sidebar";
 export default function MobileNav({
   isPlatformAdmin = false,
   features = {},
+  brand,
 }: {
   isPlatformAdmin?: boolean;
   features?: Record<string, boolean>;
+  brand?: AppBrand;
 }) {
   // The drawer remembers the path it was opened on, and is open only while
   // that is still the path. Navigating therefore closes it with no effect
@@ -86,7 +89,7 @@ export default function MobileNav({
             aria-label="Navigation"
           >
             <div className="relative">
-              <SidebarBrand />
+              <SidebarBrand brand={brand} />
               <button
                 type="button"
                 onClick={() => setOpenedAt(null)}

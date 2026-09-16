@@ -69,8 +69,9 @@ export default function BrandEditor({ initial }: { initial: BrandContent }) {
   return (
     <Card>
       <h2 className="font-semibold mb-1">Brand</h2>
-      <p className="text-sm text-white/50 mb-5">
-        The name and logo in the header and footer, and what a browser tab shows.
+      <p className="text-sm text-white/50 mb-5 leading-relaxed">
+        The name and logo everywhere they appear — the landing header and footer, and the sidebar
+        every signed-in customer looks at all day. Upload once here and both change.
       </p>
 
       <div className="grid md:grid-cols-2 gap-4 mb-5">

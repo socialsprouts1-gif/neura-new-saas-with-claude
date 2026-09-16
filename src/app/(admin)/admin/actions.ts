@@ -7,6 +7,7 @@ import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
+import { isPaymentProvider } from "@/lib/provider-meta";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
 // requirePlatformAdmin() runs first in every action. It redirects rather than
@@ -230,6 +231,54 @@ export async function updateTicket(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
   revalidatePath("/admin/tickets");
   return { ok: true, message: "Ticket updated." };
+}
+
+/**
+ * Names the workspace and gateway that take the platform's own money.
+ *
+ * Written as the same platform_payment_org key the raw editor sets, so
+ * nothing downstream has to know which screen set it — this just refuses
+ * the values that would fail later. A workspace whose gateway is not
+ * actually connected is the exact outage this replaces, and saving it
+ * would put the product back there with a friendlier form.
+ */
+export async function savePlatformGateway(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const [orgId, provider] = String(formData.get("target") ?? "").split(":");
+  if (!orgId || !provider) return { ok: false, error: "Pick a workspace and gateway." };
+  if (!isPaymentProvider(provider)) {
+    return { ok: false, error: `${provider} is not a payment gateway this app can charge through.` };
+  }
+
+  const supabase = createAdminClient();
+
+  // Checked against the live connection rather than trusted from the form:
+  // the option list is a snapshot, and a gateway disconnected between the
+  // page rendering and the save would otherwise be stored as the answer.
+  const { data: integration } = await supabase
+    .from("org_integrations")
+    .select("status")
+    .eq("org_id", orgId)
+    .eq("provider", provider)
+    .maybeSingle();
+
+  if (!integration || integration.status !== "connected") {
+    return {
+      ok: false,
+      error: `That workspace no longer has ${provider} connected. Reconnect it under Integrations, then choose it here.`,
+    };
+  }
+
+  const { error } = await supabase.from("platform_settings").upsert(
+    { key: "platform_payment_org", value: { org_id: orgId, provider } },
+    { onConflict: "key" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message: "Saved. Self-serve checkout will charge through that gateway." };
 }
 
 export async function savePlatformSetting(formData: FormData): Promise<ActionResult> {

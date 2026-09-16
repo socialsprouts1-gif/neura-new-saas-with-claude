@@ -7,6 +7,7 @@ import FeatureGrid from "../FeatureGrid";
 import { saveDefaultFeatures } from "../actions";
 import { resolveFeatures } from "@/lib/features";
 import { formatDate } from "@/types/admin";
+import PlatformGateway from "./PlatformGateway";
 
 export default async function AdminSettingsPage() {
   await requirePlatformAdmin();
@@ -38,6 +39,8 @@ export default async function AdminSettingsPage() {
           submitLabel="Save defaults"
         />
       </Card>
+
+      <PlatformGateway />
 
       <div className="space-y-6">
         {error ? (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandMark from "@/components/ui/BrandMark";
+import type { AppBrand } from "@/lib/app-brand";
 import { pathAllowed } from "@/lib/features";
 import { useState } from "react";
 import {
@@ -181,16 +182,28 @@ export function SidebarNav({
   );
 }
 
-/** The brand block at the top of both the rail and the drawer. */
-export function SidebarBrand() {
+/**
+ * The brand block at the top of both the rail and the drawer.
+ *
+ * Reads what was uploaded under Admin → Landing → Brand. It used to be
+ * hardcoded, so an operator could upload a logo, see it on the landing
+ * page, and still be looking at the stock mark on every screen they
+ * actually work in.
+ */
+export function SidebarBrand({ brand }: { brand?: AppBrand }) {
+  const name = brand?.name?.trim() || "Neura";
+  const accent = brand?.nameAccent?.trim() ?? "Chat";
+
   return (
     <div className="flex items-center gap-2.5 px-4 h-16 border-b border-white/8 flex-shrink-0">
-      <BrandMark size={34} />
+      <BrandMark size={34} src={brand?.logoUrl} alt={[name, accent].filter(Boolean).join(" ")} />
       <div className="min-w-0">
         <div className="font-bold text-sm leading-tight whitespace-nowrap">
-          Neura <span className="gradient-text-green">Chat</span>
+          {name} {accent && <span className="gradient-text-green">{accent}</span>}
         </div>
-        <div className="text-[9px] uppercase tracking-widest text-white/30">Business inbox</div>
+        <div className="text-[9px] uppercase tracking-widest text-white/30">
+          {brand?.tagline?.trim() || "Business inbox"}
+        </div>
       </div>
     </div>
   );
@@ -207,13 +220,15 @@ export function SidebarBrand() {
 export default function Sidebar({
   isPlatformAdmin = false,
   features = {},
+  brand,
 }: {
   isPlatformAdmin?: boolean;
   features?: Record<string, boolean>;
+  brand?: AppBrand;
 }) {
   return (
     <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
-      <SidebarBrand />
+      <SidebarBrand brand={brand} />
       <SidebarNav isPlatformAdmin={isPlatformAdmin} features={features} />
     </aside>
   );

@@ -1,6 +1,7 @@
 import ThemeToggle from "@/components/ThemeToggle";
 import SignOutButton from "./SignOutButton";
 import MobileNav from "./MobileNav";
+import type { AppBrand } from "@/lib/app-brand";
 
 /**
  * The bar above every page.
@@ -14,15 +15,17 @@ export default function TopBar({
   userEmail,
   isPlatformAdmin = false,
   features = {},
+  brand,
 }: {
   orgName: string;
   userEmail: string;
   isPlatformAdmin?: boolean;
   features?: Record<string, boolean>;
+  brand?: AppBrand;
 }) {
   return (
     <header className="flex items-center gap-2 h-16 px-4 md:px-6 border-b border-white/8 bg-[var(--surface-1)]/80 backdrop-blur-sm sticky top-0 z-20 flex-shrink-0">
-      <MobileNav isPlatformAdmin={isPlatformAdmin} features={features} />
+      <MobileNav isPlatformAdmin={isPlatformAdmin} features={features} brand={brand} />
 
       <h1 className="text-xs font-semibold text-white/40 uppercase tracking-widest truncate min-w-0">
         {orgName}
