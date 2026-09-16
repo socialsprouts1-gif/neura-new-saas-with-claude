@@ -81,12 +81,12 @@ export function isMetaAuthError(status: number, body: unknown): boolean {
 // absent falls through to Meta's own message, which is usually adequate.
 const META_ERROR_HELP: Record<number, string> = {
   0: "WhatsApp could not read the access token at all. Reconnect the number in Integrations with a freshly generated token.",
-  3: "This Meta app is not allowed to call the WhatsApp send API. Add the whatsapp_business_messaging permission to the app, then reconnect.",
-  10: "The access token is missing the whatsapp_business_messaging permission. Generate a new token with both WhatsApp permissions and reconnect in Integrations.",
+  3: "This Meta app has not been granted the permission this call needs. Check App Review → Permissions and features, then reconnect the number so a new token carries it.",
+  10: "The access token does not carry the permission this call needs — sending, managing templates and reading a catalogue are three separate grants. A token only ever holds what the app has been approved for, so check App Review first, then reconnect the number so a new token is issued.",
   100: "Meta rejected one of the message's fields.",
   102: "The access token is no longer valid. Generate a new one in Meta and reconnect the number in Integrations.",
   190: "The stored WhatsApp access token has expired or been revoked. Generate a new token in Meta and reconnect the number in Integrations — a System User token does not expire, the one on the API Setup page lasts 24 hours.",
-  200: "The access token lacks the WhatsApp permissions this call needs. Regenerate it with whatsapp_business_management and whatsapp_business_messaging, then reconnect.",
+  200: "The access token lacks the permission this call needs. Granting it to the app is not enough on its own — a token is issued with the permissions held at the moment it was created, so reconnect the number afterwards to get a new one.",
   130429: "Meta is rate limiting this number — too many messages in too short a window. Sends will succeed again shortly.",
   131005: "Meta denied access to this phone number. Check that the number still belongs to the connected WhatsApp Business Account.",
   131016: "WhatsApp's service is temporarily unavailable. This one is Meta's end, not yours.",
@@ -175,10 +175,13 @@ export function describeMetaError(status: number, body: unknown): string {
 
   const help = code !== null ? META_ERROR_HELP[code] : undefined;
 
+  // Meta's own sentence goes on the end whatever the code. It used to be
+  // kept for 100 and 132000 only, which meant a permission refusal printed
+  // our guess about which permission and dropped the line where Meta names
+  // the actual one — so a catalogue read refused for catalog_management
+  // told the operator to fix whatsapp_business_messaging.
   if (help) {
-    return code === 100 || code === 132000
-      ? `${help}${detail ? ` Meta said: ${detail}` : ""} (${reference})`
-      : `${help} (${reference})`;
+    return `${help}${detail ? ` Meta said: ${detail}` : ""} (${reference})`;
   }
 
   if (detail) {

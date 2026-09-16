@@ -15,6 +15,7 @@ import {
   sendProductMessage,
   setCommerceSettings,
 } from "@/lib/meta-whatsapp";
+import { metaErrorDetail } from "@/lib/meta-errors";
 import { loadOrgConnection } from "@/lib/whatsapp-send";
 import { findContactConversation } from "@/lib/contact-conversation";
 import { loadPaymentSettings, requestPayment, updateOrderStatus } from "@/lib/commerce";
@@ -44,6 +45,26 @@ const DENIED = "Only owners and admins can change commerce settings.";
 function metaError(error: unknown): string {
   if (error instanceof MetaApiError) return describeMetaError(error.status, error.body);
   return error instanceof Error ? error.message : "Unknown Meta failure";
+}
+
+/**
+ * The same, for a call that reads the catalogue.
+ *
+ * Reading a catalogue is a different grant from sending a message, and
+ * every other screen in this app works on the messaging one — so a
+ * permission refusal here looks, to the operator, like the connection
+ * broke. It did not. This names the grant the call actually needs, which
+ * generic wording cannot, because only the call site knows which one it
+ * asked for.
+ */
+function catalogueError(error: unknown): string {
+  const described = metaError(error);
+  if (!(error instanceof MetaApiError)) return described;
+
+  const { code } = metaErrorDetail(error.body);
+  if (code !== 10 && code !== 200 && code !== 3) return described;
+
+  return `${described} Reading a catalogue needs the catalog_management permission, which is separate from the two WhatsApp ones and has to be approved in App Review before any token can carry it. Sending messages is unaffected.`;
 }
 
 /**
@@ -147,7 +168,7 @@ export async function linkCatalog(formData: FormData): Promise<ActionResult> {
           : ""),
     };
   } catch (error) {
-    return { ok: false, error: metaError(error) };
+    return { ok: false, error: catalogueError(error) };
   }
 }
 
