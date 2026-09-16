@@ -1,20 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Check,
   Download,
   Eye,
+  Loader2,
   Package,
   RefreshCw,
   ShoppingCart,
   Store,
+  Upload,
 } from "lucide-react";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { Badge, EmptyState } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
+import { parseCsv } from "@/lib/audience";
+import { parseProductSheet } from "@/lib/product-import";
 import { PAYMENT_LABEL, SUPPORTS_UPI, type PaymentProvider } from "@/lib/provider-meta";
 import type { PaymentSettings, Product } from "@/types/portal";
 import { deleteProduct, saveProduct } from "../portal-actions";
@@ -23,6 +28,7 @@ import {
   importCatalog,
   linkCatalog,
   linkCatalogById,
+  importProductSheet,
   savePaymentSettings,
   saveStorefront,
 } from "../commerce-actions";
@@ -323,6 +329,8 @@ function ProductsTab({
           </ActionForm>
         )}
 
+        <CatalogueExportImport />
+
         <div className="glass-card p-5">
           <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-2">
             Inventory value
@@ -333,6 +341,97 @@ function ProductsTab({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Brings a whole catalogue in from Meta's own export.
+ *
+ * Typing a content ID per product is fine for five and unthinkable for
+ * five hundred, and the API import that would do it in one click needs a
+ * permission that, on a coexistence account, Meta will not grant at all.
+ * Commerce Manager → Products → Export hands over the same rows as a file,
+ * which needs nobody's approval to read.
+ */
+function CatalogueExportImport() {
+  const router = useRouter();
+  const input = useRef<HTMLInputElement>(null);
+  const [pending, startTransition] = useTransition();
+  const [note, setNote] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const read = async (file: File) => {
+    setNote(null);
+    setProblem(null);
+
+    try {
+      const sheet = /\.xlsx$/i.test(file.name)
+        ? (() => null)()
+        : parseCsv(await file.text());
+
+      if (!sheet) {
+        setProblem("Export it as CSV — Commerce Manager offers that, and .xlsx is not read here.");
+        return;
+      }
+
+      const { products, rejected, duplicates } = parseProductSheet(sheet.headers, sheet.rows);
+      if (products.length === 0) {
+        setProblem(rejected[0]?.reason ?? "Nothing in that file could be imported.");
+        return;
+      }
+
+      startTransition(async () => {
+        const result = await importProductSheet({ products });
+        if (!result.ok) {
+          setProblem(result.error ?? "The import failed.");
+          return;
+        }
+        setNote(
+          `${result.message ?? "Imported."}` +
+            (duplicates > 0 ? ` ${duplicates} repeated ID skipped.` : "") +
+            (rejected.length > 0 ? ` ${rejected.length} row(s) had no content ID.` : "")
+        );
+        router.refresh();
+      });
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "That file could not be read.");
+    }
+  };
+
+  return (
+    <div className="glass-card p-5">
+      <h4 className="font-semibold text-sm mb-1">Import from Meta</h4>
+      <p className="text-xs text-white/45 leading-relaxed mb-4">
+        In Commerce Manager open your catalogue, go to Products, and export it as CSV. Every
+        product arrives here with its content ID already set, so all of them are sendable without
+        typing anything.
+      </p>
+
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => input.current?.click()}
+        className="btn-secondary text-sm w-full justify-center disabled:opacity-50"
+      >
+        {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+        {pending ? "Importing…" : "Upload the export"}
+      </button>
+
+      <input
+        ref={input}
+        type="file"
+        accept=".csv,.tsv,.txt"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void read(file);
+          event.target.value = "";
+        }}
+      />
+
+      {note && <p className="text-xs text-accent-ink mt-3 leading-relaxed">{note}</p>}
+      {problem && <p className="text-xs text-[#F87171] mt-3 leading-relaxed">{problem}</p>}
     </div>
   );
 }

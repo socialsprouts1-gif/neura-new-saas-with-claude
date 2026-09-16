@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { describeMetaError, isMetaAuthError, metaErrorDetail } from "../src/lib/meta-errors.ts";
+import { describeMetaError, hasDetailHelp, isMetaAuthError, metaErrorDetail } from "../src/lib/meta-errors.ts";
 
 // Run with: npm test
 //
@@ -222,4 +222,42 @@ test("the hint still stands alone when Meta says nothing user-facing", () => {
 
   assert.match(said, /already exists/i);
   assert.match(said, /100\/2388042/);
+});
+
+// --- faults Meta explains only in prose -----------------------------------
+
+test("the coexistence catalogue refusal is named for what it is", () => {
+  // A bare #10 reads as a missing permission. This one is not: Meta blocks
+  // the catalogue endpoints on an SMB-type account outright, so sending
+  // someone to App Review costs them weeks for nothing.
+  const said = describeMetaError(400, {
+    error: {
+      message: "(#10) This operation can not be performed on SMB business type",
+      type: "OAuthException",
+      code: 10,
+    },
+  });
+
+  assert.match(said, /WhatsApp Business app/);
+  assert.match(said, /Commerce Manager/);
+  assert.doesNotMatch(said, /catalog_management/);
+  // Meta's own words survive, so the reason can still be looked up.
+  assert.match(said, /SMB business type/);
+});
+
+test("hasDetailHelp answers for the caller that needs to know", () => {
+  assert.equal(
+    hasDetailHelp({ error: { code: 10, message: "(#10) ... SMB business type" } }),
+    true
+  );
+  assert.equal(hasDetailHelp({ error: { code: 10, message: "(#10) Something else" } }), false);
+  assert.equal(hasDetailHelp(null), false);
+});
+
+test("an ordinary permission refusal still gets the permission text", () => {
+  const said = describeMetaError(400, {
+    error: { message: "(#10) Application does not have permission", code: 10 },
+  });
+  assert.match(said, /permission/i);
+  assert.doesNotMatch(said, /WhatsApp Business app/);
 });

@@ -138,6 +138,37 @@ const META_SUBCODE_HELP: Record<string, string> = {
     "A template with this name already exists on the WhatsApp Business Account. Delete it in Meta, or submit under a different name.",
 };
 
+// Faults Meta explains only in the message text.
+//
+// A code and a subcode are the usual way in, but some refusals arrive as a
+// generic code with the real reason written in prose — and those are the
+// ones where a hint keyed off the code alone says something confidently
+// wrong. Matched on the wording because Meta gives nothing else to match
+// on; ordered, so the first rule that fits wins.
+const META_DETAIL_HELP: Array<{ match: RegExp; help: string }> = [
+  {
+    // Coexistence. The WhatsApp Business account Meta creates for a number
+    // kept on the Business app is of type SMB, and the catalogue endpoints
+    // refuse it outright — no permission, no App Review and no token
+    // changes that. Worth naming precisely, because every other reading of
+    // a bare "#10" sends someone to fix a permission that is not the
+    // problem and would not help if it were.
+    match: /SMB business type/i,
+    help:
+      "This number runs alongside the WhatsApp Business app, and Meta does not allow catalogue operations through the API on that kind of account — no permission or App Review approval changes it. Manage the catalogue in Meta Commerce Manager and link it here by its ID instead; sending product messages works normally once it is linked.",
+  },
+];
+
+function detailHelp(detail: string | null): string | null {
+  if (!detail) return null;
+  return META_DETAIL_HELP.find((rule) => rule.match.test(detail))?.help ?? null;
+}
+
+/** Whether Meta's own wording explains this better than any code lookup. */
+export function hasDetailHelp(body: unknown): boolean {
+  return detailHelp(metaErrorDetail(body).detail) !== null;
+}
+
 /**
  * A sentence an operator can act on. Never returns the raw JSON envelope.
  */
@@ -172,6 +203,11 @@ export function describeMetaError(status: number, body: unknown): string {
   }
 
   if (subcodeHelp) return `${subcodeHelp} (${reference})`;
+
+  // Ahead of the per-code text, which is a generalisation, and behind
+  // error_user_msg, which is Meta speaking directly to the operator.
+  const fromDetail = detailHelp(detail);
+  if (fromDetail) return `${fromDetail} Meta said: ${detail} (${reference})`;
 
   const help = code !== null ? META_ERROR_HELP[code] : undefined;
 

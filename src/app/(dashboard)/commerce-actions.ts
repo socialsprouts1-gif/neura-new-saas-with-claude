@@ -15,7 +15,7 @@ import {
   sendProductMessage,
   setCommerceSettings,
 } from "@/lib/meta-whatsapp";
-import { metaErrorDetail } from "@/lib/meta-errors";
+import { hasDetailHelp, metaErrorDetail } from "@/lib/meta-errors";
 import { loadOrgConnection } from "@/lib/whatsapp-send";
 import { findContactConversation } from "@/lib/contact-conversation";
 import { loadPaymentSettings, requestPayment, updateOrderStatus } from "@/lib/commerce";
@@ -60,6 +60,13 @@ function metaError(error: unknown): string {
 function catalogueError(error: unknown): string {
   const described = metaError(error);
   if (!(error instanceof MetaApiError)) return described;
+
+  // Meta explaining itself beats a guess keyed off the code. The refusal
+  // this guards against is the coexistence one, where a bare #10 reads as
+  // a missing permission and is nothing of the kind — appending the hint
+  // there would send someone to App Review for something App Review
+  // cannot grant.
+  if (hasDetailHelp(error.body)) return described;
 
   const { code } = metaErrorDetail(error.body);
   if (code !== 10 && code !== 200 && code !== 3) return described;
@@ -248,6 +255,97 @@ export async function linkCatalogById(formData: FormData): Promise<ActionResult>
     ok: true,
     message:
       "Catalogue linked. Add each product's content ID under Products to make it sendable — Meta prints it under the product name in Commerce Manager.",
+  };
+}
+
+/**
+ * Imports products from a Commerce Manager export.
+ *
+ * The API route to the same rows needs catalog_management, and on a
+ * coexistence account Meta refuses it whatever the permissions say. The
+ * export is the same catalogue and needs nobody's approval to read, so
+ * this is not a workaround for one account — it is the path that always
+ * works, and the API import stays as the faster one where it is allowed.
+ *
+ * Takes rows already parsed in the browser, like the campaign importer:
+ * the file never leaves the page, and both paths share one set of rules
+ * about what a valid row is.
+ */
+export async function importProductSheet(input: {
+  products: Array<{
+    retailerId: string;
+    name: string;
+    priceCents: number | null;
+    imageUrl: string | null;
+  }>;
+}): Promise<ActionResult & { imported?: number }> {
+  const ctx = await requireManager();
+  if (!ctx) return { ok: false, error: DENIED };
+
+  const rows = input.products.filter((product) => product.retailerId.trim());
+  if (rows.length === 0) {
+    return { ok: false, error: "Nothing in that file had a content ID to import." };
+  }
+
+  const supabase = await createClient();
+
+  // Matched on the content ID rather than the name, so re-importing after
+  // a price change updates the product instead of creating a second one
+  // beside it. A name is a label someone edits; the id is the identity.
+  const { data: existing } = await supabase
+    .from("products")
+    .select("id, retailer_id")
+    .eq("org_id", ctx.orgId)
+    .in(
+      "retailer_id",
+      rows.slice(0, 1000).map((product) => product.retailerId)
+    );
+
+  const byRetailerId = new Map(
+    (existing ?? [])
+      .filter((product) => product.retailer_id)
+      .map((product) => [product.retailer_id as string, product.id])
+    );
+
+  let imported = 0;
+  let updated = 0;
+
+  for (const product of rows) {
+    const shared = {
+      name: product.name,
+      retailer_id: product.retailerId,
+      ...(product.priceCents !== null ? { price_cents: product.priceCents } : {}),
+      ...(product.imageUrl ? { image_url: product.imageUrl } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
+    const id = byRetailerId.get(product.retailerId);
+    if (id) {
+      const { error } = await supabase
+        .from("products")
+        .update(shared)
+        .eq("id", id)
+        .eq("org_id", ctx.orgId);
+      if (!error) updated += 1;
+      continue;
+    }
+
+    const { error } = await supabase.from("products").insert({
+      org_id: ctx.orgId,
+      price_cents: product.priceCents ?? 0,
+      ...shared,
+    });
+    if (!error) imported += 1;
+  }
+
+  revalidatePath("/commerce");
+  return {
+    ok: true,
+    imported,
+    message:
+      `${imported} product${imported === 1 ? "" : "s"} added` +
+      (updated > 0 ? `, ${updated} updated` : "") +
+      ". Every one carries its content ID, so they can all be sent.",
   };
 }
 
