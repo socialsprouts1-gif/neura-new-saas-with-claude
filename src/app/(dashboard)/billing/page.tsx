@@ -65,7 +65,10 @@ export default async function BillingPage() {
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6 mb-6">
+      {/* The picker below needs the full width for three cards side by
+          side, so the current plan sits on its own row rather than
+          squeezing them into half the page. */}
+      <div className="mb-6">
         <Card>
           <h2 className="font-semibold mb-4">Current plan</h2>
           {subscription && plan ? (
@@ -107,13 +110,15 @@ export default async function BillingPage() {
               )}
             </>
           ) : (
-            <p className="text-sm text-white/40">
-              No plan assigned yet. Platform staff assign plans from the admin panel — limits
-              below are what each plan includes.
+            <p className="text-sm text-white/45 leading-relaxed">
+              You&rsquo;re not on a plan yet. Pick one below — everything it includes is listed on
+              the card, and you can change or cancel whenever you like.
             </p>
           )}
         </Card>
+      </div>
 
+      <div className="mb-6">
         <Card>
           <PlanPicker
             plans={(plans ?? []).map((option) => ({
@@ -122,7 +127,13 @@ export default async function BillingPage() {
               description: option.description,
               priceCents: option.price_cents,
               currency: option.currency,
-              interval: option.billing_interval,
+              interval: option.billing_interval === "yearly" ? "yearly" : "monthly",
+              // The bullets an operator wrote, and the limits to stand in
+              // for them when nobody has.
+              features: option.features ?? [],
+              messageLimit: option.message_limit,
+              contactLimit: option.contact_limit,
+              seatLimit: option.seat_limit,
               isCurrent: option.id === subscription?.plan_id && entitlement.active,
             }))}
             canManage={role === "owner" || role === "admin"}
