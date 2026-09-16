@@ -8,6 +8,7 @@ import { saveDefaultFeatures } from "../actions";
 import { resolveFeatures } from "@/lib/features";
 import { formatDate } from "@/types/admin";
 import PlatformGateway from "./PlatformGateway";
+import KnownSettings from "./KnownSettings";
 
 export default async function AdminSettingsPage() {
   await requirePlatformAdmin();
@@ -19,6 +20,18 @@ export default async function AdminSettingsPage() {
     .order("key");
 
   const defaults = settings?.find((row) => row.key === "feature_defaults");
+
+  // Everything that now has a form of its own is dropped from the raw
+  // list: two editors for one value is how they end up disagreeing, and
+  // the JSON one is the one that can corrupt it.
+  const HAS_A_FORM = new Set([
+    "billing",
+    "branding",
+    "signups",
+    "feature_defaults",
+    "platform_payment_org",
+  ]);
+  const advanced = (settings ?? []).filter((row) => !HAS_A_FORM.has(row.key));
 
   return (
     <div className="p-6 md:p-8 max-w-4xl">
@@ -40,13 +53,15 @@ export default async function AdminSettingsPage() {
         />
       </Card>
 
+      <KnownSettings />
+
       <PlatformGateway />
 
       <div className="space-y-6">
         {error ? (
           <EmptyState title="Couldn't load settings" description={error.message} />
-        ) : settings && settings.length > 0 ? (
-          settings.map((s) => (
+        ) : advanced.length > 0 ? (
+          advanced.map((s) => (
             <Card key={s.key}>
               <div className="flex items-baseline justify-between gap-3 mb-1">
                 <h2 className="font-semibold font-mono text-sm">{s.key}</h2>
@@ -71,8 +86,8 @@ export default async function AdminSettingsPage() {
           ))
         ) : (
           <EmptyState
-            title="No settings yet"
-            description="The admin migration seeds branding and signup settings. If this is empty, it hasn't been applied."
+            title="Nothing else to configure"
+            description="Every setting this deployment uses has a form above. Anything added by hand will appear here."
           />
         )}
 

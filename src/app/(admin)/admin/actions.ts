@@ -281,6 +281,90 @@ export async function savePlatformGateway(formData: FormData): Promise<ActionRes
   return { ok: true, message: "Saved. Self-serve checkout will charge through that gateway." };
 }
 
+/**
+ * The length of the free trial, as a number rather than a JSON document.
+ *
+ * Merged into whatever else the billing setting holds, so a form that
+ * knows about one key cannot wipe another one it has never heard of.
+ */
+export async function saveTrialDays(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const days = Number(formData.get("trial_days"));
+  if (!Number.isInteger(days) || days < 0 || days > 90) {
+    return { ok: false, error: "Give a whole number of days between 0 and 90." };
+  }
+
+  return mergeSetting("billing", { trial_days: days }, "Trial length saved.");
+}
+
+export async function saveBranding(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const productName = String(formData.get("product_name") ?? "").trim();
+  const supportEmail = String(formData.get("support_email") ?? "").trim();
+
+  if (!productName) return { ok: false, error: "The product needs a name." };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(supportEmail)) {
+    return { ok: false, error: "That support address does not look like an email." };
+  }
+
+  return mergeSetting(
+    "branding",
+    { product_name: productName, support_email: supportEmail },
+    "Branding saved."
+  );
+}
+
+export async function saveSignups(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  return mergeSetting(
+    "signups",
+    {
+      // An unchecked box sends nothing at all, which is the whole reason
+      // these read presence rather than a value.
+      enabled: formData.get("enabled") !== null,
+      require_onboarding_fee: formData.get("require_onboarding_fee") !== null,
+    },
+    "Signup settings saved."
+  );
+}
+
+/**
+ * Writes some keys of a setting, leaving the rest alone.
+ *
+ * Replacing the whole value would mean a form that knows about two fields
+ * silently deleting a third somebody added by hand — which is exactly the
+ * kind of loss the raw JSON editor made possible and these forms exist to
+ * prevent.
+ */
+async function mergeSetting(
+  key: string,
+  patch: Record<string, unknown>,
+  message: string
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+
+  const { data: existing } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+
+  const current = (existing?.value as Record<string, unknown> | null) ?? {};
+
+  const { error } = await supabase.from("platform_settings").upsert(
+    { key, value: { ...current, ...patch }, updated_at: new Date().toISOString() },
+    { onConflict: "key" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/settings");
+  return { ok: true, message };
+}
+
 export async function savePlatformSetting(formData: FormData): Promise<ActionResult> {
   const user = await requirePlatformAdmin();
 

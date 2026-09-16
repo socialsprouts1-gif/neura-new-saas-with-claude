@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
@@ -8,19 +7,37 @@ import { NewUserButton, UserRowActions } from "./UserControls";
 export default async function AdminUsersPage() {
   const me = await requirePlatformAdmin();
 
-  const supabase = await createClient();
+  // Through the service role, not the tenant client.
+  //
+  // org_members_select is `using (is_org_member(org_id))` and has no
+  // platform-admin exception, so the ordinary client showed staff their
+  // own memberships and nobody else's — the screen was called Users and
+  // listed one user. Every control on it worked; there was simply never
+  // anyone else on screen to use them on.
+  const supabase = createAdminClient();
 
-  // Memberships come through the normal client (RLS lets staff read all of
-  // them). Email and last-sign-in live in auth.users, which is only
-  // reachable through the Admin API, so that part needs the service role.
-  const [{ data: memberships, error }, { data: orgs }] = await Promise.all([
-    supabase
-      .from("org_members")
-      .select("user_id, role, created_at, organizations(id, name)")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    supabase.from("organizations").select("id, name").order("name").limit(200),
-  ]);
+  const [{ data: memberships, error }, { data: orgs }, { data: subscriptions }] =
+    await Promise.all([
+      supabase
+        .from("org_members")
+        .select("user_id, role, created_at, organizations(id, name, suspended_at)")
+        .order("created_at", { ascending: false })
+        .limit(500),
+      supabase.from("organizations").select("id, name").order("name").limit(500),
+      // What each workspace is paying for, so staff can see the plan next
+      // to the person rather than going to another screen to find it.
+      supabase.from("subscriptions").select("org_id, status, plans(name)").limit(500),
+    ]);
+
+  const planByOrg = new Map(
+    (subscriptions ?? []).map((row) => [
+      row.org_id,
+      {
+        status: row.status,
+        name: (row.plans as { name: string } | null)?.name ?? null,
+      },
+    ])
+  );
 
   let emailById = new Map<
     string,
@@ -74,7 +91,7 @@ export default async function AdminUsersPage() {
       {error ? (
         <EmptyState title="Couldn't load users" description={error.message} />
       ) : memberships && memberships.length > 0 ? (
-        <Table head={["User", "Email", "Organization", "Role", "Joined", "Last sign in", ""]}>
+        <Table head={["User", "Email", "Organization", "Plan", "Role", "Joined", "Last sign in", ""]}>
           {memberships.map((m) => {
             const org = m.organizations as { id: string; name: string } | null;
             const auth = emailById.get(m.user_id);
@@ -96,6 +113,28 @@ export default async function AdminUsersPage() {
                   ) : (
                     <span className="text-white/30">—</span>
                   )}
+                </Td>
+                <Td>
+                  {(() => {
+                    const plan = org ? planByOrg.get(org.id) : undefined;
+                    if (!plan) return <span className="text-white/30 text-xs">—</span>;
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs">{plan.name ?? "No plan"}</span>
+                        <Badge
+                          tone={
+                            plan.status === "active"
+                              ? "green"
+                              : plan.status === "trialing"
+                                ? "blue"
+                                : "amber"
+                          }
+                        >
+                          {plan.status}
+                        </Badge>
+                      </div>
+                    );
+                  })()}
                 </Td>
                 <Td>
                   <Badge tone={m.role === "owner" ? "green" : m.role === "admin" ? "blue" : "grey"}>

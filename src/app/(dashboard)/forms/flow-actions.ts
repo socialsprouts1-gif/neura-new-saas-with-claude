@@ -229,9 +229,12 @@ export async function saveForm(input: {
         categories: input.categories,
       });
       metaFlowId = created.id;
+      // Recorded with the account it was created on. A flow belongs to one
+      // WhatsApp Business Account, and without this the only way to learn
+      // that a number cannot send it is Meta's 131009, which names neither.
       await supabase
         .from("whatsapp_flows")
-        .update({ meta_flow_id: metaFlowId })
+        .update({ meta_flow_id: metaFlowId, waba_id: credentials.wabaId })
         .eq("id", input.id);
     } else {
       await updateFlowMetadata(metaFlowId, credentials.token, {
@@ -399,10 +402,19 @@ export async function syncAllForms(): Promise<ActionResult & { synced?: number }
     // imported read-only rather than opened in the builder with nothing in
     // it — an empty builder would overwrite the real thing on first save.
     const { error } = existing
-      ? await supabase.from("whatsapp_flows").update(patch).eq("id", existing)
+      ? await supabase
+          .from("whatsapp_flows")
+          .update({ ...patch, waba_id: credentials.wabaId })
+          .eq("id", existing)
       : await supabase
           .from("whatsapp_flows")
-          .insert({ org_id: orgId, meta_flow_id: flow.id, screens: [], ...patch });
+          .insert({
+            org_id: orgId,
+            meta_flow_id: flow.id,
+            waba_id: credentials.wabaId,
+            screens: [],
+            ...patch,
+          });
 
     if (!error) synced += 1;
   }

@@ -29,12 +29,13 @@ export interface FormSendResult {
 
 /** The columns this needs. Selected the same way by every caller. */
 export const FORM_SEND_COLUMNS =
-  "id, name, meta_flow_id, status, screens, invitation, button_text" as const;
+  "id, name, meta_flow_id, waba_id, status, screens, invitation, button_text" as const;
 
 export interface SendableForm {
   id: string;
   name: string;
   meta_flow_id: string | null;
+  waba_id: string | null;
   status: string;
   screens: unknown;
   invitation: string | null;
@@ -82,6 +83,19 @@ export async function sendFormToContact({
     return {
       ok: false,
       error: `"${form.name}" has not been sent to WhatsApp yet. Open it and press Update Flow first.`,
+    };
+  }
+
+  // A flow belongs to one WhatsApp Business Account, and a workspace with
+  // two numbers has two. Sending from the other one fails at Meta with
+  // "Parameter flow_id is invalid" — an error that names no account, no
+  // number and nothing to change. Caught here instead, where both are
+  // known, because the fix is to send from the other number and nothing
+  // in Meta's wording could ever suggest that.
+  if (form.waba_id && connection.wabaId && form.waba_id !== connection.wabaId) {
+    return {
+      ok: false,
+      error: `"${form.name}" was built on a different WhatsApp Business Account (${form.waba_id}) from the number you are sending from, which is on ${connection.wabaId}. A form only works on the account it was created on. Send it from a number on that account, or rebuild the form under Manage → WhatsApp Forms while this number is selected.`,
     };
   }
 

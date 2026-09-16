@@ -720,6 +720,8 @@ export type WhatsappFlow = {
   /** The CTA on the message bubble. 20 characters at most. */
   button_text: string;
   meta_flow_id: string | null;
+  /** The WhatsApp Business Account the flow was created on. */
+  waba_id: string | null;
   categories: string[];
   status: FlowStatus;
   screens: unknown;

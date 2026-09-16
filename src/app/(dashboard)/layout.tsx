@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           features={features}
           brand={brand}
         />
-        <BillingBanner orgId={orgId} />
+        <BillingBanner orgId={orgId} isPlatformAdmin={isPlatformAdmin} />
         {suspended && <SuspendedBanner reason={suspended.reason} />}
         {/* Scrolls for ordinary pages; the inbox fills exactly this height
             and manages its own internal scrolling instead. */}

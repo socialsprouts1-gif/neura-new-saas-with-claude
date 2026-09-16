@@ -11,7 +11,19 @@ import { billingState } from "@/lib/billing-state";
  * on the billing screen. Renders nothing at all when there is nothing to
  * say — a banner that is always there is a banner nobody reads.
  */
-export default async function BillingBanner({ orgId }: { orgId: string }) {
+export default async function BillingBanner({
+  orgId,
+  isPlatformAdmin = false,
+}: {
+  orgId: string;
+  /** Platform staff, whose own workspace is not a customer. */
+  isPlatformAdmin?: boolean;
+}) {
+  // Staff are not being sold to. Their workspace has a trial row like any
+  // other, but a countdown to paying yourself is noise on every screen,
+  // every day, and the one banner the product has stops being read.
+  if (isPlatformAdmin) return null;
+
   let subscription = null;
 
   try {

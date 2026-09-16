@@ -87,6 +87,8 @@ const META_ERROR_HELP: Record<number, string> = {
   102: "The access token is no longer valid. Generate a new one in Meta and reconnect the number in Integrations.",
   190: "The stored WhatsApp access token has expired or been revoked. Generate a new token in Meta and reconnect the number in Integrations — a System User token does not expire, the one on the API Setup page lasts 24 hours.",
   200: "The access token lacks the permission this call needs. Granting it to the app is not enough on its own — a token is issued with the permissions held at the moment it was created, so reconnect the number afterwards to get a new one.",
+  131009:
+    "WhatsApp refused a parameter on this message. For a form, this is almost always the flow belonging to a different WhatsApp Business Account than the number sending it — a flow lives on one account, and a workspace with two numbers has two.",
   130429: "Meta is rate limiting this number — too many messages in too short a window. Sends will succeed again shortly.",
   131005: "Meta denied access to this phone number. Check that the number still belongs to the connected WhatsApp Business Account.",
   131016: "WhatsApp's service is temporarily unavailable. This one is Meta's end, not yours.",
