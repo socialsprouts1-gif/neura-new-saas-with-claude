@@ -31,16 +31,64 @@ export function emailBrand(): EmailBrand {
   };
 }
 
-function config(): { apiKey: string; from: string } | null {
-  const apiKey = process.env.RESEND_API_KEY;
+/**
+ * How this deployment sends mail.
+ *
+ * Two ways, because tying the product to one vendor's REST API would mean
+ * anybody who already has a mailbox — Google Workspace, Zoho, a host's
+ * own server — has to sign up for another service to send six emails a
+ * day. SMTP is the protocol all of them speak.
+ *
+ * Resend wins when both are set, on the grounds that somebody who
+ * configured an API key meant to use it.
+ */
+type Transport =
+  | { kind: "resend"; apiKey: string; from: string }
+  | {
+      kind: "smtp";
+      host: string;
+      port: number;
+      secure: boolean;
+      user: string;
+      pass: string;
+      from: string;
+    };
+
+function config(): Transport | null {
   const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) return null;
-  return { apiKey, from };
+  if (!from) return null;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) return { kind: "resend", apiKey, from };
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  if (!host || !user || !pass) return null;
+
+  // 465 is implicit TLS; 587 and 25 start plain and upgrade with
+  // STARTTLS. Getting this backwards is the single most common reason an
+  // otherwise correct SMTP setup times out with no useful error.
+  const port = Number(process.env.SMTP_PORT ?? 587);
+  return {
+    kind: "smtp",
+    host,
+    port: Number.isFinite(port) ? port : 587,
+    secure: port === 465,
+    user,
+    pass,
+    from,
+  };
 }
 
 /** Whether mail can be sent at all, for a screen that wants to say so. */
 export function isEmailConfigured(): boolean {
   return config() !== null;
+}
+
+/** Which way, for a diagnostic that wants to name it. */
+export function emailTransportName(): string | null {
+  return config()?.kind ?? null;
 }
 
 /**
@@ -84,25 +132,45 @@ export async function sendEmail(input: {
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${settings.apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
+    if (settings.kind === "resend") {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${settings.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          from: settings.from,
+          to: [to],
+          subject: input.body.subject,
+          html: input.body.html,
+          text: input.body.text,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        await mark(input.dedupeKey, "failed", `${response.status} ${detail}`.slice(0, 500));
+        return { ok: false, error: `Resend refused the message: ${response.status}` };
+      }
+    } else {
+      // Imported here rather than at the top of the file so a deployment
+      // using Resend never loads it. It reaches for Node's net and tls,
+      // which is dead weight in a bundle that will never open a socket.
+      const { createTransport } = await import("nodemailer");
+
+      await createTransport({
+        host: settings.host,
+        port: settings.port,
+        secure: settings.secure,
+        auth: { user: settings.user, pass: settings.pass },
+      }).sendMail({
         from: settings.from,
-        to: [to],
+        to,
         subject: input.body.subject,
         html: input.body.html,
         text: input.body.text,
-      }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      await mark(input.dedupeKey, "failed", `${response.status} ${detail}`.slice(0, 500));
-      return { ok: false, error: `Resend refused the message: ${response.status}` };
+      });
     }
 
     await mark(input.dedupeKey, "sent", null);

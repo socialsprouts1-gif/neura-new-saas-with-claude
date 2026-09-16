@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
     // is not broken, and a red cron every night for a feature nobody has
     // turned on is how real failures stop being noticed.
     return NextResponse.json({
-      skipped: "RESEND_API_KEY and EMAIL_FROM are not set, so no mail was sent.",
+      skipped:
+        "Email is not configured, so nothing was sent. Set EMAIL_FROM, plus either RESEND_API_KEY or the four SMTP_* variables.",
     });
   }
 
