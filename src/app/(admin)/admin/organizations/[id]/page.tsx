@@ -4,9 +4,11 @@ import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, Card, Badge, StatCard } from "@/components/ui/primitives";
-import { formatDate } from "@/types/admin";
+import { formatDate, formatMoney } from "@/types/admin";
 import { resolveFeatures } from "@/lib/features";
 import FeatureGrid from "../../FeatureGrid";
+import ActionForm, { SelectField } from "@/components/ui/ActionForm";
+import { assignPlan } from "../../actions";
 import { saveOrgFeatures } from "../../actions";
 import SuspendControls from "./SuspendControls";
 
@@ -19,7 +21,13 @@ export default async function AdminOrganizationPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: org }, { data: subscription }, { data: members }, { data: defaults }] =
+  const [
+    { data: org },
+    { data: subscription },
+    { data: members },
+    { data: defaults },
+    { data: plans },
+  ] =
     await Promise.all([
       supabase
         .from("organizations")
@@ -33,6 +41,11 @@ export default async function AdminOrganizationPage({
         .maybeSingle(),
       supabase.from("org_members").select("user_id, role").eq("org_id", id),
       supabase.from("platform_settings").select("value").eq("key", "feature_defaults").maybeSingle(),
+      supabase
+        .from("plans")
+        .select("id, name, billing_interval, price_cents, currency")
+        .eq("is_active", true)
+        .order("sort_order"),
     ]);
 
   if (!org) notFound();
@@ -73,6 +86,38 @@ export default async function AdminOrganizationPage({
           value={org.suspended_at ? "Suspended" : "Active"}
         />
       </div>
+
+      {/* Assigning a plan lived on the organizations list, two clicks and a
+          screen away from the access grid it decides the starting point
+          for. Both belong wherever somebody is deciding what a customer
+          gets. */}
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">Plan</h2>
+        <p className="text-xs text-white/45 leading-relaxed mb-4 max-w-2xl">
+          {plan
+            ? `On ${plan.name}${subscription?.status ? `, ${subscription.status}` : ""}. Changing it here assigns the plan directly — no payment is taken, so use it for a customer who has paid another way, or to put someone on a tier while you sort billing out.`
+            : "No plan yet. Assigning one here does not take a payment — it grants the tier outright. A customer who buys one themselves from the Billing screen is activated by the gateway instead."}
+        </p>
+        {plans && plans.length > 0 ? (
+          <ActionForm action={assignPlan} submitLabel="Assign plan" compact>
+            <input type="hidden" name="org_id" value={org.id} />
+            <SelectField
+              label="Plan"
+              name="plan_id"
+              options={plans.map((option) => ({
+                value: option.id,
+                label: `${option.name} · ${formatMoney(option.price_cents, option.currency)} ${
+                  option.billing_interval === "yearly" ? "a year" : "a month"
+                }`,
+              }))}
+            />
+          </ActionForm>
+        ) : (
+          <p className="text-sm text-[#FACC15]">
+            No active plans to assign. Create one under Plans first.
+          </p>
+        )}
+      </Card>
 
       <Card className="mb-6">
         <h2 className="font-semibold mb-1">Suspension</h2>
