@@ -2,10 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   columnToAudience,
+  guessNameColumn,
   guessPhoneColumn,
   normaliseWaId,
   parseCsv,
   parseNumberList,
+  sheetToPeople,
 } from "../src/lib/audience.ts";
 
 test("normaliseWaId strips everything a person might type", () => {
@@ -109,4 +111,75 @@ test("columnToAudience lifts one column and normalises it", () => {
   const parsed = parseCsv("name,phone\nVivek,9876543210\nAsha,9999999999\n");
   const audience = columnToAudience(parsed.rows, 1, "91");
   assert.deepEqual(audience.waIds, ["919876543210", "919999999999"]);
+});
+
+// --- reading a contacts export -------------------------------------------
+
+test("a name column is found by its header", () => {
+  assert.equal(guessNameColumn(["Name", "Phone"], 1), 0);
+  assert.equal(guessNameColumn(["phone", "full name"], 0), 1);
+  assert.equal(guessNameColumn(["Customer", "Mobile"], 1), 0);
+});
+
+test("the phone column is never also taken as the name", () => {
+  // "contact" matches the phone heuristic too, so without the guard a
+  // one-column sheet would name everyone after their own number.
+  assert.equal(guessNameColumn(["contact"], 0), null);
+});
+
+test("no name column rather than a wrong one", () => {
+  // Nothing about a name's shape is guessable, so a sheet with no header
+  // saying so gets no names at all.
+  assert.equal(guessNameColumn(["col1", "col2"], 0), null);
+  assert.equal(guessNameColumn(["order_id", "amount"], null), null);
+});
+
+test("a sheet becomes people with their names attached", () => {
+  const { people, waIds } = sheetToPeople(
+    [
+      ["Priya", "9876543210"],
+      ["Arjun", "9811122333"],
+    ],
+    1,
+    0,
+    "91"
+  );
+
+  assert.deepEqual(waIds, ["919876543210", "919811122333"]);
+  assert.deepEqual(people, [
+    { waId: "919876543210", name: "Priya" },
+    { waId: "919811122333", name: "Arjun" },
+  ]);
+});
+
+test("numbers from a sheet pass the same rules as a pasted list", () => {
+  const sheet = sheetToPeople([["A", "9876543210"], ["B", "not a number"]], 1, 0, "91");
+  assert.deepEqual(sheet.waIds, ["919876543210"]);
+  assert.equal(sheet.rejected.length, 1);
+  assert.equal(sheet.people.length, 1);
+});
+
+test("a duplicate number keeps the first row's name", () => {
+  const sheet = sheetToPeople(
+    [
+      ["Priya", "9876543210"],
+      ["Priya Sharma", "+91 98765 43210"],
+    ],
+    1,
+    0,
+    "91"
+  );
+  assert.equal(sheet.waIds.length, 1);
+  assert.equal(sheet.people[0].name, "Priya");
+  assert.equal(sheet.duplicates, 1);
+});
+
+test("a sheet with no name column still yields its numbers", () => {
+  const sheet = sheetToPeople([["9876543210"]], 0, null, "91");
+  assert.deepEqual(sheet.people, [{ waId: "919876543210", name: "" }]);
+});
+
+test("a blank name cell is not a name", () => {
+  const sheet = sheetToPeople([["   ", "9876543210"]], 1, 0, "91");
+  assert.equal(sheet.people[0].name, "");
 });

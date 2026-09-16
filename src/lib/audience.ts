@@ -197,3 +197,69 @@ export function columnToAudience(
     defaultCountryCode
   );
 }
+
+/**
+ * Which column holds people's names.
+ *
+ * A contacts export has one, and using it is the difference between a
+ * campaign that reaches "919876543210" and one that reaches Priya — the
+ * reply lands in the inbox either way, but only one of them is answerable
+ * without going and looking the number up.
+ *
+ * Header only, and never the phone column. There is no shape a name has
+ * that a guess could rely on, and picking the wrong column here would
+ * quietly address thousands of people by their order id.
+ */
+export function guessNameColumn(headers: string[], phoneColumn: number | null): number | null {
+  const index = headers.findIndex(
+    (header, position) =>
+      position !== phoneColumn && /^(name|full.?name|first.?name|contact.?name|customer)$/i.test(header.trim())
+  );
+  return index === -1 ? null : index;
+}
+
+/** One person out of a spreadsheet row. */
+export interface SheetPerson {
+  waId: string;
+  /** Empty when the sheet has no name column, or the cell is blank. */
+  name: string;
+}
+
+export interface SheetPeople extends ParsedAudience {
+  /** Names by wa_id, for the numbers that parsed. */
+  people: SheetPerson[];
+}
+
+/**
+ * Reads a sheet into people, keeping names alongside numbers.
+ *
+ * Built on columnToAudience rather than beside it so the numbers are
+ * normalised, de-duplicated and rejected by exactly the same rules a
+ * pasted list goes through — two paths to the same audience that disagree
+ * about what a valid number is would be a bug nobody could see.
+ */
+export function sheetToPeople(
+  rows: string[][],
+  phoneColumn: number,
+  nameColumn: number | null,
+  defaultCountryCode = ""
+): SheetPeople {
+  const audience = columnToAudience(rows, phoneColumn, defaultCountryCode);
+
+  // Names are matched back by normalising each row the same way, so the
+  // first row that produced a given number is the one that names it.
+  const names = new Map<string, string>();
+  if (nameColumn !== null) {
+    for (const row of rows) {
+      const waId = normaliseWaId(row[phoneColumn] ?? "", defaultCountryCode);
+      if (!waId || names.has(waId)) continue;
+      const name = (row[nameColumn] ?? "").trim();
+      if (name) names.set(waId, name);
+    }
+  }
+
+  return {
+    ...audience,
+    people: audience.waIds.map((waId) => ({ waId, name: names.get(waId) ?? "" })),
+  };
+}

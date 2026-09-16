@@ -25,11 +25,13 @@ import {
 } from "@/app/(dashboard)/campaign-actions";
 import { fillVariables, variablesIn } from "@/lib/template-spec";
 import {
-  columnToAudience,
   parseCsv,
   parseNumberList,
+  guessNameColumn,
   guessPhoneColumn,
+  sheetToPeople,
   type ParsedAudience,
+  type SheetPerson,
 } from "@/lib/audience";
 import { readXlsx } from "@/lib/xlsx";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
@@ -52,7 +54,7 @@ const MODES: Array<{ key: Mode; label: string; hint: string }> = [
   { key: "all", label: "All contacts", hint: "Everyone who hasn't opted out" },
   { key: "tag", label: "By tag", hint: "Contacts carrying one tag" },
   { key: "group", label: "By group", hint: "A saved contact group" },
-  { key: "numbers", label: "Numbers or a file", hint: "Paste a list, or import CSV / Excel" },
+  { key: "numbers", label: "Upload a CSV", hint: "A contacts file, or paste a list" },
 ];
 
 export default function CampaignBuilder({
@@ -84,6 +86,7 @@ export default function CampaignBuilder({
   const [pasted, setPasted] = useState("");
   const [sheet, setSheet] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [column, setColumn] = useState(0);
+  const [nameColumn, setNameColumn] = useState<number | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
 
   const [when, setWhen] = useState<"now" | "later">("now");
@@ -106,16 +109,28 @@ export default function CampaignBuilder({
   // is created — a list where a third of the rows are unreadable should say
   // so here, not in a delivery report tomorrow. An uploaded sheet wins over
   // the textarea, and pasting clears the sheet, so only one is ever live.
-  const manual: ParsedAudience | null = useMemo(() => {
+  const manual: (ParsedAudience & { people?: SheetPerson[] }) | null = useMemo(() => {
     if (mode !== "numbers") return null;
     return sheet
-      ? columnToAudience(sheet.rows, column, countryCode)
+      ? sheetToPeople(sheet.rows, column, nameColumn, countryCode)
       : parseNumberList(pasted, countryCode);
-  }, [mode, sheet, column, pasted, countryCode]);
+  }, [mode, sheet, column, nameColumn, pasted, countryCode]);
 
   const audience: Audience =
     mode === "numbers"
-      ? { kind: "numbers", waIds: manual?.waIds ?? [] }
+      ? {
+          kind: "numbers",
+          waIds: manual?.waIds ?? [],
+          ...(manual?.people?.some((person) => person.name)
+            ? {
+                names: Object.fromEntries(
+                  manual.people
+                    .filter((person) => person.name)
+                    .map((person) => [person.waId, person.name])
+                ),
+              }
+            : {}),
+        }
       : mode === "tag"
         ? { kind: "tag", value: tag }
         : mode === "group"
@@ -153,14 +168,23 @@ export default function CampaignBuilder({
   const readFile = async (file: File) => {
     setFileError(null);
     setSheet(null);
+    // A dropped file is an unambiguous statement about who the audience
+    // is, so the mode follows it rather than making someone say it twice.
+    setMode("numbers");
+
+    const accept = (headers: string[], rows: string[][], phone: number | null) => {
+      setSheet({ headers, rows });
+      const picked = phone ?? 0;
+      setColumn(picked);
+      setNameColumn(guessNameColumn(headers, picked));
+    };
 
     try {
       if (/\.xlsx$/i.test(file.name)) {
         const rows = await readXlsx(await file.arrayBuffer());
         if (rows.length === 0) throw new Error("That sheet is empty.");
         const [headers, ...body] = rows;
-        setSheet({ headers, rows: body });
-        setColumn(guessPhoneColumn(headers, body) ?? 0);
+        accept(headers, body, guessPhoneColumn(headers, body));
         return;
       }
       if (/\.xls$/i.test(file.name)) {
@@ -169,8 +193,7 @@ export default function CampaignBuilder({
 
       const parsed = parseCsv(await file.text());
       if (parsed.rows.length === 0) throw new Error("That file has no rows under its header.");
-      setSheet({ headers: parsed.headers, rows: parsed.rows });
-      setColumn(parsed.phoneColumn ?? 0);
+      accept(parsed.headers, parsed.rows, parsed.phoneColumn);
     } catch (problem) {
       setFileError(problem instanceof Error ? problem.message : "That file could not be read.");
     }
@@ -369,6 +392,14 @@ export default function CampaignBuilder({
                 ))}
               </div>
 
+              {/* Outside the mode, on purpose. The import used to live
+                  behind the fourth tile, so someone looking at "All
+                  contacts" saw no way to upload anything and concluded
+                  there wasn't one. A file is an unambiguous statement
+                  about the audience, so dropping one here selects the
+                  mode rather than asking for it first. */}
+              <DropZone onFile={readFile} active={mode === "numbers" && sheet !== null} />
+
               {mode === "tag" && (
                 <div className="mt-4">
                   <Field label="Tag">
@@ -427,12 +458,14 @@ export default function CampaignBuilder({
                   setPasted={(value) => {
                     setPasted(value);
                     setSheet(null);
+                    setNameColumn(null);
                   }}
-                  onFile={readFile}
                   fileError={fileError}
                   sheet={sheet}
                   column={column}
                   setColumn={setColumn}
+                  nameColumn={nameColumn}
+                  setNameColumn={setNameColumn}
                   parsed={manual}
                 />
               )}
@@ -609,6 +642,64 @@ export default function CampaignBuilder({
 }
 
 /**
+ * Where a contacts file lands.
+ *
+ * Drag-and-drop and a click open the same path, because half of people
+ * will try one and half the other, and a zone that only accepts a drop
+ * looks broken to everyone who clicks it.
+ */
+function DropZone({ onFile, active }: { onFile: (file: File) => void; active: boolean }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+
+  return (
+    <div
+      onDragOver={(event) => {
+        event.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setOver(false);
+        const file = event.dataTransfer.files?.[0];
+        if (file) onFile(file);
+      }}
+      className={`mt-2.5 rounded-xl border border-dashed transition-colors ${
+        over
+          ? "border-accent/60 bg-accent/10"
+          : active
+            ? "border-accent/30 bg-accent/5"
+            : "border-white/12 bg-white/2 hover:border-white/25"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        className="w-full flex items-center justify-center gap-2.5 px-4 py-3 text-xs text-white/55 hover:text-white/80 transition-colors"
+      >
+        <Upload className="w-4 h-4 shrink-0" />
+        <span>
+          {active ? "Replace the file" : "Drop a contacts CSV or Excel file here"}
+          <span className="text-white/30"> · or click to choose</span>
+        </span>
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept=".csv,.tsv,.txt,.xlsx"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) onFile(file);
+          event.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+/**
  * Pasting a list and importing a sheet are the same job, so they share one
  * panel rather than hiding behind another set of tabs.
  */
@@ -617,25 +708,26 @@ function NumberPicker({
   setCountryCode,
   pasted,
   setPasted,
-  onFile,
   fileError,
   sheet,
   column,
   setColumn,
+  nameColumn,
+  setNameColumn,
   parsed,
 }: {
   countryCode: string;
   setCountryCode: (value: string) => void;
   pasted: string;
   setPasted: (value: string) => void;
-  onFile: (file: File) => void;
   fileError: string | null;
   sheet: { headers: string[]; rows: string[][] } | null;
   column: number;
   setColumn: (value: number) => void;
-  parsed: ParsedAudience | null;
+  nameColumn: number | null;
+  setNameColumn: (value: number | null) => void;
+  parsed: (ParsedAudience & { people?: SheetPerson[] }) | null;
 }) {
-  const fileInput = useRef<HTMLInputElement>(null);
 
   return (
     <div className="mt-4 space-y-4">
@@ -665,28 +757,47 @@ function NumberPicker({
         </Field>
       </div>
 
-      <div>
-        <input
-          ref={fileInput}
-          type="file"
-          accept=".csv,.tsv,.txt,.xlsx"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) onFile(file);
-            event.target.value = "";
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => fileInput.current?.click()}
-          className="btn-secondary text-sm"
+      {fileError && <p className="text-xs text-[#F87171]">{fileError}</p>}
+
+      {sheet && (
+        <Field
+          label="Which column holds the names?"
+          hint="Optional. New numbers are saved as contacts under this name, so replies arrive from a person rather than a number."
         >
-          <Upload className="w-4 h-4" />
-          Import CSV or Excel
-        </button>
-        {fileError && <p className="text-xs text-[#F87171] mt-2">{fileError}</p>}
-      </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setNameColumn(null)}
+              className={`px-3 py-2 rounded-xl border text-xs transition-colors ${
+                nameColumn === null
+                  ? "border-accent/50 bg-accent/8"
+                  : "border-white/10 bg-white/3 hover:border-white/20"
+              }`}
+            >
+              No names
+            </button>
+            {sheet.headers.map((header, index) =>
+              // The phone column is not on offer: naming everyone after
+              // their own number is never what anyone meant.
+              index === column ? null : (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setNameColumn(index)}
+                  className={`px-3 py-2 rounded-xl text-left border text-xs transition-colors ${
+                    nameColumn === index
+                      ? "border-accent/50 bg-accent/8"
+                      : "border-white/10 bg-white/3 hover:border-white/20"
+                  }`}
+                >
+                  <span className="block font-medium">{header || `Column ${index + 1}`}</span>
+                  <span className="block text-white/35 mt-0.5">{sheet.rows[0]?.[index] || "—"}</span>
+                </button>
+              )
+            )}
+          </div>
+        </Field>
+      )}
 
       {sheet && (
         <Field label="Which column holds the numbers?">
@@ -731,6 +842,26 @@ function NumberPicker({
                 .join(", ")}
               {parsed.rejected.length > 3 && ` and ${parsed.rejected.length - 3} more`}
             </p>
+          )}
+
+          {/* Three real rows out of the file. A count can be right about
+              the wrong column; seeing the first names and numbers side by
+              side is what actually catches an order-id column before it
+              becomes ten thousand messages. */}
+          {parsed.people && parsed.people.length > 0 && (
+            <div className="pt-1.5 mt-1.5 border-t border-white/8 space-y-1">
+              {parsed.people.slice(0, 3).map((person) => (
+                <p key={person.waId} className="flex items-center gap-2 text-white/50">
+                  <span className="font-mono tabular-nums">+{person.waId}</span>
+                  {person.name && <span className="text-white/70">{person.name}</span>}
+                </p>
+              ))}
+              {parsed.people.length > 3 && (
+                <p className="text-white/30">
+                  and {(parsed.people.length - 3).toLocaleString()} more
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -16,6 +16,7 @@ import {
   MetaApiError,
 } from "@/lib/meta-whatsapp";
 import { metaErrorDetail } from "@/lib/meta-errors";
+import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 import { diagnoseTemplateAccess } from "@/lib/template-diagnosis";
 import {
   buildComponents,
@@ -498,7 +499,16 @@ export type Audience =
   | { kind: "all" }
   | { kind: "tag"; value: string }
   | { kind: "group"; value: string }
-  | { kind: "numbers"; waIds: string[] };
+  | {
+      kind: "numbers";
+      waIds: string[];
+      /**
+       * Names from an uploaded sheet, by wa_id. Saved as contacts before
+       * the campaign is queued so the replies land on a person instead of
+       * a bare number nobody in the inbox recognises.
+       */
+       names?: Record<string, string>;
+    };
 
 /**
  * Creates a campaign and queues its recipients.
@@ -531,17 +541,27 @@ export async function createCampaign(input: {
     .maybeSingle();
 
   if (!template) return { ok: false, error: "That template is not in this workspace." };
-  if (template.status !== "approved") {
-    return {
-      ok: false,
-      error: "Only an approved template can be sent. This one is " + template.status + ".",
-    };
+
+  // A template still with Meta may be campaigned against: the dispatcher
+  // holds its recipients until approval lands and then sends them. Only a
+  // template that will never become sendable is refused here — otherwise
+  // the builder offers a choice this rejects a click later.
+  if (templateReadiness(template.status) === "blocked") {
+    return { ok: false, error: describeReadiness(template.status)! };
   }
 
   const needed = variablesIn(template.body_text ?? "").length;
   const filled = input.variables.filter((value) => value.trim()).length;
   if (filled < needed) {
     return { ok: false, error: `This template needs ${needed} variable value(s).` };
+  }
+
+  // An uploaded contacts sheet becomes contacts first, so resolveAudience
+  // finds them a moment later and every recipient carries a contact id.
+  // Doing it the other way round queues the numbers as strangers and
+  // leaves the names in a file nobody imports twice.
+  if (input.audience.kind === "numbers" && input.audience.names) {
+    await saveSheetContacts(supabase, orgId, input.audience.waIds, input.audience.names);
   }
 
   // Resolve the audience to concrete numbers before creating anything, so a
@@ -696,6 +716,57 @@ export async function previewAudience(
   const result = await resolveAudience(supabase, orgId, audience);
   if ("error" in result) return { ok: false, error: result.error };
   return { ok: true, count: result.rows.length };
+}
+
+/**
+ * Saves the people from an uploaded sheet as contacts.
+ *
+ * Only the ones not already here. A spreadsheet is the least reliable
+ * source of a name in the product — exported months ago, edited by three
+ * people — so it must not rename anyone, and it must not overwrite how a
+ * contact was acquired either. Numbers with no name in the sheet are still
+ * created, because it is the contact row, not the name, that makes a reply
+ * answerable in the inbox.
+ */
+async function saveSheetContacts(
+  supabase: Client,
+  orgId: string,
+  waIds: string[],
+  names: Record<string, string>
+): Promise<void> {
+  if (waIds.length === 0) return;
+
+  const wanted = waIds.slice(0, 5000);
+  const known = new Set<string>();
+
+  // Chunked because `in` builds a URL, and a few thousand numbers in one
+  // is long enough for a proxy to refuse it.
+  for (let start = 0; start < wanted.length; start += 500) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("wa_id")
+      .eq("org_id", orgId)
+      .in("wa_id", wanted.slice(start, start + 500));
+    for (const contact of data ?? []) known.add(contact.wa_id);
+  }
+
+  const rows = wanted
+    .filter((waId) => !known.has(waId))
+    .map((waId) => ({
+      org_id: orgId,
+      wa_id: waId,
+      name: names[waId]?.trim() || null,
+      source: "campaign-import",
+    }));
+
+  for (let start = 0; start < rows.length; start += 500) {
+    // Still an upsert rather than an insert: two people importing the same
+    // sheet at once would otherwise collide on the unique index and fail
+    // the whole slice over a row that is already correct.
+    await supabase
+      .from("contacts")
+      .upsert(rows.slice(start, start + 500), { onConflict: "org_id,wa_id", ignoreDuplicates: true });
+  }
 }
 
 export async function setCampaignStatus(
