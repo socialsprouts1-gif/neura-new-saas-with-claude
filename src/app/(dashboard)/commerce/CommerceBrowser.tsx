@@ -22,6 +22,7 @@ import { importProducts } from "../integration-actions";
 import {
   importCatalog,
   linkCatalog,
+  linkCatalogById,
   savePaymentSettings,
   saveStorefront,
 } from "../commerce-actions";
@@ -312,6 +313,12 @@ function ProductsTab({
               <Field label="Price (₹)" name="price" type="number" required placeholder="1299" />
               <Field label="Stock" name="stock" type="number" placeholder="25" hint="Blank if untracked" />
               <Field label="Image URL" name="image_url" type="url" placeholder="https://…/kurta.jpg" />
+              <Field
+                label="Meta content ID"
+                name="retailer_id"
+                placeholder="189e4bdn2o"
+                hint="From Commerce Manager, under the product name. Without it this product can be listed here but not sent to a customer."
+              />
             </div>
           </ActionForm>
         )}
@@ -409,29 +416,77 @@ function CatalogueTab({
             )}
           </div>
         ) : canManage ? (
-          <ActionForm action={linkCatalog} submitLabel="Find and link my catalogue">
-            <div className="space-y-4">
-              {connections.length > 1 && (
-                <SelectField
-                  label="Number"
-                  name="connection_id"
-                  defaultValue={catalogue.connectionId ?? connections[0].id}
-                  options={connections.map((connection) => ({
-                    value: connection.id,
-                    label: connection.label,
-                  }))}
-                />
-              )}
-              {connections.length === 1 && (
-                <input type="hidden" name="connection_id" value={connections[0].id} />
-              )}
-              <p className="text-xs text-white/45 leading-relaxed">
-                Looks up the catalogues attached to this number&rsquo;s WhatsApp Business Account.
-                If it finds none, create one in Meta Commerce Manager and connect it under WhatsApp
-                Manager → Catalogue first.
-              </p>
+          <div className="space-y-5">
+            <ActionForm action={linkCatalog} submitLabel="Find and link my catalogue">
+              <div className="space-y-4">
+                {connections.length > 1 && (
+                  <SelectField
+                    label="Number"
+                    name="connection_id"
+                    defaultValue={catalogue.connectionId ?? connections[0].id}
+                    options={connections.map((connection) => ({
+                      value: connection.id,
+                      label: connection.label,
+                    }))}
+                  />
+                )}
+                {connections.length === 1 && (
+                  <input type="hidden" name="connection_id" value={connections[0].id} />
+                )}
+                <p className="text-xs text-white/45 leading-relaxed">
+                  Looks up the catalogues attached to this number&rsquo;s WhatsApp Business
+                  Account. Needs the catalog_management permission, which Meta grants separately
+                  from the two WhatsApp ones — if that has not been approved yet, use the box
+                  below instead.
+                </p>
+              </div>
+            </ActionForm>
+
+            {/* The way through while App Review is pending. Sending a
+                product message never needed catalog_management — the ids
+                are message parameters, and WhatsApp checks them against
+                the catalogue already connected in WhatsApp Manager. Only
+                the lookup above needed it, and that is a convenience. */}
+            <div className="border-t border-white/8 pt-5">
+              <ActionForm action={linkCatalogById} submitLabel="Link it by ID">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-sm">Or paste the catalogue ID</h4>
+                  <p className="text-xs text-white/45 leading-relaxed">
+                    Open the catalogue in Meta Commerce Manager and read the number out of the
+                    address bar, after <code className="text-white/60">/catalogs/</code>. Linking
+                    this way works today and sends exactly the same product messages — only the
+                    automatic lookup above is blocked.
+                  </p>
+                  {connections.length > 1 && (
+                    <SelectField
+                      label="Number"
+                      name="connection_id"
+                      defaultValue={catalogue.connectionId ?? connections[0].id}
+                      options={connections.map((connection) => ({
+                        value: connection.id,
+                        label: connection.label,
+                      }))}
+                    />
+                  )}
+                  {connections.length === 1 && (
+                    <input type="hidden" name="connection_id" value={connections[0].id} />
+                  )}
+                  <Field
+                    label="Catalogue ID"
+                    name="catalog_id"
+                    required
+                    placeholder="5701095320114543"
+                  />
+                  <Field
+                    label="Name it"
+                    name="catalog_name"
+                    placeholder="Catalogue_Products"
+                    hint="Only so you recognise it here."
+                  />
+                </div>
+              </ActionForm>
             </div>
-          </ActionForm>
+          </div>
         ) : (
           <p className="text-sm text-white/50">Only owners and admins can link a catalogue.</p>
         )}

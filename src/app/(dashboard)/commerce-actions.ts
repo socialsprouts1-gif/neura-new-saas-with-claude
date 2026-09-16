@@ -172,6 +172,85 @@ export async function linkCatalog(formData: FormData): Promise<ActionResult> {
   }
 }
 
+/**
+ * Links a catalogue by its id, typed in by hand.
+ *
+ * The automatic path asks Meta which catalogues are on the account, and
+ * that read needs catalog_management — a permission granted separately in
+ * App Review and, for most new apps, months away. Sending a product
+ * message needs none of it: the catalogue id and each item's content id
+ * are parameters in the message body, checked by WhatsApp at send time
+ * against the catalogue the business already connected in WhatsApp
+ * Manager.
+ *
+ * So the whole feature was gated behind a permission it does not need, on
+ * a lookup that exists purely for convenience. Both ids are printed in
+ * Commerce Manager. Typing one is a worse experience than discovery and an
+ * enormously better one than waiting for Meta.
+ */
+export async function linkCatalogById(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireManager();
+  if (!ctx) return { ok: false, error: DENIED };
+
+  const supabase = await createClient();
+  const connection = await pickConnection(
+    supabase,
+    ctx.orgId,
+    String(formData.get("connection_id") ?? "") || null
+  );
+  if (!connection) {
+    return { ok: false, error: "Connect a WhatsApp number under Integrations first." };
+  }
+
+  const catalogId = String(formData.get("catalog_id") ?? "").trim();
+  const catalogName = String(formData.get("catalog_name") ?? "").trim();
+
+  // Meta's catalogue ids are numeric. Checking is worth it because the
+  // mistake this catches — pasting the whole Commerce Manager URL, or the
+  // business id sitting next to it — otherwise surfaces much later as a
+  // product message refused with an error that names no field.
+  if (!/^\d{5,}$/.test(catalogId)) {
+    return {
+      ok: false,
+      error:
+        "That does not look like a catalogue id. It is the long number in the Commerce Manager address bar, after /catalogs/ — digits only, no URL.",
+    };
+  }
+
+  // Best effort, and never fatal: the storefront flags are a nicety and
+  // reading them needs a grant this path exists to do without.
+  let commerce: { isCatalogVisible: boolean | null; isCartEnabled: boolean | null } = {
+    isCatalogVisible: null,
+    isCartEnabled: null,
+  };
+  try {
+    commerce = await getCommerceSettings(connection.phoneNumberId, connection.accessToken);
+  } catch {
+    // Left null. The link is the point.
+  }
+
+  const { error } = await supabase
+    .from("waba_connections")
+    .update({
+      catalog_id: catalogId,
+      catalog_name: catalogName || "Catalogue",
+      is_catalog_visible: commerce.isCatalogVisible,
+      is_cart_enabled: commerce.isCartEnabled,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", connection.id)
+    .eq("org_id", ctx.orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/commerce");
+  return {
+    ok: true,
+    message:
+      "Catalogue linked. Add each product's content ID under Products to make it sendable — Meta prints it under the product name in Commerce Manager.",
+  };
+}
+
 /** Turns the storefront icon and the in-chat cart on or off. */
 export async function saveStorefront(formData: FormData): Promise<ActionResult> {
   const ctx = await requireManager();

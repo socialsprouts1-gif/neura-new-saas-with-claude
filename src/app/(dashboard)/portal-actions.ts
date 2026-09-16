@@ -971,6 +971,10 @@ export async function saveProduct(formData: FormData): Promise<ActionResult> {
   const priceRupees = Number(formData.get("price") ?? 0);
   const stockRaw = formData.get("stock");
   const imageUrl = String(formData.get("image_url") ?? "").trim() || null;
+  // Meta's id for the same item, called "Content ID" in Commerce Manager.
+  // A product without one can be listed and priced here but never sent: a
+  // WhatsApp product message addresses an item by this, not by name.
+  const retailerId = String(formData.get("retailer_id") ?? "").trim() || null;
 
   if (!name) return { ok: false, error: "Product name is required." };
   if (!Number.isFinite(priceRupees) || priceRupees < 0) {
@@ -985,6 +989,7 @@ export async function saveProduct(formData: FormData): Promise<ActionResult> {
     price_cents: Math.round(priceRupees * 100),
     stock: stockRaw ? Number(stockRaw) : null,
     image_url: imageUrl,
+    retailer_id: retailerId,
   });
 
   if (error) {
