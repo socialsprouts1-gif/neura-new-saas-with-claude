@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EmailBody, EmailBrand } from "@/lib/email-templates";
+import type { EmailTransport } from "@/lib/deliverability";
 
 // Sending mail, and remembering that we did.
 //
@@ -92,6 +93,25 @@ export function emailTransportName(): string | null {
 }
 
 /**
+ * What this deployment sends as, for a screen that has to judge whether it
+ * can land. No secrets: the from address and the host are both public the
+ * moment a message goes out.
+ */
+export function emailIdentity(): {
+  transport: EmailTransport;
+  from: string;
+  smtpHost: string | null;
+} | null {
+  const settings = config();
+  if (!settings) return null;
+  return {
+    transport: settings.kind,
+    from: settings.from,
+    smtpHost: settings.kind === "smtp" ? settings.host : null,
+  };
+}
+
+/**
  * Sends one message, at most once per dedupe key.
  *
  * Never throws. Every caller is either a webhook or a cron sweep, where an
@@ -122,6 +142,10 @@ export async function sendEmail(input: {
     kind: input.kind,
     dedupe_key: input.dedupeKey,
     status: "sending",
+    // Kept because a message that is accepted and never arrives is decided
+    // by these two and nothing else on the row.
+    transport: settings.kind,
+    from_email: settings.from,
   });
 
   if (claimError) {

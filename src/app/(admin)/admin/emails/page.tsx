@@ -2,7 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, StatCard, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { explainEmailFailure, NEVER_ATTEMPTED } from "@/lib/email-errors";
-import { isEmailConfigured } from "@/lib/email";
+import { checkFrom, ACCEPTED_NOT_DELIVERED } from "@/lib/deliverability";
+import { isEmailConfigured, emailIdentity } from "@/lib/email";
 
 /**
  * Every message this deployment tried to send, and what came back.
@@ -51,6 +52,14 @@ export default async function AdminEmailsPage() {
 
   const configured = isEmailConfigured();
 
+  // Whether what this deployment sends as can actually land. A provider
+  // accepting a message and an inbox receiving one are different events,
+  // and everything between them is decided by the from address.
+  const identity = emailIdentity();
+  const posture = identity
+    ? checkFrom(identity.from, identity.transport, identity.smtpHost)
+    : null;
+
   return (
     <div className="p-6 md:p-8">
       <PageHeader
@@ -70,6 +79,38 @@ export default async function AdminEmailsPage() {
         </Card>
       )}
 
+      {posture && posture.level !== "ok" && (
+        <Card
+          className={`mb-6 ${posture.level === "broken" ? "border-[#F87171]/25" : "border-[#FACC15]/25"}`}
+        >
+          <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+            <h2 className="font-semibold">
+              {posture.level === "broken"
+                ? "Accepted here, refused on arrival"
+                : "Accepted, but easily filtered"}
+            </h2>
+            <Badge tone={posture.level === "broken" ? "red" : "amber"}>
+              {identity?.from}
+            </Badge>
+          </div>
+          <p className="text-sm text-white/75 leading-relaxed mb-2">{posture.summary}</p>
+          <p className="text-sm text-white/50 leading-relaxed">{posture.fix}</p>
+        </Card>
+      )}
+
+      {sent > 0 && (
+        <Card className="mb-6">
+          <h2 className="font-semibold mb-1">What &ldquo;sent&rdquo; means here</h2>
+          <p className="text-sm text-white/50 leading-relaxed">
+            {ACCEPTED_NOT_DELIVERED} Before treating one as lost, look in{" "}
+            <span className="text-white/70">Spam</span>,{" "}
+            <span className="text-white/70">Promotions</span> and{" "}
+            <span className="text-white/70">All Mail</span> — Gmail&apos;s Primary tab is not the
+            whole inbox.
+          </p>
+        </Card>
+      )}
+
       {leading && (
         <Card className="mb-6 border-[#F87171]/25">
           <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
@@ -83,7 +124,7 @@ export default async function AdminEmailsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Attempted" value={all.length} />
-        <StatCard label="Delivered to provider" value={sent} />
+        <StatCard label="Accepted by provider" value={sent} hint="Not proof of delivery" />
         <StatCard label="Failed" value={failed.length} />
         <StatCard label="Never finished" value={stuck} hint="Claimed but never recorded" />
       </div>
@@ -94,7 +135,7 @@ export default async function AdminEmailsPage() {
           description={`${error.message}. If this mentions a missing relation, run supabase/updates/2026-09.sql — the email_log table comes from it.`}
         />
       ) : all.length > 0 ? (
-        <Table head={["When", "To", "What", "Workspace", "Status", "What came back"]}>
+        <Table head={["When", "To", "What", "Workspace", "Status", "Sent as", "What came back"]}>
           {all.map((row) => {
             const explained = explainEmailFailure(row.error);
             return (
@@ -123,6 +164,18 @@ export default async function AdminEmailsPage() {
                     {row.status}
                   </Badge>
                 </Td>
+                <Td className="text-xs">
+                  {row.from_email ? (
+                    <>
+                      <div className="text-white/55 break-all">{row.from_email}</div>
+                      {row.transport && (
+                        <div className="text-[10px] text-white/30">over {row.transport}</div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-white/25">not recorded</span>
+                  )}
+                </Td>
                 <Td className="text-xs max-w-md">
                   {row.error ? (
                     <>
@@ -139,7 +192,9 @@ export default async function AdminEmailsPage() {
                       </div>
                     </>
                   ) : row.status === "sent" ? (
-                    <span className="text-white/30">accepted</span>
+                    <span className="text-white/30">
+                      accepted by {row.transport ?? "the provider"}
+                    </span>
                   ) : (
                     <span className="text-white/30">—</span>
                   )}

@@ -145,6 +145,8 @@ export interface Database {
           error: string | null;
           sent_at: string | null;
           created_at: string;
+          transport: string | null;
+          from_email: string | null;
         };
         Insert: {
           id?: string;
@@ -156,6 +158,8 @@ export interface Database {
           error?: string | null;
           sent_at?: string | null;
           created_at?: string;
+          transport?: string | null;
+          from_email?: string | null;
         };
         Update: {
           status?: string;

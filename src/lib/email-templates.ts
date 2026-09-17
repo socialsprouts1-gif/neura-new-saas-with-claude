@@ -87,7 +87,7 @@ export function inDays(days: number): string {
 // --- the messages ---------------------------------------------------------
 
 export function welcomeEmail(brand: EmailBrand, input: { trialDays: number }): EmailBody {
-  const action = { label: "Open the dashboard", href: `${brand.appUrl}/dashboard` };
+  const action = { label: "Open the dashboard", href: `${brand.appUrl}/overview` };
   const lines = [
     "Your workspace is ready.",
     `You have ${input.trialDays} days free — every feature, no card needed. Connect a WhatsApp number to start.`,

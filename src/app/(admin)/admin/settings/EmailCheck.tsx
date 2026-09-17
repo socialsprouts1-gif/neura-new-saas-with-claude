@@ -2,7 +2,8 @@ import { sendTestEmail } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import Link from "next/link";
 import { Card, Badge } from "@/components/ui/primitives";
-import { emailTransportName, isEmailConfigured } from "@/lib/email";
+import { emailTransportName, isEmailConfigured, emailIdentity } from "@/lib/email";
+import { checkFrom } from "@/lib/deliverability";
 
 /**
  * Proof that email works, without registering an account to find out.
@@ -16,6 +17,10 @@ import { emailTransportName, isEmailConfigured } from "@/lib/email";
 export default function EmailCheck() {
   const configured = isEmailConfigured();
   const transport = emailTransportName();
+  const identity = emailIdentity();
+  const posture = identity
+    ? checkFrom(identity.from, identity.transport, identity.smtpHost)
+    : null;
 
   return (
     <Card className="mb-6">
@@ -35,20 +40,29 @@ export default function EmailCheck() {
             receipts all use the same transport.
           </p>
 
-          {/* The trap this screen used to walk people into. A Resend account
-              with no verified domain delivers only to the address the
-              account was opened with, so testing against your own inbox is
-              testing the one address that cannot fail — and every real
-              customer is refused. */}
-          {transport === "resend" && (
-            <p className="text-[11px] text-[#FACC15] mb-4 leading-relaxed">
-              On Resend, a test to your own inbox proves less than it looks. Until a domain is
-              verified at resend.com/domains, Resend delivers only to the address the account
-              was opened with and refuses every customer address — a test arrives, a real signup
-              does not. <Link href="/admin/emails" className="underline">The email log</Link>{" "}
-              shows which of the two is happening.
+          {/* Judged from the address actually configured rather than from
+              the transport alone. The failure this catches is a message
+              accepted by the provider and refused on arrival, which is
+              invisible from the sending end and reads as mail simply not
+              working. */}
+          {posture && posture.level !== "ok" && (
+            <div
+              className={`text-[11px] mb-4 leading-relaxed ${
+                posture.level === "broken" ? "text-[#F87171]" : "text-[#FACC15]"
+              }`}
+            >
+              <span className="font-medium">{posture.summary}</span>{" "}
+              <span className="text-white/45">{posture.fix}</span>
+            </div>
+          )}
+
+          {posture?.level === "ok" && (
+            <p className="text-[11px] text-white/35 mb-4 leading-relaxed">
+              Sending as <span className="text-white/60">{identity?.from}</span> over {transport}.{" "}
+              {posture.fix}
             </p>
           )}
+
           <ActionForm action={sendTestEmail} submitLabel="Send a test">
             <Field
               label="Send to"
