@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, StatCard, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { explainEmailFailure, NEVER_ATTEMPTED } from "@/lib/email-errors";
-import { emailTransportName, isEmailConfigured } from "@/lib/email";
+import { isEmailConfigured } from "@/lib/email";
 
 /**
  * Every message this deployment tried to send, and what came back.
