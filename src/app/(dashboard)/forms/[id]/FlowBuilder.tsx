@@ -789,7 +789,10 @@ function SendDialog({ id, onClose }: { id: string; onClose: () => void }) {
           is exactly what you want for a test.
         </p>
 
-        <Field label="WhatsApp number" hint="Country code included, no + or spaces.">
+        <Field
+          label="WhatsApp number"
+          hint="Country code first, no + and no spaces — an Indian number is 91 then the ten digits, like 919876543210."
+        >
           <input
             value={waId}
             onChange={(event) => setWaId(event.target.value)}

@@ -195,9 +195,15 @@ export interface ResolveOptions {
  * Picks the number to act on, in a fixed order of precedence:
  *
  *   1. an explicit connection id
- *   2. the number the conversation happened on
- *   3. the workspace default
- *   4. the oldest active number
+ *   2. the number Meta's webhook named
+ *   3. the number the conversation happened on
+ *   4. the workspace default
+ *   5. the oldest active number
+ *
+ * Anything owned by one WhatsApp Business Account — a flow, a template, a
+ * catalogue — picks its connection with lib/flow-routing first and passes
+ * the result here as a connection id, because for those the account is a
+ * requirement and not a preference.
  *
  * Returning a reason rather than null: "no active WhatsApp number" and
  * "the number you picked is disabled" need different fixes, and a caller

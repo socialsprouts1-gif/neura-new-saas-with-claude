@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
-import { resolveConnection } from "@/lib/connections";
+import { resolveConnection, listActiveConnections } from "@/lib/connections";
+import { routeFlow, accountsToSync } from "@/lib/flow-routing";
+import { describe as describeNumber } from "@/lib/number-identity";
 import {
   createFlow,
   updateFlowJson,
@@ -38,18 +40,79 @@ import type { FlowStatus } from "@/types/portal";
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
+interface FlowCredentials {
+  wabaId: string;
+  phoneNumberId: string;
+  token: string;
+  /** For messages that name the number a form is tied to. */
+  describe: string;
+}
+
 async function wabaCredentials(
   supabase: Client,
   orgId: string,
-  connectionId?: string | null
-): Promise<{ wabaId: string; phoneNumberId: string; token: string } | { error: string }> {
-  const connection = await resolveConnection(supabase, orgId, { connectionId });
+  options: { connectionId?: string | null } = {}
+): Promise<FlowCredentials | { error: string }> {
+  const connection = await resolveConnection(supabase, orgId, options);
   if ("error" in connection) return { error: connection.error };
   return {
     wabaId: connection.wabaId,
     phoneNumberId: connection.phoneNumberId,
     token: connection.accessToken,
+    describe: describeNumber(connection),
   };
+}
+
+/**
+ * The number to act on for one form.
+ *
+ * A flow is owned by a single WhatsApp Business Account, and a workspace
+ * with two numbers usually has two accounts. Every one of these actions
+ * used to take the workspace default instead, so as soon as the default
+ * was not the account the form was built on:
+ *
+ *   - Update Flow uploaded to `<flow>/assets` with a token that cannot see
+ *     that flow, and Meta answered 100/33;
+ *   - Test send sent from a number that does not own the flow, and Meta
+ *     answered 131009.
+ *
+ * Both errors name the parameter and not the account, which is why this
+ * read as "the form is broken" rather than "the wrong number is being
+ * used". The account is recorded on the row, so it is used.
+ *
+ * A row from before that column was filled in has no account recorded. It
+ * falls back to the default — which is what it was doing anyway — and the
+ * caller stamps what it learns, so the row repairs itself on first use.
+ */
+async function flowCredentials(
+  supabase: Client,
+  orgId: string,
+  wabaId: string | null | undefined
+): Promise<FlowCredentials | { error: string }> {
+  const connections = await listActiveConnections(supabase, orgId);
+  const route = routeFlow(connections, wabaId);
+
+  if (!route.ok) {
+    return {
+      error:
+        route.reason === "none-connected"
+          ? "No active WhatsApp number in this workspace. Connect one under WhatsApp Numbers."
+          : "This form was built on a WhatsApp Business Account that none of your active numbers are on. Connect that number under WhatsApp Numbers, or rebuild the form on an account you have.",
+    };
+  }
+
+  return wabaCredentials(supabase, orgId, { connectionId: route.connectionId });
+}
+
+/** Records the account a form turned out to be on, once it is known. */
+async function stampWaba(
+  supabase: Client,
+  id: string,
+  known: string | null | undefined,
+  actual: string
+): Promise<void> {
+  if (known === actual) return;
+  await supabase.from("whatsapp_flows").update({ waba_id: actual }).eq("id", id);
 }
 
 function metaReason(error: unknown, fallback: string): string {
@@ -194,19 +257,21 @@ export async function saveForm(input: {
     return { ok: false, error: check.errors.slice(0, 3).join(" ") };
   }
 
-  const credentials = await wabaCredentials(supabase, orgId);
-  if ("error" in credentials) {
-    return { ok: true, message: `Saved. ${credentials.error}` };
-  }
-
+  // The row comes first now: which number uploads this is decided by the
+  // account the form is already on, not by whichever number is default.
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, status")
+    .select("meta_flow_id, status, waba_id")
     .eq("id", input.id)
     .eq("org_id", orgId)
     .maybeSingle();
 
   if (!flow) return { ok: false, error: "That form is not in this workspace." };
+
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
+  if ("error" in credentials) {
+    return { ok: true, message: `Saved. ${credentials.error}` };
+  }
 
   // A published flow is frozen at Meta. Editing one means it goes back to
   // being a draft there, which needs an explicit republish.
@@ -241,6 +306,9 @@ export async function saveForm(input: {
         name: input.name.trim() || "Untitled form",
         categories: input.categories,
       });
+      // A form that reached Meta before the account was recorded learns it
+      // here, so the next send routes itself without this guesswork.
+      await stampWaba(supabase, input.id, flow.waba_id, credentials.wabaId);
     }
 
     const result = await updateFlowJson(metaFlowId, credentials.token, document);
@@ -278,7 +346,7 @@ export async function publishForm(id: string): Promise<ActionResult> {
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, screens, name, categories")
+    .select("meta_flow_id, screens, name, categories, waba_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -292,7 +360,7 @@ export async function publishForm(id: string): Promise<ActionResult> {
   const check = validateFlow(screens);
   if (!check.ok) return { ok: false, error: check.errors.slice(0, 3).join(" ") };
 
-  const credentials = await wabaCredentials(supabase, orgId);
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
   try {
@@ -331,7 +399,7 @@ export async function syncForm(id: string): Promise<ActionResult & { previewUrl?
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id")
+    .select("meta_flow_id, waba_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -340,7 +408,7 @@ export async function syncForm(id: string): Promise<ActionResult & { previewUrl?
     return { ok: false, error: "This form hasn't reached WhatsApp yet." };
   }
 
-  const credentials = await wabaCredentials(supabase, orgId);
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
   try {
@@ -364,19 +432,21 @@ export async function syncForm(id: string): Promise<ActionResult & { previewUrl?
   }
 }
 
-/** Imports forms built directly in WhatsApp Manager. */
+/**
+ * Imports forms built directly in WhatsApp Manager.
+ *
+ * Across every connected account, not just the default one. Flows are
+ * listed per WhatsApp Business Account, so a workspace with two numbers on
+ * two accounts only ever saw half its forms — and the half it could not see
+ * looked like forms that had failed to sync.
+ */
 export async function syncAllForms(): Promise<ActionResult & { synced?: number }> {
   const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
-  const credentials = await wabaCredentials(supabase, orgId);
-  if ("error" in credentials) return { ok: false, error: credentials.error };
-
-  let remote;
-  try {
-    remote = await listFlows(credentials.wabaId, credentials.token);
-  } catch (error) {
-    return { ok: false, error: metaReason(error, "Could not list forms.") };
+  const connections = await listActiveConnections(supabase, orgId);
+  if (connections.length === 0) {
+    return { ok: false, error: "No active WhatsApp number in this workspace. Connect one under WhatsApp Numbers." };
   }
 
   const { data: known } = await supabase
@@ -387,40 +457,63 @@ export async function syncAllForms(): Promise<ActionResult & { synced?: number }
 
   const byMetaId = new Map((known ?? []).map((row) => [row.meta_flow_id, row.id]));
   const now = new Date().toISOString();
+  const failures: string[] = [];
   let synced = 0;
 
-  for (const flow of remote) {
-    const existing = byMetaId.get(flow.id);
-    const patch = {
-      name: flow.name,
-      status: normaliseStatus(flow.status),
-      categories: flow.categories ?? ["OTHER"],
-      last_synced_at: now,
-    };
+  // One account can sit on several numbers; listing it twice would import
+  // every form on it twice over.
+  for (const wabaId of accountsToSync(connections)) {
+    const credentials = await flowCredentials(supabase, orgId, wabaId);
+    if ("error" in credentials) {
+      failures.push(credentials.error);
+      continue;
+    }
 
-    // A form built in WhatsApp Manager has no screens here, so it is
-    // imported read-only rather than opened in the builder with nothing in
-    // it — an empty builder would overwrite the real thing on first save.
-    const { error } = existing
-      ? await supabase
-          .from("whatsapp_flows")
-          .update({ ...patch, waba_id: credentials.wabaId })
-          .eq("id", existing)
-      : await supabase
-          .from("whatsapp_flows")
-          .insert({
-            org_id: orgId,
-            meta_flow_id: flow.id,
-            waba_id: credentials.wabaId,
-            screens: [],
-            ...patch,
-          });
+    let remote;
+    try {
+      remote = await listFlows(wabaId, credentials.token);
+    } catch (error) {
+      // One unreachable account must not abandon the others — that would
+      // make a single expired token look like a total failure to sync.
+      failures.push(`${credentials.describe}: ${metaReason(error, "could not be listed")}`);
+      continue;
+    }
 
-    if (!error) synced += 1;
+    for (const flow of remote) {
+      const existing = byMetaId.get(flow.id);
+      const patch = {
+        name: flow.name,
+        status: normaliseStatus(flow.status),
+        categories: flow.categories ?? ["OTHER"],
+        waba_id: wabaId,
+        last_synced_at: now,
+      };
+
+      // A form built in WhatsApp Manager has no screens here, so it is
+      // imported read-only rather than opened in the builder with nothing in
+      // it — an empty builder would overwrite the real thing on first save.
+      const { error } = existing
+        ? await supabase.from("whatsapp_flows").update(patch).eq("id", existing)
+        : await supabase
+            .from("whatsapp_flows")
+            .insert({ org_id: orgId, meta_flow_id: flow.id, screens: [], ...patch });
+
+      if (!error) synced += 1;
+    }
   }
 
   revalidatePath("/forms");
-  return { ok: true, synced, message: `Synced ${synced} form${synced === 1 ? "" : "s"}.` };
+
+  if (synced === 0 && failures.length > 0) {
+    return { ok: false, error: failures.join(" ") };
+  }
+
+  const counted = `Synced ${synced} form${synced === 1 ? "" : "s"}`;
+  return {
+    ok: true,
+    synced,
+    message: failures.length > 0 ? `${counted}. ${failures.join(" ")}` : `${counted}.`,
+  };
 }
 
 export async function deleteForm(formData: FormData): Promise<ActionResult> {
@@ -430,7 +523,7 @@ export async function deleteForm(formData: FormData): Promise<ActionResult> {
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, status")
+    .select("meta_flow_id, status, waba_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -438,7 +531,7 @@ export async function deleteForm(formData: FormData): Promise<ActionResult> {
   if (!flow) return { ok: false, error: "That form is not in this workspace." };
 
   if (flow.meta_flow_id) {
-    const credentials = await wabaCredentials(supabase, orgId);
+    const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
     if (!("error" in credentials)) {
       try {
         // A published flow cannot be deleted, only retired — customers may
@@ -483,7 +576,7 @@ export async function sendForm(input: {
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("id, meta_flow_id, status, screens")
+    .select("id, meta_flow_id, status, screens, waba_id")
     .eq("id", input.id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -498,8 +591,14 @@ export async function sendForm(input: {
   const waId = input.waId.replace(/\D/g, "");
   if (waId.length < 8) return { ok: false, error: "That doesn't look like a WhatsApp number." };
 
-  const credentials = await wabaCredentials(supabase, orgId);
+  // Sent from a number on the form's own account. Sending from any other
+  // number is what Meta rejects with 131009, and the message it returns
+  // names the flow_id rather than the number, which sent everyone looking
+  // at the form.
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
   if ("error" in credentials) return { ok: false, error: credentials.error };
+
+  await stampWaba(supabase, flow.id, flow.waba_id, credentials.wabaId);
 
   // The token is the only thing tying the answers back to this person, so
   // it is recorded alongside the send rather than derived later.
@@ -532,12 +631,15 @@ export async function sendForm(input: {
     });
 
     revalidatePath("/forms");
+    // Naming the sending number: which one a form goes out on is decided by
+    // the account the form lives on, not by the workspace default, and that
+    // is worth seeing rather than assuming.
     return {
       ok: true,
       message:
         flow.status === "published"
-          ? "Sent."
-          : "Sent as a draft — only numbers on your WhatsApp account can open it until you publish.",
+          ? `Sent from ${credentials.describe}.`
+          : `Sent from ${credentials.describe} as a draft — until you publish, only numbers on that WhatsApp account can open it.`,
     };
   } catch (error) {
     return { ok: false, error: metaReason(error, "The form could not be sent.") };

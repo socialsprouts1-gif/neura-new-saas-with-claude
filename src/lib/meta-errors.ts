@@ -87,8 +87,11 @@ const META_ERROR_HELP: Record<number, string> = {
   102: "The access token is no longer valid. Generate a new one in Meta and reconnect the number in Integrations.",
   190: "The stored WhatsApp access token has expired or been revoked. Generate a new token in Meta and reconnect the number in Integrations — a System User token does not expire, the one on the API Setup page lasts 24 hours.",
   200: "The access token lacks the permission this call needs. Granting it to the app is not enough on its own — a token is issued with the permissions held at the moment it was created, so reconnect the number afterwards to get a new one.",
+  // The account mismatch that used to cause most of these is now prevented
+  // before the call — a form is always sent from a number on its own
+  // account — so the remaining causes are about the flow itself.
   131009:
-    "WhatsApp refused a parameter on this message. For a form, this is almost always the flow belonging to a different WhatsApp Business Account than the number sending it — a flow lives on one account, and a workspace with two numbers has two.",
+    "WhatsApp refused a parameter on this message. For a form, check it still exists at Meta and has not been deprecated or blocked, and that its first screen still has the name this message asks to open. Re-syncing the form usually settles it.",
   130429: "Meta is rate limiting this number — too many messages in too short a window. Sends will succeed again shortly.",
   131005: "Meta denied access to this phone number. Check that the number still belongs to the connected WhatsApp Business Account.",
   131016: "WhatsApp's service is temporarily unavailable. This one is Meta's end, not yours.",
@@ -120,8 +123,14 @@ const META_ERROR_HELP: Record<number, string> = {
 // cannot see it", which need completely different fixes — the generic text
 // for 100 actively misleads on subcode 33.
 const META_SUBCODE_HELP: Record<string, string> = {
+  // Deliberately does not name a phone number. This code is returned for
+  // whatever object the request was about — a phone number, a flow, a
+  // template, a catalogue — and naming the wrong one sends people to fix a
+  // setting that was never broken. A flow uploaded with the wrong number's
+  // token lands here, and "check your System User assets" is the wrong
+  // advice for it entirely.
   "100:33":
-    "Meta cannot see that phone number ID with this access token. Either the ID is wrong, or the token's System User has not been given the WhatsApp Account as an asset. Note that assigning assets does not update an existing token — assign the WhatsApp Account in Business settings → Users → System users → Add assets, then generate a new token and paste that one.",
+    "Meta cannot see that item with this access token. Usually it belongs to a different WhatsApp Business Account than the number being used — check you are on the number it was created on. Otherwise the token's System User has not been given that account as an asset: assigning assets does not update an existing token, so add the WhatsApp Account in Business settings → Users → System users → Add assets, then generate a new token and paste that one.",
   "100:44":
     "That WhatsApp template does not exist in this account under the name and language requested.",
   "100:2388023":
