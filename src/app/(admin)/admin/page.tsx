@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, StatCard, Card, Badge, statusTone } from "@/components/ui/primitives";
 import { formatMoney, formatDate } from "@/types/admin";
 
 export default async function AdminDashboard() {
   await requirePlatformAdmin();
-  const supabase = await createClient();
+  // Service role: these are platform-wide totals, and the tenant client
+  // counts only what the signed-in admin is a member of — which made every
+  // number on this dashboard an undercount.
+  const supabase = createAdminClient();
 
   // head:true keeps these as count-only queries — the dashboard never pulls
   // whole tables just to show a number.

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
-import { ORG_ROLES, type OrgRole } from "@/types/database";
+import { isOrgRole, roleChangeBlocked } from "@/lib/member-role";
 import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,9 +14,15 @@ import { readTrialDays } from "@/lib/trial";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
 // requirePlatformAdmin() runs first in every action. It redirects rather than
-// returning, so nothing below it executes for a non-staff caller — and RLS
-// rejects the write regardless, since these tables require
-// is_platform_admin().
+// returning, so nothing below it executes for a non-staff caller.
+//
+// The platform's own tables (plans, coupons, settings, orders, tickets) have
+// RLS policies that require is_platform_admin(), so the ordinary client is
+// enough for those and the database is a second line of defence. Anything
+// reaching into a customer's workspace — organizations, org_members — uses
+// the service role instead, because those policies ask for membership of
+// that workspace, which staff do not have. requirePlatformAdmin() above is
+// the only check on those, so it is not optional in any of them.
 
 function slugify(input: string) {
   return input
@@ -173,7 +179,10 @@ export async function assignPlan(formData: FormData): Promise<ActionResult> {
     ? (String(formData.get("status")) as SubscriptionStatus)
     : "active";
 
-  const supabase = await createClient();
+  // Service role: subscriptions already allows a platform admin, but the
+  // upsert reads the plan and writes a row for a workspace this client
+  // cannot otherwise see.
+  const supabase = createAdminClient();
 
   // How long the period runs comes from the plan, not from a constant. A
   // yearly plan assigned with a hardcoded month expires eleven months early,
@@ -331,6 +340,35 @@ export async function saveSignups(formData: FormData): Promise<ActionResult> {
       require_onboarding_fee: formData.get("require_onboarding_fee") !== null,
     },
     "Signup settings saved."
+  );
+}
+
+/**
+ * What role the person who creates a workspace is given.
+ *
+ * Owner by default, and that default is not arbitrary: owner and admin are
+ * the roles allowed to connect a WhatsApp number, open billing and add
+ * integrations. A workspace whose only member is a plain member cannot be
+ * set up by the person who just signed up for it — they would have to ask
+ * support before sending a single message, part-way into a seven-day trial.
+ *
+ * It is settable anyway, because who may administer a workspace is a policy
+ * decision rather than a fact about the software. The database reads the
+ * same setting through signup_role(), so both paths that create a
+ * workspace agree.
+ */
+export async function saveSignupRole(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const role = String(formData.get("default_role") ?? "").trim();
+  if (!isOrgRole(role)) return { ok: false, error: "Pick one of owner, admin or member." };
+
+  return mergeSetting(
+    "signups",
+    { default_role: role },
+    role === "owner"
+      ? "New workspaces are created by an owner."
+      : `New workspaces are created by a ${role}. Existing ones keep the roles they have.`
   );
 }
 
@@ -541,13 +579,13 @@ export async function createUserAccount(formData: FormData): Promise<ActionResul
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const orgId = String(formData.get("org_id") ?? "").trim();
-  const role = String(formData.get("role") ?? "member") as OrgRole;
+  const role = String(formData.get("role") ?? "member");
 
   if (!email.includes("@")) return { ok: false, error: "That doesn't look like an email address." };
   if (password.length < 8) {
     return { ok: false, error: "Give them a password of at least 8 characters. They can change it later." };
   }
-  if (!ORG_ROLES.includes(role)) return { ok: false, error: "Pick a role." };
+  if (!isOrgRole(role)) return { ok: false, error: "Pick a role." };
 
   const admin = createAdminClient();
 
@@ -572,7 +610,10 @@ export async function createUserAccount(formData: FormData): Promise<ActionResul
   // The signup trigger has already made them an organization of their own.
   // When a specific one was asked for, put them in that as well.
   if (orgId) {
-    const supabase = await createClient();
+    // Service role: org_members_insert needs admin rights in that specific
+    // workspace, which staff creating an account on somebody's behalf have
+    // no reason to hold.
+    const supabase = createAdminClient();
     const { error: memberError } = await supabase
       .from("org_members")
       .upsert({ org_id: orgId, user_id: created.user.id, role }, { onConflict: "org_id,user_id" });
@@ -651,7 +692,9 @@ export async function removeMembership(formData: FormData): Promise<ActionResult
   if (!orgId || !userId) return { ok: false, error: "No membership given." };
   if (userId === me.id) return { ok: false, error: "You cannot remove your own membership." };
 
-  const supabase = await createClient();
+  // Service role: org_members_delete_admin needs membership of the target
+  // workspace, which a platform admin does not have.
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from("org_members")
     .delete()
@@ -673,25 +716,17 @@ export async function saveTrialLength(formData: FormData): Promise<ActionResult>
     return { ok: false, error: "Give a whole number of days between 1 and 365." };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("platform_settings").upsert(
-    {
-      key: "billing",
-      value: { trial_days: days },
-      description: "Length of the free trial given to a new workspace, in days",
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "key" }
+  // Merged rather than replaced. This used to write { trial_days } over the
+  // whole billing setting, so saving a trial length from this screen
+  // silently deleted every other key anybody had put in it.
+  const result = await mergeSetting(
+    "billing",
+    { trial_days: days },
+    `New workspaces now get ${days} days. Trials already running keep the length they started with.`
   );
 
-  if (error) return { ok: false, error: error.message };
-
   revalidatePath("/admin/plans");
-  revalidatePath("/admin/settings");
-  return {
-    ok: true,
-    message: `New workspaces now get ${days} days. Trials already running keep the length they started with.`,
-  };
+  return result;
 }
 
 // --- feature access -------------------------------------------------------
@@ -713,7 +748,10 @@ export async function saveOrgFeatures(formData: FormData): Promise<ActionResult>
   const orgId = String(formData.get("org_id") ?? "").trim();
   if (!orgId) return { ok: false, error: "No organization selected." };
 
-  const supabase = await createClient();
+  // Service role: organizations_update is `using (is_org_admin(id))`, so
+  // saving overrides for somebody else's workspace changed nothing and
+  // still said it had.
+  const supabase = createAdminClient();
 
   const { data: org } = await supabase
     .from("organizations")
@@ -830,7 +868,9 @@ export async function setOrgSuspended(formData: FormData): Promise<ActionResult>
   const suspend = String(formData.get("suspend") ?? "") === "true";
   const reason = String(formData.get("reason") ?? "").trim();
 
-  const supabase = await createClient();
+  // Service role, for the same reason as the features above: suspending a
+  // workspace the admin is not in was a no-op that reported success.
+  const supabase = createAdminClient();
   const { error } = await supabase
     .from("organizations")
     .update(
@@ -862,35 +902,43 @@ export async function setMemberRole(formData: FormData): Promise<ActionResult> {
   const role = String(formData.get("role") ?? "").trim();
 
   if (!orgId || !userId) return { ok: false, error: "No membership selected." };
-  if (!ORG_ROLES.includes(role as OrgRole)) return { ok: false, error: "Unknown role." };
+  if (!isOrgRole(role)) return { ok: false, error: "Unknown role." };
 
-  const supabase = await createClient();
+  // Service role. org_members_update is `using (is_org_admin(org_id))`, and
+  // a platform admin is not a member of a customer's workspace — so this
+  // update matched nothing, and an UPDATE that matches nothing is not an
+  // error. The dropdown reported success and the role never changed.
+  const supabase = createAdminClient();
 
-  if (role !== "owner") {
-    const { data: owners } = await supabase
-      .from("org_members")
-      .select("user_id")
-      .eq("org_id", orgId)
-      .eq("role", "owner");
-
-    const others = (owners ?? []).filter((owner) => owner.user_id !== userId);
-    if ((owners ?? []).some((owner) => owner.user_id === userId) && others.length === 0) {
-      return {
-        ok: false,
-        error:
-          "This is the workspace's only owner. Make somebody else an owner first, or the workspace ends up with nobody who can manage it.",
-      };
-    }
-  }
-
-  const { error } = await supabase
+  const { data: members, error: readError } = await supabase
     .from("org_members")
-    .update({ role: role as OrgRole })
+    .select("user_id, role")
+    .eq("org_id", orgId);
+
+  if (readError) return { ok: false, error: readError.message };
+
+  const blocked = roleChangeBlocked(members ?? [], userId, role);
+  if (blocked) return { ok: false, error: blocked };
+
+  // .select() so the affected rows come back. Without it there is no way to
+  // tell a change from a no-op, which is exactly how this failed silently
+  // for as long as it did.
+  const { data: changed, error } = await supabase
+    .from("org_members")
+    .update({ role })
     .eq("org_id", orgId)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .select("user_id");
 
   if (error) return { ok: false, error: error.message };
+  if (!changed || changed.length === 0) {
+    return { ok: false, error: "Nothing was changed. That membership may have just been removed." };
+  }
 
   revalidatePath("/admin/users");
+  revalidatePath("/admin/organizations");
+  // What they can reach changes with the role, so their own screens are
+  // stale until this re-renders.
+  revalidatePath("/", "layout");
   return { ok: true, message: `Role set to ${role}.` };
 }

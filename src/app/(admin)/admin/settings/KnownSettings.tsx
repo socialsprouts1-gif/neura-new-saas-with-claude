@@ -1,8 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { saveTrialDays, saveBranding, saveSignups } from "../actions";
+import { saveTrialDays, saveBranding, saveSignups, saveSignupRole } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Card } from "@/components/ui/primitives";
 import { readTrialDays } from "@/lib/trial";
+import { ORG_ROLES, readSignupRole } from "@/lib/member-role";
 
 /**
  * The settings that had to be typed as JSON, as ordinary controls.
@@ -32,6 +33,7 @@ export default async function KnownSettings() {
   const trialDays = readTrialDays(billing);
   const signupsEnabled = signups.enabled !== false;
   const onboardingFee = signups.require_onboarding_fee === true;
+  const signupRole = readSignupRole(signups);
 
   return (
     <>
@@ -116,6 +118,38 @@ export default async function KnownSettings() {
               </span>
             </label>
           </div>
+        </ActionForm>
+      </Card>
+
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">Role for a new workspace</h2>
+        <p className="text-sm text-white/50 mb-5 leading-relaxed">
+          What the person who signs up is made in the workspace their signup creates. This is
+          about who administers that one workspace — it is not what they can reach in the
+          product. That is decided by their plan and by the feature switches on{" "}
+          <span className="text-white/70">Organizations → Access</span>.
+        </p>
+        <ActionForm action={saveSignupRole} submitLabel="Save">
+          <label className="block text-xs text-white/50 mb-1.5">Role on signup</label>
+          <select
+            name="default_role"
+            defaultValue={signupRole}
+            className="bg-white/5 border border-white/12 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:border-[#A855F7]/50"
+          >
+            {ORG_ROLES.map((value) => (
+              <option key={value} value={value} className="bg-[var(--surface-3)]">
+                {value}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-white/40 mt-2 leading-relaxed">
+            Owner is the default and the safe one. Only an owner or an admin may connect a
+            WhatsApp number, open billing or add an integration, so a workspace whose only
+            member is a plain <span className="text-white/60">member</span> cannot be set up by
+            the person who just signed up for it — they would have to ask you first, part-way
+            into their trial. Pick <span className="text-white/60">member</span> only if you
+            intend to promote every new customer by hand.
+          </p>
         </ActionForm>
       </Card>
     </>

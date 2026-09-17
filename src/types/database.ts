@@ -58,9 +58,13 @@ import type {
   WebhookDelivery,
 } from "./portal";
 
-/** Owner manages the workspace, admin manages the work, member does it. */
-export const ORG_ROLES = ["owner", "admin", "member"] as const;
-export type OrgRole = (typeof ORG_ROLES)[number];
+// Defined in lib/member-role alongside the rules that read it, and
+// re-exported here so every existing importer keeps working. The import is
+// separate because a re-export does not bring the name into local scope,
+// and the table types below use it.
+import type { OrgRole } from "@/lib/member-role";
+export { ORG_ROLES } from "@/lib/member-role";
+export type { OrgRole };
 export type WabaStatus = "pending" | "active" | "disabled" | "error";
 export type ConversationStatus = "open" | "pending" | "resolved" | "closed";
 export type MessageDirection = "inbound" | "outbound";

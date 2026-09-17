@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SlidersHorizontal } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { assignPlan } from "../actions";
 import ActionForm from "@/components/ui/ActionForm";
@@ -18,7 +18,15 @@ const SUBSCRIPTION_STATUS_OPTIONS: SubscriptionStatus[] = [
 
 export default async function AdminOrganizationsPage() {
   await requirePlatformAdmin();
-  const supabase = await createClient();
+
+  // Through the service role, not the tenant client.
+  //
+  // organizations_select is `using (is_org_member(id))`, so the ordinary
+  // client showed staff the workspaces they happen to belong to and no
+  // others. Three people signing up produced three workspaces and an empty
+  // screen, which reads as "signup is broken" rather than "this query
+  // cannot see them".
+  const supabase = createAdminClient();
 
   const [{ data: orgs, error }, { data: plans }, { data: subs }, { data: members }, { data: connections }] =
     await Promise.all([

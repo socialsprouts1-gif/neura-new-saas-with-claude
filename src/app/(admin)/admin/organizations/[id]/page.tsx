@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, Card, Badge, StatCard } from "@/components/ui/primitives";
 import { formatDate, formatMoney } from "@/types/admin";
@@ -19,7 +19,9 @@ export default async function AdminOrganizationPage({
 }) {
   await requirePlatformAdmin();
   const { id } = await params;
-  const supabase = await createClient();
+  // Service role: this page is reached from the list above, and would
+  // otherwise 404 on every workspace the admin is not a member of.
+  const supabase = createAdminClient();
 
   const [
     { data: org },
