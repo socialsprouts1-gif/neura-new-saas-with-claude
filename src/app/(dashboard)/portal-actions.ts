@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { emailBrand, sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { firstChatbotEmail } from "@/lib/email-templates";
 import { ownerEmail } from "@/lib/billing-emails";
 import { requireOrg } from "@/lib/org";
@@ -1005,7 +1005,7 @@ async function congratulateFirstBot(
       orgId,
       kind: "first_chatbot",
       dedupeKey: `${orgId}:first_chatbot`,
-      body: firstChatbotEmail(emailBrand(), { botName }),
+      body: (brand) => firstChatbotEmail(brand, { botName }),
     });
   } catch (error) {
     console.error("Could not send the first-chatbot email", error);

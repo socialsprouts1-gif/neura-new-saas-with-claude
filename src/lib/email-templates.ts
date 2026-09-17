@@ -25,6 +25,15 @@ export interface EmailBrand {
   /** Who replies go to. */
   supportEmail: string;
   /**
+   * An absolute https URL to the logo, or null for the wordmark.
+   *
+   * Absolute because a mail client has no page to resolve a relative path
+   * against, and public because it is fetched by Gmail's image proxy with
+   * no session — an image behind a login renders as a broken box in every
+   * inbox that receives it.
+   */
+  logoUrl?: string | null;
+  /**
    * Where the footer's unsubscribe points, when the message is one that
    * may be refused. Unset on account mail, which has no unsubscribe.
    *
@@ -69,7 +78,7 @@ function layout(
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:32px 16px;">
 <tr><td align="center">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:14px;padding:36px 32px;font-family:Helvetica,Arial,sans-serif;">
-    <tr><td style="font-size:17px;font-weight:700;color:#0B1220;padding-bottom:22px;">${escape(brand.name)}</td></tr>
+    <tr><td style="padding-bottom:22px;">${header(brand)}</td></tr>
     <tr><td style="font-size:15px;line-height:1.65;color:#25303F;">${body}${button}</td></tr>
     <tr><td style="padding-top:26px;border-top:1px solid #E6EAEF;font-size:12px;line-height:1.6;color:#8894A5;">
       Questions? Reply to this email or write to
@@ -82,6 +91,27 @@ function layout(
   </table>
 </td></tr></table>
 </body></html>`;
+}
+
+/**
+ * The logo, or the name set in type when there is none.
+ *
+ * Height is set in the style and the width left to scale, because Outlook
+ * ignores CSS height on an image and needs the attribute — giving both a
+ * fixed value is what squashes a logo whose aspect ratio is not exactly
+ * what was guessed here.
+ *
+ * The alt text is the brand name, not "logo": images are off by default in
+ * a good share of inboxes, and what should appear in that space is the
+ * company's name rather than the word logo.
+ */
+function header(brand: EmailBrand): string {
+  const logo = brand.logoUrl?.trim();
+  if (!logo || !/^https:\/\//i.test(logo)) {
+    return `<span style="font-size:17px;font-weight:700;color:#0B1220;">${escape(brand.name)}</span>`;
+  }
+
+  return `<img src="${escape(logo)}" alt="${escape(brand.name)}" height="32" style="height:32px;width:auto;max-width:180px;border:0;outline:none;text-decoration:none;display:block;">`;
 }
 
 function plain(lines: string[], action?: { label: string; href: string }): string {

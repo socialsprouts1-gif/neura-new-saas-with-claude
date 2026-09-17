@@ -191,9 +191,16 @@ export async function sendEmail(input: {
   // which on a no-reply sender is a mailbox nobody reads.
   const replyTo = emailBrand().supportEmail;
 
+  // The logo the operator uploaded under Landing page -> Brand, which is
+  // already a public URL on Supabase storage and therefore exactly what a
+  // mail client can fetch. Read here rather than in emailBrand() because
+  // it needs the database, and emailBrand() is called from places that
+  // have no business awaiting one.
+  const logoUrl = await brandLogo(supabase);
+
   const message =
     typeof input.body === "function"
-      ? input.body({ ...emailBrand(), unsubscribeUrl: optOut })
+      ? input.body({ ...emailBrand(), logoUrl, unsubscribeUrl: optOut })
       : input.body;
 
   try {
@@ -291,4 +298,28 @@ async function hasUnsubscribed(
     return false;
   }
   return Boolean(data);
+}
+
+/**
+ * The uploaded logo, or null.
+ *
+ * Failure is null rather than an exception: a message that goes out with
+ * the wordmark instead of the logo is a small cosmetic loss, and one that
+ * does not go out at all because a settings read failed is not.
+ */
+async function brandLogo(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from("site_content")
+      .select("value")
+      .eq("key", "brand")
+      .maybeSingle();
+
+    const url = (data?.value as { logoUrl?: unknown } | null)?.logoUrl;
+    return typeof url === "string" && /^https:\/\//i.test(url.trim()) ? url.trim() : null;
+  } catch {
+    return null;
+  }
 }

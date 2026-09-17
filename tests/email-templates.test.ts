@@ -164,3 +164,58 @@ test("a bot name cannot inject markup into the email", () => {
   const email = firstChatbotEmail(brand, { botName: '<img src=x onerror="alert(1)">' });
   assert.doesNotMatch(email.html, /<img/);
 });
+
+// --- the logo in the header ----------------------------------------------
+
+const withLogo = {
+  name: "Neura Chat",
+  appUrl: "https://neurachat.in",
+  supportEmail: "support@neurachat.in",
+  logoUrl: "https://cdn.example.com/logo.png",
+};
+
+test("the uploaded logo is rendered, with the brand name as its alt text", () => {
+  const body = welcomeEmail(withLogo, { trialDays: 7 });
+  assert.match(body.html, /<img src="https:\/\/cdn\.example\.com\/logo\.png"/);
+  // "logo" as alt text is what appears when images are off, which is the
+  // one moment the company's name matters most.
+  assert.match(body.html, /alt="Neura Chat"/);
+});
+
+test("the name is set in type when there is no logo", () => {
+  for (const logoUrl of [undefined, null, "", "   "]) {
+    const body = welcomeEmail({ ...withLogo, logoUrl }, { trialDays: 7 });
+    assert.doesNotMatch(body.html, /<img/, String(logoUrl));
+    assert.match(body.html, /Neura Chat/);
+  }
+});
+
+test("a non-https logo is refused rather than rendered as a broken box", () => {
+  // Gmail's image proxy fetches over https with no session. A relative
+  // path or an http url arrives in every inbox as a broken image.
+  for (const logoUrl of ["/logo.png", "http://cdn.example.com/logo.png", "logo.png"]) {
+    const body = welcomeEmail({ ...withLogo, logoUrl }, { trialDays: 7 });
+    assert.doesNotMatch(body.html, /<img/, logoUrl);
+  }
+});
+
+test("the logo height is fixed and the width left to scale", () => {
+  // Both fixed is what squashes a logo whose shape was guessed wrong, and
+  // Outlook ignores CSS height without the attribute.
+  const body = welcomeEmail(withLogo, { trialDays: 7 });
+  assert.match(body.html, /height="32"/);
+  assert.match(body.html, /width:auto/);
+});
+
+test("a logo url with quotes in it cannot break out of the attribute", () => {
+  const body = welcomeEmail(
+    { ...withLogo, logoUrl: 'https://x.com/a.png" onerror="alert(1)' },
+    { trialDays: 7 }
+  );
+  assert.doesNotMatch(body.html, /onerror="alert/);
+});
+
+test("the plain text part carries no logo markup", () => {
+  const body = welcomeEmail(withLogo, { trialDays: 7 });
+  assert.doesNotMatch(body.text, /<img|https:\/\/cdn\.example\.com/);
+});

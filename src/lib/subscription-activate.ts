@@ -1,7 +1,7 @@
 import "server-only";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { periodEnd, type BillingInterval } from "@/lib/checkout";
-import { emailBrand, sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { paymentReceivedEmail } from "@/lib/email-templates";
 import { ownerEmail } from "@/lib/billing-emails";
 import { formatMoney } from "@/types/admin";
@@ -147,13 +147,12 @@ async function confirmPayment(
     const to = await ownerEmail(admin, input.orgId);
     if (!to) return;
 
-    const brand = emailBrand();
     await sendEmail({
       to,
       orgId: input.orgId,
       kind: "payment_received",
       dedupeKey: `${input.orgId}:payment_received:${input.orderId}`,
-      body: paymentReceivedEmail(brand, {
+      body: (brand) => paymentReceivedEmail(brand, {
         planName: input.planName,
         amount: formatMoney(input.amountCents),
         renewsOn: input.periodEnd.toLocaleDateString("en-IN", {

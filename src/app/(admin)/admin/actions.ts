@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { isPaymentProvider } from "@/lib/provider-meta";
-import { emailBrand, emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
+import { emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email-templates";
 import { planBroadcast, explainSkip, BROADCAST_KIND } from "@/lib/broadcast";
 import { readTrialDays } from "@/lib/trial";
@@ -432,7 +432,9 @@ export async function sendTestEmail(formData: FormData): Promise<ActionResult> {
     };
   }
 
-  const brand = emailBrand();
+  // The brand is no longer built here: sendEmail supplies one carrying the
+  // uploaded logo, which is the whole point of testing with the real
+  // template rather than a stand-in.
 
   // The configured length, not a guess: a test that promises a different
   // trial from the real welcome is a test that proves nothing.
@@ -449,7 +451,7 @@ export async function sendTestEmail(formData: FormData): Promise<ActionResult> {
     // Unique per attempt: a test that could only run once would be
     // useless the second time somebody changed a setting.
     dedupeKey: `test:${Date.now()}:${to}`,
-    body: welcomeEmail(brand, { trialDays: readTrialDays(billing?.value) }),
+    body: (withLogo) => welcomeEmail(withLogo, { trialDays: readTrialDays(billing?.value) }),
   });
 
   if (result.ok) {

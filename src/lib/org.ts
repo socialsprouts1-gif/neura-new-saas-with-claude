@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { featureForPath, resolveFeatures } from "@/lib/features";
-import { emailBrand, sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import { readTrialDays } from "@/lib/trial";
 import { welcomeEmail } from "@/lib/email-templates";
 import type { OrgRole } from "@/types/database";
@@ -219,7 +219,7 @@ async function welcomeIfNew(
       orgId,
       kind: "welcome",
       dedupeKey: `${orgId}:welcome`,
-      body: welcomeEmail(emailBrand(), { trialDays }),
+      body: (brand) => welcomeEmail(brand, { trialDays }),
     });
   } catch (error) {
     console.error("Could not send the welcome email", error);
