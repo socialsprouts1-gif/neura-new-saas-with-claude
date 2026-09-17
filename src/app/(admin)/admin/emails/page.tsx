@@ -1,0 +1,159 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requirePlatformAdmin } from "@/lib/org";
+import { PageHeader, StatCard, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
+import { explainEmailFailure, NEVER_ATTEMPTED } from "@/lib/email-errors";
+import { emailTransportName, isEmailConfigured } from "@/lib/email";
+
+/**
+ * Every message this deployment tried to send, and what came back.
+ *
+ * Built because "I signed up and got no email" was unanswerable. The cause
+ * was already being written to email_log on every failure and nothing read
+ * it, so diagnosing a real signup meant reading server logs nobody has
+ * access to — or guessing, which is worse.
+ *
+ * Service role deliberately: this is every workspace's mail, which is the
+ * whole point of a platform-wide view.
+ */
+export default async function AdminEmailsPage() {
+  await requirePlatformAdmin();
+  const supabase = createAdminClient();
+
+  const { data: logs, error } = await supabase
+    .from("email_log")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  const all = logs ?? [];
+
+  // Names fetched separately rather than embedded. An embed depends on
+  // PostgREST spotting the foreign key, and a log that fails to load
+  // because of a relationship hint is a diagnostic screen that cannot
+  // diagnose anything.
+  const orgIds = [...new Set(all.map((row) => row.org_id).filter(Boolean))] as string[];
+  const { data: orgs } = orgIds.length
+    ? await supabase.from("organizations").select("id, name").in("id", orgIds)
+    : { data: [] };
+  const orgName = new Map((orgs ?? []).map((org) => [org.id, org.name]));
+  const failed = all.filter((row) => row.status === "failed");
+  const sent = all.filter((row) => row.status === "sent").length;
+  // A row stuck on "sending" means the process died between claiming the
+  // send and recording the outcome. It is not a failure and not a success,
+  // and it blocks a retry, so it needs to be visible rather than counted
+  // into one of the other two.
+  const stuck = all.filter((row) => row.status === "sending").length;
+
+  // The newest distinct failure reason, explained once at the top. One
+  // cause usually accounts for every failure on the list, and repeating it
+  // on two hundred rows buries it.
+  const leading = failed.map((row) => explainEmailFailure(row.error)).find(Boolean) ?? null;
+
+  const configured = isEmailConfigured();
+
+  return (
+    <div className="p-6 md:p-8">
+      <PageHeader
+        title="Email log"
+        subtitle="The last 200 messages this deployment tried to send, and what the provider said."
+      />
+
+      {!configured && (
+        <Card className="mb-6 border-[#FACC15]/25">
+          <h2 className="font-semibold mb-1">Email is not configured on this deployment</h2>
+          <p className="text-sm text-white/55 leading-relaxed">
+            Nothing is being attempted at all, which is why this list may be empty rather than
+            full of failures. Set <code className="text-white/70">EMAIL_FROM</code> plus either{" "}
+            <code className="text-white/70">RESEND_API_KEY</code> or the{" "}
+            <code className="text-white/70">SMTP_*</code> variables, then redeploy.
+          </p>
+        </Card>
+      )}
+
+      {leading && (
+        <Card className="mb-6 border-[#F87171]/25">
+          <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
+            <h2 className="font-semibold">Why these are failing</h2>
+            <Badge tone="red">{failed.length} failed</Badge>
+          </div>
+          <p className="text-sm text-white/75 leading-relaxed mb-2">{leading.summary}</p>
+          <p className="text-sm text-white/50 leading-relaxed">{leading.fix}</p>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Attempted" value={all.length} />
+        <StatCard label="Delivered to provider" value={sent} />
+        <StatCard label="Failed" value={failed.length} />
+        <StatCard label="Never finished" value={stuck} hint="Claimed but never recorded" />
+      </div>
+
+      {error ? (
+        <EmptyState
+          title="Couldn't load the email log"
+          description={`${error.message}. If this mentions a missing relation, run supabase/updates/2026-09.sql — the email_log table comes from it.`}
+        />
+      ) : all.length > 0 ? (
+        <Table head={["When", "To", "What", "Workspace", "Status", "What came back"]}>
+          {all.map((row) => {
+            const explained = explainEmailFailure(row.error);
+            return (
+              <tr key={row.id} className="hover:bg-white/3 transition-colors align-top">
+                <Td className="text-xs text-white/45 whitespace-nowrap">
+                  {new Date(row.created_at).toLocaleString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Td>
+                <Td className="text-xs">{row.to_email}</Td>
+                <Td>
+                  <Badge tone="purple">{row.kind.replace(/_/g, " ")}</Badge>
+                </Td>
+                <Td className="text-xs text-white/45">
+                  {row.org_id ? (orgName.get(row.org_id) ?? "—") : "—"}
+                </Td>
+                <Td>
+                  <Badge
+                    tone={
+                      row.status === "sent" ? "green" : row.status === "failed" ? "red" : "amber"
+                    }
+                  >
+                    {row.status}
+                  </Badge>
+                </Td>
+                <Td className="text-xs max-w-md">
+                  {row.error ? (
+                    <>
+                      {explained && (
+                        <div className="text-white/70 mb-1 leading-relaxed">
+                          {explained.summary}
+                        </div>
+                      )}
+                      {/* The provider's own words are kept, always. An
+                          explanation that turns out to be wrong must never
+                          be the only thing on screen. */}
+                      <div className="text-white/35 font-mono text-[10px] leading-relaxed break-all">
+                        {row.error}
+                      </div>
+                    </>
+                  ) : row.status === "sent" ? (
+                    <span className="text-white/30">accepted</span>
+                  ) : (
+                    <span className="text-white/30">—</span>
+                  )}
+                </Td>
+              </tr>
+            );
+          })}
+        </Table>
+      ) : (
+        <EmptyState
+          title="Nothing has been sent yet"
+          description={configured ? NEVER_ATTEMPTED : "Configure email above and this fills in."}
+        />
+      )}
+    </div>
+  );
+}

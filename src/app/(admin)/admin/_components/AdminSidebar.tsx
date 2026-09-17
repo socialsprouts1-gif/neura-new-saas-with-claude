@@ -8,6 +8,7 @@ import {
   CreditCard,
   LayoutDashboard,
   LifeBuoy,
+  Mail,
   Package,
   Palette,
   Receipt,
@@ -45,6 +46,7 @@ const SECTIONS = [
     items: [
       { icon: Palette, label: "Landing page", href: "/admin/landing" },
       { icon: LifeBuoy, label: "Support tickets", href: "/admin/tickets" },
+      { icon: Mail, label: "Email log", href: "/admin/emails" },
       { icon: ScrollText, label: "Webhook logs", href: "/admin/webhook-logs" },
       { icon: Database, label: "Database", href: "/admin/database" },
       { icon: Settings, label: "Platform settings", href: "/admin/settings" },

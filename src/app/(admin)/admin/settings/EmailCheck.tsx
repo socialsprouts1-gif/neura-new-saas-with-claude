@@ -1,5 +1,6 @@
 import { sendTestEmail } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
+import Link from "next/link";
 import { Card, Badge } from "@/components/ui/primitives";
 import { emailTransportName, isEmailConfigured } from "@/lib/email";
 
@@ -29,10 +30,25 @@ export default function EmailCheck() {
 
       {configured ? (
         <>
-          <p className="text-sm text-white/50 mb-5 leading-relaxed">
+          <p className="text-sm text-white/50 mb-4 leading-relaxed">
             Sends one real message now. If it arrives, welcome mail, trial reminders and payment
-            receipts will all work — they use the same transport.
+            receipts all use the same transport.
           </p>
+
+          {/* The trap this screen used to walk people into. A Resend account
+              with no verified domain delivers only to the address the
+              account was opened with, so testing against your own inbox is
+              testing the one address that cannot fail — and every real
+              customer is refused. */}
+          {transport === "resend" && (
+            <p className="text-[11px] text-[#FACC15] mb-4 leading-relaxed">
+              On Resend, a test to your own inbox proves less than it looks. Until a domain is
+              verified at resend.com/domains, Resend delivers only to the address the account
+              was opened with and refuses every customer address — a test arrives, a real signup
+              does not. <Link href="/admin/emails" className="underline">The email log</Link>{" "}
+              shows which of the two is happening.
+            </p>
+          )}
           <ActionForm action={sendTestEmail} submitLabel="Send a test">
             <Field
               label="Send to"
@@ -40,9 +56,17 @@ export default function EmailCheck() {
               type="email"
               required
               placeholder="you@example.com"
-              hint="Use an address you can open right now."
+              hint="Use an address you can open right now — ideally not the one the Resend or SMTP account was opened with."
             />
           </ActionForm>
+          <p className="text-[11px] text-white/35 mt-3 leading-relaxed">
+            Whatever happens, it is recorded in{" "}
+            <Link href="/admin/emails" className="underline hover:text-white/60">
+              the email log
+            </Link>{" "}
+            along with what the provider said — including for mail nobody was watching, like a
+            welcome that never arrived.
+          </p>
         </>
       ) : (
         <p className="text-sm text-[#FACC15] leading-relaxed">
