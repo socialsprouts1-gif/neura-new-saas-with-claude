@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { isPaymentProvider } from "@/lib/provider-meta";
+import { emailBrand, emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
+import { welcomeEmail } from "@/lib/email-templates";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
 // requirePlatformAdmin() runs first in every action. It redirects rather than
@@ -363,6 +365,58 @@ async function mergeSetting(
 
   revalidatePath("/admin/settings");
   return { ok: true, message };
+}
+
+/**
+ * Sends one real email, to prove the configuration works.
+ *
+ * Diagnosing mail by registering accounts is slow and leaves rubbish
+ * behind, and the welcome is deduped per workspace so the same account
+ * cannot be used twice. This sends on demand, reports what the transport
+ * actually said, and uses a fresh dedupe key every time so it can be run
+ * as often as needed.
+ */
+export async function sendTestEmail(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const to = String(formData.get("to") ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) {
+    return { ok: false, error: "Give an email address to send to." };
+  }
+
+  if (!isEmailConfigured()) {
+    return {
+      ok: false,
+      error:
+        "Email is not configured. Set EMAIL_FROM, plus either RESEND_API_KEY or all four SMTP_* variables, then redeploy — Vercel does not apply new variables to a build that already exists.",
+    };
+  }
+
+  const brand = emailBrand();
+  const result = await sendEmail({
+    to,
+    orgId: null,
+    kind: "test",
+    // Unique per attempt: a test that could only run once would be
+    // useless the second time somebody changed a setting.
+    dedupeKey: `test:${Date.now()}:${to}`,
+    body: welcomeEmail(brand, { trialDays: 14 }),
+  });
+
+  if (result.ok) {
+    return {
+      ok: true,
+      message: `Sent to ${to} over ${emailTransportName()}. If it does not arrive, check spam first, then the provider's own logs — it left here successfully.`,
+    };
+  }
+
+  return {
+    ok: false,
+    error:
+      result.skipped === "not_configured"
+        ? "Email is not configured on this deployment."
+        : (result.error ?? "The message could not be sent."),
+  };
 }
 
 export async function savePlatformSetting(formData: FormData): Promise<ActionResult> {

@@ -72,7 +72,7 @@ export async function requireOrg(): Promise<OrgContext> {
     supabase
       .from("organizations")
       .select(
-        "name, feature_overrides, suspended_at, suspended_reason, subscriptions(plans(feature_keys))"
+        "name, created_at, feature_overrides, suspended_at, suspended_reason, subscriptions(plans(feature_keys))"
       )
       .eq("id", resolved.org_id)
       .maybeSingle(),
@@ -90,6 +90,16 @@ export async function requireOrg(): Promise<OrgContext> {
     plan: subscription?.plans?.feature_keys,
     org: org?.feature_overrides,
   });
+
+  // The welcome, from the path every signup actually takes.
+  //
+  // It used to live inside provisionOrgForUser, which the comment above
+  // that function correctly calls the repair path — the signup trigger
+  // creates the workspace, so a normal signup finds its membership here
+  // and never reaches it. The email was therefore wired to a branch that
+  // only runs for accounts the trigger failed on, which is to say almost
+  // never. Nobody got one.
+  await welcomeIfNew(user.email ?? "", resolved.org_id, org?.created_at ?? null);
 
   return {
     user,
@@ -159,8 +169,6 @@ async function provisionOrgForUser(user: User): Promise<{ org_id: string; role: 
       return null;
     }
 
-    await welcome(admin, orgId, user.email ?? "");
-
     return { org_id: orgId, role: "owner" };
   } catch (error) {
     console.error("Organization provisioning failed", error);
@@ -171,29 +179,36 @@ async function provisionOrgForUser(user: User): Promise<{ org_id: string; role: 
 /**
  * The one email a new workspace gets, on the day it is created.
  *
- * Keyed on the workspace, which matters more here than anywhere else:
- * Next renders a page and its layout in parallel, so several requests
- * reach provisioning at once for the same signup. The database function
- * makes them agree on one workspace; without a dedupe key they would each
- * still send a welcome, and a customer's first impression would be four
- * identical emails.
+ * Called from requireOrg, which runs on every page of every request — so
+ * it is gated twice. The age check means an established workspace costs
+ * nothing at all, not even a query; the unique index on the dedupe key
+ * means that inside the window, however many parallel renders attempt it,
+ * exactly one send happens. Next renders a page and its layout at the same
+ * time, so "however many" is genuinely more than one.
  *
- * Never throws and never blocks the signup. Someone who cannot get into
- * the product they just created because a mail server was slow is a far
- * worse outcome than a missing welcome.
+ * Never throws and never blocks. Somebody unable to open the product they
+ * just signed up for because a mail server was slow is far worse than a
+ * missing welcome.
  */
-async function welcome(
-  admin: ReturnType<typeof createAdminClient>,
+const WELCOME_WINDOW_MS = 30 * 60 * 1000;
+
+async function welcomeIfNew(
+  email: string,
   orgId: string,
-  email: string
+  createdAt: string | null
 ): Promise<void> {
-  if (!email) return;
+  if (!email || !createdAt) return;
+
+  const age = Date.now() - new Date(createdAt).getTime();
+  if (!Number.isFinite(age) || age < 0 || age > WELCOME_WINDOW_MS) return;
 
   try {
+    const admin = createAdminClient();
+
     const { data: setting } = await admin
       .from("platform_settings")
       .select("value")
-      .eq("key", "trial_days")
+      .eq("key", "billing")
       .maybeSingle();
 
     const configured = (setting?.value as { trial_days?: number } | null)?.trial_days;

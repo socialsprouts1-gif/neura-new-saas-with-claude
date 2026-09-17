@@ -9,6 +9,7 @@ import { resolveFeatures } from "@/lib/features";
 import { formatDate } from "@/types/admin";
 import PlatformGateway from "./PlatformGateway";
 import KnownSettings from "./KnownSettings";
+import EmailCheck from "./EmailCheck";
 
 export default async function AdminSettingsPage() {
   await requirePlatformAdmin();
@@ -52,6 +53,8 @@ export default async function AdminSettingsPage() {
           submitLabel="Save defaults"
         />
       </Card>
+
+      <EmailCheck />
 
       <KnownSettings />
 
