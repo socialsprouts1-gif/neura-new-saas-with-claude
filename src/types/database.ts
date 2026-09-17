@@ -134,6 +134,30 @@ export interface Database {
           },
         ];
       };
+      email_optouts: {
+        Row: {
+          id: string;
+          email: string;
+          org_id: string | null;
+          source: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          org_id?: string | null;
+          source?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          org_id?: string | null;
+          source?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       email_log: {
         Row: {
           id: string;

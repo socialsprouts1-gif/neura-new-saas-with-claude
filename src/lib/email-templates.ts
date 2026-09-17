@@ -24,6 +24,15 @@ export interface EmailBrand {
   appUrl: string;
   /** Who replies go to. */
   supportEmail: string;
+  /**
+   * Where the footer's unsubscribe points, when the message is one that
+   * may be refused. Unset on account mail, which has no unsubscribe.
+   *
+   * A header alone is not enough: it only reaches people whose client
+   * renders it as a button. Somebody who cannot find a way out marks the
+   * message as spam instead, which costs far more than losing them.
+   */
+  unsubscribeUrl?: string | null;
 }
 
 function escape(value: string): string {
@@ -64,7 +73,11 @@ function layout(
     <tr><td style="font-size:15px;line-height:1.65;color:#25303F;">${body}${button}</td></tr>
     <tr><td style="padding-top:26px;border-top:1px solid #E6EAEF;font-size:12px;line-height:1.6;color:#8894A5;">
       Questions? Reply to this email or write to
-      <a href="mailto:${escape(brand.supportEmail)}" style="color:#8894A5;">${escape(brand.supportEmail)}</a>.
+      <a href="mailto:${escape(brand.supportEmail)}" style="color:#8894A5;">${escape(brand.supportEmail)}</a>.${
+        brand.unsubscribeUrl
+          ? `<br><a href="${escape(brand.unsubscribeUrl)}" style="color:#8894A5;text-decoration:underline;">Unsubscribe from these reminders</a>`
+          : ""
+      }
     </td></tr>
   </table>
 </td></tr></table>

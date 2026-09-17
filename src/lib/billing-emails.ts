@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatMoney } from "@/types/admin";
 import { dueBillingEmail, type BillingEmailKind } from "@/lib/billing-email-plan";
-import { emailBrand, sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email";
 import {
   renewalReminderEmail,
   subscriptionExpiredEmail,
@@ -97,7 +97,8 @@ function longDate(iso: string): string {
 
 export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepResult> {
   const admin = createAdminClient();
-  const brand = emailBrand();
+  // The brand is no longer built here: each message gets one carrying that
+  // recipient's own unsubscribe link, which sendEmail supplies.
   const result: SweepResult = { checked: 0, sent: 0, skipped: 0, failed: 0 };
   const fromPrice = await cheapestPlan(admin);
 
@@ -138,13 +139,18 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
       orgId: row.org_id,
       kind: due.kind,
       dedupeKey: due.dedupeKey,
-      body: bodyFor(due.kind, brand, {
-        planName: due.planName,
-        daysLeft: due.daysLeft,
-        renewsOn: longDate(row.current_period_end ?? ""),
-        step: due.step ?? 0,
-        fromPrice,
-      }),
+      // A function rather than a built body, so the template is handed a
+      // brand carrying this recipient's unsubscribe link — it is signed
+      // over their address, so it differs for every person and cannot be
+      // known here.
+      body: (withOptOut) =>
+        bodyFor(due.kind, withOptOut, {
+          planName: due.planName,
+          daysLeft: due.daysLeft,
+          renewsOn: longDate(row.current_period_end ?? ""),
+          step: due.step ?? 0,
+          fromPrice,
+        }),
     });
 
     if (outcome.skipped) result.skipped += 1;

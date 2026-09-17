@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EmailBody, EmailBrand } from "@/lib/email-templates";
 import type { EmailTransport } from "@/lib/deliverability";
+import { suppressible, unsubscribeUrl } from "@/lib/email-kinds";
 
 // Sending mail, and remembering that we did.
 //
@@ -19,7 +20,7 @@ import type { EmailTransport } from "@/lib/deliverability";
 
 export interface SendResult {
   ok: boolean;
-  skipped?: "duplicate" | "not_configured" | "no_address";
+  skipped?: "duplicate" | "not_configured" | "no_address" | "unsubscribed";
   error?: string;
 }
 
@@ -124,7 +125,15 @@ export async function sendEmail(input: {
   kind: string;
   /** Unique per thing-being-notified-about. A repeat is refused by the index. */
   dedupeKey: string;
-  body: EmailBody;
+  /**
+   * The message, or a function that builds it.
+   *
+   * A function is what lets a marketing template carry an unsubscribe link
+   * for this recipient: the caller does not know it, because the link is
+   * signed over the address and is therefore different every time. Passing
+   * a plain body stays valid and simply has no link.
+   */
+  body: EmailBody | ((brand: EmailBrand) => EmailBody);
 }): Promise<SendResult> {
   const to = input.to?.trim();
   if (!to) return { ok: false, skipped: "no_address" };
@@ -133,6 +142,12 @@ export async function sendEmail(input: {
   if (!settings) return { ok: false, skipped: "not_configured" };
 
   const supabase = createAdminClient();
+
+  // Refusing before the claim, so an unsubscribe does not burn the dedupe
+  // key — if they resubscribe later the message can still go.
+  if (suppressible(input.kind) && (await hasUnsubscribed(supabase, to))) {
+    return { ok: true, skipped: "unsubscribed" };
+  }
 
   // Claim the send first. Losing this race is the correct outcome, not an
   // error: it means another run already has it.
@@ -155,6 +170,32 @@ export async function sendEmail(input: {
     return { ok: false, error: claimError.message };
   }
 
+  // What a mail client needs to offer its own unsubscribe button, and what
+  // Gmail and Yahoo look for on bulk mail: the absence of these is itself a
+  // spam signal. Only on marketing — a receipt with an unsubscribe on it
+  // invites somebody to turn off their own receipts.
+  const key = process.env.TOKEN_ENCRYPTION_KEY;
+  const optOut =
+    suppressible(input.kind) && key ? unsubscribeUrl(emailBrand().appUrl, to, key) : null;
+
+  const headers: Record<string, string> = optOut
+    ? {
+        "List-Unsubscribe": `<${optOut}>`,
+        // RFC 8058. Without this the client shows a link rather than a
+        // button, and the one-click POST is never sent.
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      }
+    : {};
+
+  // Replies should reach a person. Left unset they go to the from address,
+  // which on a no-reply sender is a mailbox nobody reads.
+  const replyTo = emailBrand().supportEmail;
+
+  const message =
+    typeof input.body === "function"
+      ? input.body({ ...emailBrand(), unsubscribeUrl: optOut })
+      : input.body;
+
   try {
     if (settings.kind === "resend") {
       const response = await fetch("https://api.resend.com/emails", {
@@ -166,9 +207,11 @@ export async function sendEmail(input: {
         body: JSON.stringify({
           from: settings.from,
           to: [to],
-          subject: input.body.subject,
-          html: input.body.html,
-          text: input.body.text,
+          reply_to: replyTo,
+          subject: message.subject,
+          html: message.html,
+          text: message.text,
+          ...(Object.keys(headers).length > 0 ? { headers } : {}),
         }),
       });
 
@@ -191,9 +234,11 @@ export async function sendEmail(input: {
       }).sendMail({
         from: settings.from,
         to,
-        subject: input.body.subject,
-        html: input.body.html,
-        text: input.body.text,
+        replyTo,
+        subject: message.subject,
+        html: message.html,
+        text: message.text,
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
       });
     }
 
@@ -222,4 +267,28 @@ async function mark(dedupeKey: string, status: string, error: string | null): Pr
   } catch (problem) {
     console.error("Could not record an email send", problem);
   }
+}
+
+/**
+ * Whether this address has asked to be left alone.
+ *
+ * A failure to answer is treated as "not unsubscribed": a database blip
+ * must not silently stop every message, which would look exactly like the
+ * mail being broken and take just as long to find.
+ */
+async function hasUnsubscribed(
+  supabase: ReturnType<typeof createAdminClient>,
+  email: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("email_optouts")
+    .select("id")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not read the unsubscribe list", error);
+    return false;
+  }
+  return Boolean(data);
 }
