@@ -27,13 +27,16 @@ export default async function FlowBuilderPage({
     id: connection.id,
     label: optionLabel(connection),
     status: connection.status,
+    // The account the number is on. A Send Form node can only open a form
+    // built on the same one, so the picker needs this to filter itself.
+    wabaId: connection.wabaId,
   }));
 
   // Only forms that exist at Meta — a Send Form node pointing at one that
   // was never uploaded fails at the customer, which is the worst place.
   const { data: forms } = await supabase
     .from("whatsapp_flows")
-    .select("id, name, status")
+    .select("id, name, status, waba_id")
     .eq("org_id", orgId)
     .not("meta_flow_id", "is", null)
     .order("name");
@@ -91,7 +94,12 @@ export default async function FlowBuilderPage({
           initialNodes={nodes}
           initialEdges={(Array.isArray(flow.edges) ? flow.edges : []) as FlowEdge[]}
           numbers={numbers}
-          forms={forms ?? []}
+          forms={(forms ?? []).map((form) => ({
+            id: form.id,
+            name: form.name,
+            status: form.status,
+            wabaId: form.waba_id,
+          }))}
         />
       </div>
     </div>

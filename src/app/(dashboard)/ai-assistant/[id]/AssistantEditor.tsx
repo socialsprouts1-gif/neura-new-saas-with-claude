@@ -23,7 +23,13 @@ export default function AssistantEditor({
   assistant: AiAssistant;
   knowledge: AssistantKnowledge[];
   /** Forms in this workspace that exist at Meta and could be offered. */
-  forms: Array<{ id: string; name: string; description: string | null; status: string }>;
+  forms: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    numberLabel: string | null;
+  }>;
   /** Resolved on the server: an own key, or a platform key for this provider. */
   hasKey: boolean;
 }) {

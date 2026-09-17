@@ -13,6 +13,8 @@ import {
 import { Pencil } from "lucide-react";
 import { formatDate } from "@/types/admin";
 import { FormsToolbar, DeleteFormButton } from "./FormsToolbar";
+import { listConnections } from "@/lib/connections";
+import { optionLabel } from "@/lib/number-identity";
 import { formatAnswer } from "@/lib/flow-reply";
 import type { FormScreen } from "@/lib/flow-json";
 
@@ -20,20 +22,14 @@ export default async function FormsPage() {
   const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
 
-  const [{ data: flows, error }, { data: connection }, { data: responses }, { data: sends }] =
+  const [{ data: flows, error }, connections, { data: responses }, { data: sends }] =
     await Promise.all([
     supabase
       .from("whatsapp_flows")
       .select("*")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("waba_connections")
-      .select("id")
-      .eq("org_id", orgId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle(),
+    listConnections(supabase, orgId),
     supabase
       .from("flow_responses")
       .select("id, flow_id, wa_id, answers, created_at, flow_token")
@@ -52,6 +48,12 @@ export default async function FormsPage() {
   ]);
 
   const all = flows ?? [];
+  const active = connections.filter((connection) => connection.status === "active");
+
+  // Which number each form is on. A form belongs to one WhatsApp Business
+  // Account, and with two numbers connected that is the difference between
+  // a form a bot can open and one it cannot.
+  const numberFor = new Map(active.map((connection) => [connection.wabaId, optionLabel(connection)]));
   const byFlow = new Map(all.map((flow) => [flow.id, flow.name]));
   const sourceOf = new Map((sends ?? []).map((send) => [send.flow_token, send.source]));
 
@@ -60,7 +62,15 @@ export default async function FormsPage() {
       <PageHeader
         title="WhatsApp forms"
         subtitle="Forms people fill in without leaving the chat."
-        action={<FormsToolbar />}
+        action={
+          <FormsToolbar
+            numbers={active.map((connection) => ({
+              id: connection.id,
+              label: optionLabel(connection),
+              wabaId: connection.wabaId,
+            }))}
+          />
+        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -70,7 +80,7 @@ export default async function FormsPage() {
         <StatCard label="Recent replies" value={responses?.length ?? 0} />
       </div>
 
-      {!connection && (
+      {active.length === 0 && (
         <Card className="mb-6 border-[#FACC15]/25">
           <h2 className="font-semibold mb-1">Connect a WhatsApp number first</h2>
           <p className="text-sm text-white/50 leading-relaxed">
@@ -86,7 +96,7 @@ export default async function FormsPage() {
           description={`${error.message}. If this mentions a missing relation, run supabase/setup.sql again.`}
         />
       ) : all.length > 0 ? (
-        <Table head={["Form", "Category", "Screens", "Status", "Created", ""]}>
+        <Table head={["Form", "Category", "Screens", "Number", "Status", "Created", ""]}>
           {all.map((flow) => {
             const screens = (flow.screens ?? []) as unknown as FormScreen[];
             const fields = screens.reduce((sum, screen) => sum + screen.fields.length, 0);
@@ -113,6 +123,15 @@ export default async function FormsPage() {
                     <span className="text-white/30">built in WhatsApp Manager</span>
                   ) : (
                     `${screens.length} screen${screens.length === 1 ? "" : "s"} · ${fields} field${fields === 1 ? "" : "s"}`
+                  )}
+                </Td>
+                <Td className="text-xs">
+                  {flow.waba_id ? (
+                    <span className="text-white/60">
+                      {numberFor.get(flow.waba_id) ?? "a number not connected here"}
+                    </span>
+                  ) : (
+                    <span className="text-white/30">not set yet</span>
                   )}
                 </Td>
                 <Td>

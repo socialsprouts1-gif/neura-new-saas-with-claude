@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { routeFlow, accountsToSync, type NumberOnAccount } from "../src/lib/flow-routing.ts";
+import {
+  routeFlow,
+  accountsToSync,
+  formsOnNumbers,
+  type NumberOnAccount,
+} from "../src/lib/flow-routing.ts";
 
 const onA: NumberOnAccount = { id: "n1", wabaId: "A", status: "active", isDefault: true };
 const onB: NumberOnAccount = { id: "n2", wabaId: "B", status: "active", isDefault: false };
@@ -50,4 +55,42 @@ test("an account is synced once however many numbers sit on it", () => {
 test("only active numbers contribute an account to sync", () => {
   assert.deepEqual(accountsToSync([onA, { ...onB, status: "error" }]), ["A"]);
   assert.deepEqual(accountsToSync([]), []);
+});
+
+// --- which forms a bot can open ------------------------------------------
+
+const formOnA = { id: "f1", wabaId: "A" };
+const formOnB = { id: "f2", wabaId: "B" };
+const formUnknown = { id: "f3", wabaId: null };
+
+test("a bot listening on one number is offered only that account's forms", () => {
+  // n2 is on account B, so the form built on A is not offered.
+  const result = formsOnNumbers([formOnA, formOnB], [onA, onB], ["n2"]);
+  assert.deepEqual(result.map((form) => form.id), ["f2"]);
+});
+
+test("listening on nothing means every number, so every form", () => {
+  const result = formsOnNumbers([formOnA, formOnB], [onA, onB], []);
+  assert.deepEqual(result.map((form) => form.id), ["f1", "f2"]);
+});
+
+test("a form with no account recorded is never hidden", () => {
+  // It predates the column and may well work. Hiding a working form is
+  // worse than showing one that might not.
+  const result = formsOnNumbers([formOnA, formUnknown], [onA, onB], ["n2"]);
+  assert.deepEqual(result.map((form) => form.id), ["f3"]);
+});
+
+test("no form on the listening number reads as empty, not as everything", () => {
+  assert.deepEqual(formsOnNumbers([formOnA], [onA, onB], ["n2"]), []);
+});
+
+test("a disabled number contributes no account", () => {
+  const disabled = { ...onB, status: "disabled" };
+  assert.deepEqual(formsOnNumbers([formOnB], [onA, disabled], []), []);
+});
+
+test("two numbers on one account offer that account's forms once", () => {
+  const result = formsOnNumbers([formOnB], [onB, alsoOnB], ["n2", "n3"]);
+  assert.deepEqual(result.map((form) => form.id), ["f2"]);
 });

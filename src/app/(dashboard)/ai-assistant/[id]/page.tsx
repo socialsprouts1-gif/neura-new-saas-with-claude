@@ -4,6 +4,8 @@ import { requireFeature } from "@/lib/org";
 import { isAssistantConfigured } from "@/lib/ai-assistant";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
 import AssistantEditor from "./AssistantEditor";
+import { listConnections } from "@/lib/connections";
+import { optionLabel } from "@/lib/number-identity";
 
 export default async function AssistantEditorPage({
   params,
@@ -37,16 +39,32 @@ export default async function AssistantEditorPage({
   // way to fail in front of a customer.
   const { data: forms } = await supabase
     .from("whatsapp_flows")
-    .select("id, name, description, status")
+    .select("id, name, description, status, waba_id")
     .eq("org_id", orgId)
     .not("meta_flow_id", "is", null)
     .order("name");
+
+  // Which number each form is on. The assistant replies on whichever number
+  // the customer wrote to, so unlike a bot it is not pinned to one — but a
+  // form only opens for customers on its own account, and that is worth
+  // saying next to the tick box rather than discovering in a chat.
+  const numberFor = new Map(
+    (await listConnections(supabase, orgId))
+      .filter((connection) => connection.status === "active")
+      .map((connection) => [connection.wabaId, optionLabel(connection)])
+  );
 
   return (
     <AssistantEditor
       assistant={assistant as AiAssistant}
       knowledge={(knowledge ?? []) as AssistantKnowledge[]}
-      forms={forms ?? []}
+      forms={(forms ?? []).map((form) => ({
+        id: form.id,
+        name: form.name,
+        description: form.description,
+        status: form.status,
+        numberLabel: form.waba_id ? (numberFor.get(form.waba_id) ?? null) : null,
+      }))}
       // Resolved here because it needs the decryption key and the env, and
       // neither may cross to the client.
       hasKey={isAssistantConfigured(assistant as AiAssistant)}

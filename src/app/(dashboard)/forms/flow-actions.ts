@@ -165,11 +165,30 @@ export async function createForm(formData: FormData): Promise<ActionResult & { i
   const chosen = String(formData.get("category") ?? "").trim();
   const category = (chosen || template?.category || "LEAD_GENERATION") as FlowCategory;
 
+  // Which number this form is built on, decided here rather than at the
+  // first save. A form belongs to one WhatsApp Business Account for its
+  // whole life and cannot be moved between them afterwards, so it is a
+  // choice worth making deliberately instead of inheriting from whichever
+  // number happened to be default that day.
+  const connectionId = String(formData.get("connection_id") ?? "").trim();
+  let wabaId: string | null = null;
+
+  if (connectionId) {
+    const connection = await resolveConnection(supabase, orgId, { connectionId });
+    if ("error" in connection) return { ok: false, error: connection.error };
+    wabaId = connection.wabaId;
+  } else {
+    // Nothing picked: the single-number case, where asking would be noise.
+    const connections = await listActiveConnections(supabase, orgId);
+    wabaId = connections.length === 1 ? connections[0].wabaId : null;
+  }
+
   const { data, error } = await supabase
     .from("whatsapp_flows")
     .insert({
       org_id: orgId,
       name,
+      waba_id: wabaId,
       categories: [category],
       screens: screens as unknown as Record<string, unknown>,
       description: template?.description ?? null,

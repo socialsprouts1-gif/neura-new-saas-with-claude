@@ -8,10 +8,15 @@
 // uploading the flow's JSON, 131009 when sending it. Deciding this in one
 // pure function means the rule is checkable without a Meta round trip.
 
-export interface NumberOnAccount {
+/** A number and the account it is on. What most of this needs to know. */
+export interface NumberAccount {
   id: string;
   wabaId: string;
   status: string;
+}
+
+/** The same, plus the tie-break for picking one of several. */
+export interface NumberOnAccount extends NumberAccount {
   isDefault: boolean;
 }
 
@@ -45,10 +50,47 @@ export function routeFlow(
 }
 
 /** The accounts to walk when importing everything Meta knows about. */
-export function accountsToSync(connections: readonly NumberOnAccount[]): string[] {
+export function accountsToSync(connections: readonly NumberAccount[]): string[] {
   const seen = new Set<string>();
   for (const connection of connections) {
     if (connection.status === "active") seen.add(connection.wabaId);
   }
   return [...seen];
+}
+
+export interface FormOnAccount {
+  id: string;
+  /** Null on a form uploaded before the account was recorded. */
+  wabaId: string | null;
+}
+
+/**
+ * The forms a bot listening on these numbers can actually open.
+ *
+ * A Send Form node on a bot that only listens on one number cannot open a
+ * form built on a different account — WhatsApp refuses it at the customer,
+ * which is the worst place to find out. Offering only the forms that can
+ * work is the difference between a bot that fails in a chat and one that
+ * cannot be built wrong.
+ *
+ * `listeningOn` empty means every number, which is what a one-number
+ * workspace wants and what every bot built before numbers existed means.
+ *
+ * A form with no account recorded is kept rather than hidden. It predates
+ * the column, it may well work, and hiding a working form is worse than
+ * showing one that might not.
+ */
+export function formsOnNumbers<T extends FormOnAccount>(
+  forms: readonly T[],
+  numbers: readonly NumberAccount[],
+  listeningOn: readonly string[]
+): T[] {
+  const active = numbers.filter((number) => number.status === "active");
+  const chosen =
+    listeningOn.length === 0
+      ? active
+      : active.filter((number) => listeningOn.includes(number.id));
+
+  const accounts = new Set(chosen.map((number) => number.wabaId));
+  return forms.filter((form) => form.wabaId === null || accounts.has(form.wabaId));
 }

@@ -70,6 +70,7 @@ import {
 } from "@/types/flow";
 import { saveFlowGraph } from "../../portal-actions";
 import { useTheme } from "@/components/ThemeToggle";
+import { formsOnNumbers } from "@/lib/flow-routing";
 
 // The visual builder. Nodes carry their own configuration form rather than
 // opening a side panel: a flow is read by scanning left to right, and having
@@ -123,6 +124,8 @@ export interface BuilderNumber {
   id: string;
   label: string;
   status: string;
+  /** The WhatsApp Business Account this number is on. */
+  wabaId: string;
 }
 
 /** A form the Send Form node can pick. */
@@ -130,6 +133,8 @@ export interface BuilderForm {
   id: string;
   name: string;
   status: string;
+  /** Null on a form uploaded before the account was recorded. */
+  wabaId: string | null;
 }
 
 /**
@@ -142,6 +147,16 @@ const NumbersContext = createContext<BuilderNumber[]>([]);
 
 /** The workspace's sendable forms, for the Send Form node. Same reason. */
 const FormsContext = createContext<BuilderForm[]>([]);
+
+/**
+ * The numbers this bot's trigger listens on, as ids.
+ *
+ * Lives inside the builder rather than beside the two above, because it is
+ * read off the canvas: it changes the moment somebody ticks a number in the
+ * trigger, and the Send Form picker has to follow that without a reload.
+ * Empty means every number, the same as the trigger's own field.
+ */
+const ListeningContext = createContext<string[]>([]);
 
 function FieldEditor({
   field,
@@ -783,7 +798,21 @@ function Builder({
     })).filter((g) => g.items.length > 0);
   }, [query]);
 
+  // Which numbers the trigger listens on, read off the canvas so the Send
+  // Form picker narrows the moment a number is ticked rather than on the
+  // next reload. Several triggers are allowed, and a bot listening on two
+  // of them listens on the union.
+  const listening = useMemo(() => {
+    const ids = new Set<string>();
+    for (const node of nodes) {
+      const picked = (node.data as NodeData).values?.phoneNumbers;
+      if (Array.isArray(picked)) for (const id of picked) ids.add(String(id));
+    }
+    return [...ids];
+  }, [nodes]);
+
   return (
+    <ListeningContext.Provider value={listening}>
     <div className="flex h-full min-h-0">
       {/* Palette */}
       <aside className="w-64 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0 bg-[var(--surface-2)]">
@@ -945,6 +974,7 @@ function Builder({
         </div>
       </div>
     </div>
+    </ListeningContext.Provider>
   );
 }
 
@@ -974,22 +1004,49 @@ function FormPicker({
   value: unknown;
   onChange: (next: unknown) => void;
 }) {
-  const forms = useContext(FormsContext);
+  const all = useContext(FormsContext);
+  const numbers = useContext(NumbersContext);
+  const listening = useContext(ListeningContext);
   const current = String(value ?? "");
+
+  // Only the forms this bot can actually open. A form lives on one WhatsApp
+  // Business Account; a bot listening on a number from another account
+  // cannot open it, and WhatsApp refuses it in front of the customer rather
+  // than here.
+  const forms = formsOnNumbers(all, numbers, listening);
+
+  // Naming the numbers, because "no forms" and "no forms on this number"
+  // send someone to two completely different places.
+  const listeningLabel = listening
+    .map((id) => numbers.find((number) => number.id === id)?.label)
+    .filter(Boolean)
+    .join(", ");
 
   if (forms.length === 0) {
     return (
       <p className="text-[11px] text-white/45 leading-relaxed">
-        No forms are ready. Build one under Manage → WhatsApp Forms and press Update Flow — a
-        form has to exist at WhatsApp before a bot can open it.
+        {all.length > 0 && listeningLabel ? (
+          <>
+            No form exists on {listeningLabel}. A form belongs to one WhatsApp account and only a
+            bot listening there can open it — build one on that number under Manage → WhatsApp
+            Forms, or tick a different number on the trigger.
+          </>
+        ) : (
+          <>
+            No forms are ready. Build one under Manage → WhatsApp Forms and press Update Flow — a
+            form has to exist at WhatsApp before a bot can open it.
+          </>
+        )}
       </p>
     );
   }
 
   // A saved value that matches nothing is shown rather than silently
-  // replaced: it may be a form built in WhatsApp Manager, or one deleted
-  // since, and either way the author should see what the node still says.
+  // replaced: it may be a form built in WhatsApp Manager, one deleted
+  // since, or one on a number this bot no longer listens on — and either
+  // way the author should see what the node still says.
   const known = forms.some((form) => form.id === current);
+  const onAnotherNumber = !known && all.some((form) => form.id === current);
 
   return (
     <>
@@ -1008,10 +1065,24 @@ function FormPicker({
           </option>
         ))}
       </select>
+      {listeningLabel && (
+        <p className="text-[11px] text-white/30 mt-1.5">
+          Forms on {listeningLabel}.
+        </p>
+      )}
       {current && !known && (
         <p className="text-[11px] text-[#FACC15] mt-1.5 leading-relaxed">
-          This node currently says &ldquo;{current}&rdquo;, which is not a form in this
-          workspace. Pick one above to replace it.
+          {onAnotherNumber ? (
+            <>
+              This node opens a form built on a different WhatsApp account, so this bot cannot
+              send it. Pick one above, or tick that number on the trigger.
+            </>
+          ) : (
+            <>
+              This node currently says &ldquo;{current}&rdquo;, which is not a form in this
+              workspace. Pick one above to replace it.
+            </>
+          )}
         </p>
       )}
     </>

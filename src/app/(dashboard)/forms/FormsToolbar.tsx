@@ -7,7 +7,14 @@ import { createForm, deleteForm, syncAllForms } from "./flow-actions";
 import { FLOW_CATEGORIES } from "@/lib/flow-json";
 import { FORM_TEMPLATES } from "@/lib/form-templates";
 
-export function FormsToolbar() {
+/** One of the workspace's numbers, for the "build it on" picker. */
+export interface FormNumber {
+  id: string;
+  label: string;
+  wabaId: string;
+}
+
+export function FormsToolbar({ numbers }: { numbers: FormNumber[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -42,13 +49,23 @@ export function FormsToolbar() {
         </button>
       </div>
 
-      {open && <NewFormDialog onClose={() => setOpen(false)} />}
+      {open && <NewFormDialog numbers={numbers} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function NewFormDialog({ onClose }: { onClose: () => void }) {
+function NewFormDialog({
+  numbers,
+  onClose,
+}: {
+  numbers: FormNumber[];
+  onClose: () => void;
+}) {
   const router = useRouter();
+  // Defaulting to the first number rather than to "choose one": with a
+  // single number there is nothing to decide, and the picker below hides
+  // itself in that case.
+  const [connectionId, setConnectionId] = useState(numbers[0]?.id ?? "");
   // "" is the blank form. A template is the common case, so it leads.
   const [template, setTemplate] = useState<string>(FORM_TEMPLATES[0]?.slug ?? "");
   const [name, setName] = useState(FORM_TEMPLATES[0]?.name ?? "");
@@ -150,6 +167,28 @@ function NewFormDialog({ onClose }: { onClose: () => void }) {
           </select>
         </div>
 
+        {numbers.length > 1 && (
+          <div>
+            <span className="block text-xs font-medium text-white/70 mb-1.5">Build it on</span>
+            <select
+              value={connectionId}
+              onChange={(event) => setConnectionId(event.target.value)}
+              className={input}
+            >
+              {numbers.map((number) => (
+                <option key={number.id} value={number.id} className="bg-[var(--surface-3)]">
+                  {number.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-white/40 mt-1.5 leading-relaxed">
+              A form lives on one WhatsApp account for its whole life and cannot be moved
+              afterwards. Only this number — and any other number on the same account — can send
+              it, and only a bot listening there can open it.
+            </p>
+          </div>
+        )}
+
         {error && <p className="text-xs text-[#F87171]">{error}</p>}
 
         <div className="flex justify-end gap-2 pt-1">
@@ -165,6 +204,7 @@ function NewFormDialog({ onClose }: { onClose: () => void }) {
                 data.set("name", name);
                 data.set("category", category);
                 if (template) data.set("template", template);
+                if (connectionId) data.set("connection_id", connectionId);
                 const result = await createForm(data);
                 if (!result.ok || !result.id) {
                   setError(result.error ?? "Could not create the form.");

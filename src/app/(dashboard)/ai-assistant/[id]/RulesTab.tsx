@@ -21,7 +21,14 @@ export default function RulesTab({
 }: {
   assistant: AiAssistant;
   /** Forms in this workspace that exist at Meta and could be offered. */
-  forms: Array<{ id: string; name: string; description: string | null; status: string }>;
+  forms: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    /** Null when the form's account is not connected here. */
+    numberLabel: string | null;
+  }>;
 }) {
   const [memoryTurns, setMemoryTurns] = useState(assistant.memory_turns);
   const [useKnowledge, setUseKnowledge] = useState(assistant.use_knowledge_base);
@@ -157,6 +164,11 @@ export default function RulesTab({
                           {form.status !== "published" && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15]">
                               draft
+                            </span>
+                          )}
+                          {form.numberLabel && (
+                            <span className="text-[10px] text-white/35 tabular-nums">
+                              on {form.numberLabel}
                             </span>
                           )}
                         </span>
