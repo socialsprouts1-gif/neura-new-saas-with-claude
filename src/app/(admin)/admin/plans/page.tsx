@@ -6,6 +6,7 @@ import { resolveFeatures } from "@/lib/features";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
+import { readTrialDays } from "@/lib/trial";
 
 export default async function AdminPlansPage() {
   await requirePlatformAdmin();
@@ -18,7 +19,7 @@ export default async function AdminPlansPage() {
   ]);
 
   const trialDays =
-    Number((billing?.value as { trial_days?: number } | null)?.trial_days) || 14;
+    readTrialDays(billing?.value);
 
   const subscriberCount = new Map<string, number>();
   for (const s of subs ?? []) {

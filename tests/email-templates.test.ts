@@ -5,8 +5,10 @@ import {
   paymentReceivedEmail,
   renewalReminderEmail,
   subscriptionExpiredEmail,
+  firstChatbotEmail,
   trialEndingEmail,
   trialExpiredEmail,
+  trialFollowUpEmail,
   welcomeEmail,
   type EmailBrand,
 } from "../src/lib/email-templates.ts";
@@ -20,7 +22,7 @@ const brand: EmailBrand = {
 const all = [
   welcomeEmail(brand, { trialDays: 7 }),
   trialEndingEmail(brand, { daysLeft: 2 }),
-  trialExpiredEmail(brand),
+  trialExpiredEmail(brand, { fromPrice: "₹1,000 a month" }),
   paymentReceivedEmail(brand, {
     planName: "Growth",
     amount: "₹1,500",
@@ -96,7 +98,7 @@ test("an expired plan says the data is still there", () => {
   // The fear at this moment is losing everything; the mail has to answer
   // it before it asks for anything.
   assert.match(subscriptionExpiredEmail(brand, { planName: "Growth" }).text, /nothing has been deleted/i);
-  assert.match(trialExpiredEmail(brand).text, /still here/i);
+  assert.match(trialExpiredEmail(brand, {}).text, /exactly where you left them/i);
 });
 
 test("a plan with no name still reads as a sentence", () => {
@@ -116,4 +118,49 @@ test("a brand name with markup in it cannot break out of the HTML", () => {
 test("the preheader is hidden rather than shown twice", () => {
   const email = welcomeEmail(brand, { trialDays: 7 });
   assert.match(email.html, /display:none;max-height:0/);
+});
+
+// --- the newer messages ---------------------------------------------------
+
+test("an expired trial leads with the price and a way to pay", () => {
+  const email = trialExpiredEmail(brand, { fromPrice: "₹1,000 a month" });
+  assert.match(email.text, /₹1,000 a month/);
+  assert.match(email.text, /nothing has been deleted/i);
+  assert.match(email.text, /Pick a plan and pay/);
+});
+
+test("an expired trial still reads without a price to quote", () => {
+  const email = trialExpiredEmail(brand, {});
+  assert.doesNotMatch(email.text, /undefined|null/);
+  assert.match(email.text, /Choose a plan/);
+});
+
+test("follow-ups do not all say the same thing", () => {
+  // Ten identical messages is one message sent ten times, which is what
+  // gets a sender marked as spam.
+  const bodies = new Set(
+    [0, 1, 2, 3].map((step) => trialFollowUpEmail(brand, { step, daysSince: step * 3 }).text)
+  );
+  assert.ok(bodies.size > 1);
+});
+
+test("a follow-up never invents a deadline or escalates", () => {
+  const tenth = trialFollowUpEmail(brand, { step: 10, daysSince: 30 });
+  assert.doesNotMatch(tenth.subject, /final|last chance|urgent|expiring/i);
+  assert.match(tenth.text, /ignore this/i);
+});
+
+test("the first chatbot is congratulated by name", () => {
+  const email = firstChatbotEmail(brand, { botName: "Welcome bot" });
+  assert.match(email.text, /Welcome bot/);
+  assert.match(email.subject, /first chatbot/i);
+});
+
+test("a nameless bot still reads as a sentence", () => {
+  assert.match(firstChatbotEmail(brand, { botName: "  " }).text, /your first bot/);
+});
+
+test("a bot name cannot inject markup into the email", () => {
+  const email = firstChatbotEmail(brand, { botName: '<img src=x onerror="alert(1)">' });
+  assert.doesNotMatch(email.html, /<img/);
 });

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { featureForPath, resolveFeatures } from "@/lib/features";
 import { emailBrand, sendEmail } from "@/lib/email";
+import { readTrialDays } from "@/lib/trial";
 import { welcomeEmail } from "@/lib/email-templates";
 import type { OrgRole } from "@/types/database";
 
@@ -211,8 +212,7 @@ async function welcomeIfNew(
       .eq("key", "billing")
       .maybeSingle();
 
-    const configured = (setting?.value as { trial_days?: number } | null)?.trial_days;
-    const trialDays = typeof configured === "number" && configured > 0 ? configured : 14;
+    const trialDays = readTrialDays(setting?.value);
 
     await sendEmail({
       to: email,

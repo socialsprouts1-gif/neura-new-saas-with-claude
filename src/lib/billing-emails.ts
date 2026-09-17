@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatMoney } from "@/types/admin";
 import { dueBillingEmail, type BillingEmailKind } from "@/lib/billing-email-plan";
 import { emailBrand, sendEmail } from "@/lib/email";
 import {
@@ -7,6 +8,7 @@ import {
   subscriptionExpiredEmail,
   trialEndingEmail,
   trialExpiredEmail,
+  trialFollowUpEmail,
   type EmailBody,
   type EmailBrand,
 } from "@/lib/email-templates";
@@ -32,13 +34,25 @@ export interface SweepResult {
 function bodyFor(
   kind: BillingEmailKind,
   brand: EmailBrand,
-  input: { planName: string | null; daysLeft: number; renewsOn: string }
+  input: {
+    planName: string | null;
+    daysLeft: number;
+    renewsOn: string;
+    step: number;
+    fromPrice: string | null;
+  }
 ): EmailBody {
   switch (kind) {
     case "trial_ending":
       return trialEndingEmail(brand, { daysLeft: input.daysLeft });
     case "trial_expired":
-      return trialExpiredEmail(brand);
+      return trialExpiredEmail(brand, { fromPrice: input.fromPrice });
+    case "trial_followup":
+      return trialFollowUpEmail(brand, {
+        step: input.step,
+        daysSince: -input.daysLeft,
+        fromPrice: input.fromPrice,
+      });
     case "renewal_reminder":
       return renewalReminderEmail(brand, {
         planName: input.planName ?? "Your plan",
@@ -48,6 +62,29 @@ function bodyFor(
     case "subscription_expired":
       return subscriptionExpiredEmail(brand, { planName: input.planName });
   }
+}
+
+/**
+ * The cheapest plan on offer, as a sentence fragment.
+ *
+ * Read once for the whole sweep rather than per workspace: it is the same
+ * answer every time, and a query per customer for a number that does not
+ * change is how a nightly job becomes a slow one.
+ */
+async function cheapestPlan(
+  admin: ReturnType<typeof createAdminClient>
+): Promise<string | null> {
+  const { data } = await admin
+    .from("plans")
+    .select("price_cents, currency, billing_interval")
+    .eq("is_active", true)
+    .eq("billing_interval", "monthly")
+    .order("price_cents", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!data || typeof data.price_cents !== "number") return null;
+  return `${formatMoney(data.price_cents, data.currency)} a month`;
 }
 
 /** Human date for a sentence: "16 October 2026". */
@@ -62,6 +99,7 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
   const admin = createAdminClient();
   const brand = emailBrand();
   const result: SweepResult = { checked: 0, sent: 0, skipped: 0, failed: 0 };
+  const fromPrice = await cheapestPlan(admin);
 
   const { data: subscriptions, error } = await admin
     .from("subscriptions")
@@ -104,6 +142,8 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
         planName: due.planName,
         daysLeft: due.daysLeft,
         renewsOn: longDate(row.current_period_end ?? ""),
+        step: due.step ?? 0,
+        fromPrice,
       }),
     });
 

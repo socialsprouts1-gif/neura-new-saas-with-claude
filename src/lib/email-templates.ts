@@ -119,16 +119,79 @@ export function trialEndingEmail(brand: EmailBrand, input: { daysLeft: number })
   };
 }
 
-export function trialExpiredEmail(brand: EmailBrand): EmailBody {
-  const action = { label: "Choose a plan", href: `${brand.appUrl}/billing` };
+export function trialExpiredEmail(
+  brand: EmailBrand,
+  input: { fromPrice?: string | null } = {}
+): EmailBody {
+  const action = { label: "Pick a plan and pay", href: `${brand.appUrl}/billing` };
   const lines = [
-    "Your free trial has ended.",
-    "Your workspace, contacts and chat history are all still here. Choose a plan and everything picks up exactly where it stopped.",
+    "Your free trial has ended, and sending is paused.",
+    "Your workspace, your contacts and every conversation are exactly where you left them. Nothing has been deleted.",
+    input.fromPrice
+      ? `Plans start at ${input.fromPrice}. Paying takes a minute and everything starts again immediately.`
+      : "Choose a plan and everything picks up where it stopped.",
   ];
 
   return {
     subject: `Your ${brand.name} trial has ended`,
     html: layout(brand, "Your data is safe. Pick a plan to carry on.", lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+/**
+ * The reminders after that, on a schedule that slows down.
+ *
+ * Written to be readable the tenth time as well as the first, which means
+ * no escalation and no invented deadline. Somebody who has not paid after
+ * a month has not forgotten — they have decided, and a message that keeps
+ * insisting otherwise is the one that gets marked as spam.
+ */
+export function trialFollowUpEmail(
+  brand: EmailBrand,
+  input: { step: number; daysSince: number; fromPrice?: string | null }
+): EmailBody {
+  const action = { label: "See plans", href: `${brand.appUrl}/billing` };
+
+  // Three angles, cycled, so a sequence of ten does not read as one
+  // message sent ten times.
+  const openings = [
+    "Your workspace is still here whenever you want it back.",
+    "Your contacts and chat history are still saved — nothing has been removed.",
+    "Still thinking it over? Your account is exactly as you left it.",
+  ];
+
+  const lines = [
+    openings[input.step % openings.length],
+    input.fromPrice
+      ? `Plans start at ${input.fromPrice}, monthly, and you can cancel any time.`
+      : "Pick a plan whenever you are ready; you can cancel any time.",
+    "If Neura Chat is not right for you, just ignore this — no reply needed.",
+  ];
+
+  return {
+    subject: `Your ${brand.name} workspace is waiting`,
+    html: layout(brand, "Nothing has been deleted.", lines.map(p).join(""), action),
+    text: plain(lines, action),
+  };
+}
+
+/**
+ * The first bot. Worth marking, because it is the moment the product
+ * stops being a signup and starts being a thing that does work.
+ */
+export function firstChatbotEmail(brand: EmailBrand, input: { botName: string }): EmailBody {
+  const name = input.botName.trim() || "your first bot";
+  const action = { label: "Open the builder", href: `${brand.appUrl}/chatbot` };
+  const lines = [
+    `You've built ${escape(name)} — your first chatbot.`,
+    "Switch it on and it answers customers on WhatsApp without you, day or night. Anything it cannot handle lands in your inbox with the whole conversation attached, so nobody is left waiting.",
+    "Worth doing next: send yourself a message on the connected number and watch it reply. It is the fastest way to see what a customer will see.",
+  ];
+
+  return {
+    subject: `Your first chatbot is ready`,
+    html: layout(brand, "Switch it on and it answers for you.", lines.map(p).join(""), action),
     text: plain(lines, action),
   };
 }

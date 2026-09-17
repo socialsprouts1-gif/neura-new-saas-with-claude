@@ -10,6 +10,7 @@ import { requirePlatformAdmin } from "@/lib/org";
 import { isPaymentProvider } from "@/lib/provider-meta";
 import { emailBrand, emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email-templates";
+import { readTrialDays } from "@/lib/trial";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
 // requirePlatformAdmin() runs first in every action. It redirects rather than
@@ -393,6 +394,15 @@ export async function sendTestEmail(formData: FormData): Promise<ActionResult> {
   }
 
   const brand = emailBrand();
+
+  // The configured length, not a guess: a test that promises a different
+  // trial from the real welcome is a test that proves nothing.
+  const { data: billing } = await createAdminClient()
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "billing")
+    .maybeSingle();
+
   const result = await sendEmail({
     to,
     orgId: null,
@@ -400,7 +410,7 @@ export async function sendTestEmail(formData: FormData): Promise<ActionResult> {
     // Unique per attempt: a test that could only run once would be
     // useless the second time somebody changed a setting.
     dedupeKey: `test:${Date.now()}:${to}`,
-    body: welcomeEmail(brand, { trialDays: 14 }),
+    body: welcomeEmail(brand, { trialDays: readTrialDays(billing?.value) }),
   });
 
   if (result.ok) {

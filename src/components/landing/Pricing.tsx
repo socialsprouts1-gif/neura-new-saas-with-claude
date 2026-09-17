@@ -12,6 +12,7 @@ import {
   yearlySavingPercent,
   type PricingTier,
 } from "@/lib/pricing";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 
 // The prices come from the `plans` table, loaded once on the page and handed
 // down. Only the chrome lives here — icon and colour per position — because
@@ -34,7 +35,7 @@ function rupees(paise: number, currency: string): string {
 
 export default function Pricing({
   tiers = DEFAULT_TIERS,
-  trialDays = 14,
+  trialDays = DEFAULT_TRIAL_DAYS,
 }: {
   tiers?: PricingTier[];
   trialDays?: number;

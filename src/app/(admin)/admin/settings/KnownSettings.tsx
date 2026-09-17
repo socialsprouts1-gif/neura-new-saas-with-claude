@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { saveTrialDays, saveBranding, saveSignups } from "../actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Card } from "@/components/ui/primitives";
+import { readTrialDays } from "@/lib/trial";
 
 /**
  * The settings that had to be typed as JSON, as ordinary controls.
@@ -28,7 +29,7 @@ export default async function KnownSettings() {
   const branding = byKey.get("branding") ?? {};
   const signups = byKey.get("signups") ?? {};
 
-  const trialDays = typeof billing.trial_days === "number" ? billing.trial_days : 14;
+  const trialDays = readTrialDays(billing);
   const signupsEnabled = signups.enabled !== false;
   const onboardingFee = signups.require_onboarding_fee === true;
 

@@ -10,7 +10,7 @@ import {
 } from "@/lib/pricing";
 
 /** Matches the default in public.trial_days(). */
-const DEFAULT_TRIAL_DAYS = 14;
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 
 /**
  * The landing page's content, defaults where nothing is saved.

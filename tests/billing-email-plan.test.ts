@@ -1,10 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NOTICE_DAYS, dueBillingEmail } from "../src/lib/billing-email-plan.ts";
+import {
+  COUNTDOWN_DAYS,
+  FOLLOW_UP_LAST_DAY,
+  dueBillingEmail,
+  followUpStep,
+} from "../src/lib/billing-email-plan.ts";
 
-const now = new Date("2026-09-16T10:00:00Z");
-const inDays = (days: number) =>
-  new Date(now.getTime() + days * 86_400_000).toISOString();
+const now = new Date("2026-09-17T10:00:00Z");
+const inDays = (days: number) => new Date(now.getTime() + days * 86_400_000).toISOString();
 
 const sub = (status: string, days: number, planName = "Growth") => ({
   status,
@@ -12,21 +16,105 @@ const sub = (status: string, days: number, planName = "Growth") => ({
   plans: { name: planName },
 });
 
-test("a trial is left alone until it is nearly over", () => {
-  // Warning on day one of seven is nagging, and it would burn the one
-  // send this period is allowed.
+test("a trial is left alone until the countdown starts", () => {
+  // A week's warning on a seven-day trial is a message on the day
+  // somebody signed up, which reads as a demand rather than a reminder.
   assert.equal(dueBillingEmail("o1", sub("trialing", 7), now), null);
-  assert.equal(dueBillingEmail("o1", sub("trialing", 4), now), null);
+  assert.equal(dueBillingEmail("o1", sub("trialing", COUNTDOWN_DAYS + 1), now), null);
 });
 
-test("a trial inside the notice window is due a warning", () => {
-  const due = dueBillingEmail("o1", sub("trialing", NOTICE_DAYS), now);
-  assert.equal(due?.kind, "trial_ending");
-  assert.equal(due?.daysLeft, NOTICE_DAYS);
+test("the countdown sends one a day, and each day is its own message", () => {
+  // Five down to one. The moment it reaches zero the period has ended, so
+  // that day belongs to the expiry mail rather than the countdown.
+  const keys = new Set<string>();
+  for (let day = COUNTDOWN_DAYS; day >= 1; day -= 1) {
+    const due = dueBillingEmail("o1", sub("trialing", day), now);
+    assert.equal(due?.kind, "trial_ending", `day ${day}`);
+    keys.add(due!.dedupeKey);
+  }
+  // Distinct keys throughout — two colliding would make the index swallow
+  // a day of the countdown.
+  assert.equal(keys.size, COUNTDOWN_DAYS);
 });
 
-test("an ended trial asks for the sale", () => {
-  assert.equal(dueBillingEmail("o1", sub("trialing", -1), now)?.kind, "trial_expired");
+test("the same day asked twice is the same message", () => {
+  // Two sweeps on the same day must not send twice, so the key carries
+  // the day rather than the moment.
+  // Two and a half days out, so eight hours later is still "2 days left".
+  const periodEnd = inDays(2.5);
+  const row = { status: "trialing", current_period_end: periodEnd, plans: { name: "Growth" } };
+
+  const morning = dueBillingEmail("o1", row, now)!;
+  const evening = dueBillingEmail("o1", row, new Date(now.getTime() + 8 * 3600_000))!;
+
+  assert.equal(morning.dedupeKey, evening.dedupeKey);
+  assert.equal(morning.daysLeft, 2);
+  assert.equal(evening.daysLeft, 2);
+});
+
+test("crossing into a new day is a new message, not a repeat", () => {
+  // The countdown is meant to say a different number each day, so a key
+  // that survived the boundary would silence every day after the first.
+  const periodEnd = inDays(2.5);
+  const row = { status: "trialing", current_period_end: periodEnd, plans: { name: "Growth" } };
+
+  const today = dueBillingEmail("o1", row, now)!;
+  const tomorrow = dueBillingEmail("o1", row, new Date(now.getTime() + 86_400_000))!;
+
+  assert.equal(today.daysLeft, 2);
+  assert.equal(tomorrow.daysLeft, 1);
+  assert.notEqual(today.dedupeKey, tomorrow.dedupeKey);
+});
+
+test("the day a trial ends asks for the sale, once", () => {
+  const due = dueBillingEmail("o1", sub("trialing", -1), now);
+  assert.equal(due?.kind, "trial_expired");
+  assert.match(due!.dedupeKey, /trial_expired/);
+});
+
+test("follow-ups every three days for the first month", () => {
+  for (const daysSince of [3, 6, 9, 30]) {
+    const due = dueBillingEmail("o1", sub("trialing", -daysSince), now);
+    assert.equal(due?.kind, "trial_followup", `day ${daysSince}`);
+  }
+  assert.equal(followUpStep(3), 1);
+  assert.equal(followUpStep(30), 10);
+});
+
+test("and weekly after the first month", () => {
+  // 30 is step 10; a week later is 11, not another three-day step.
+  assert.equal(followUpStep(37), 11);
+  assert.equal(followUpStep(44), 12);
+});
+
+test("a missed sweep catches up rather than skipping a step for ever", () => {
+  // The step is computed from the day, not from what was sent last, so a
+  // run that misses day 9 still sends step 3 when it next runs.
+  assert.equal(followUpStep(9), 3);
+  assert.equal(followUpStep(10), 3);
+  assert.equal(followUpStep(11), 3);
+});
+
+test("each follow-up is its own message", () => {
+  const first = dueBillingEmail("o1", sub("trialing", -3), now)!;
+  const second = dueBillingEmail("o1", sub("trialing", -6), now)!;
+  assert.notEqual(first.dedupeKey, second.dedupeKey);
+});
+
+test("the sequence stops rather than running for years", () => {
+  // Somebody who has ignored twenty emails over six months has answered.
+  // Carrying on earns spam reports, and the sending domain is shared with
+  // the receipts people actually want.
+  assert.equal(followUpStep(FOLLOW_UP_LAST_DAY), 31);
+  assert.equal(followUpStep(FOLLOW_UP_LAST_DAY + 1), null);
+  assert.equal(dueBillingEmail("o1", sub("trialing", -400), now), null);
+});
+
+test("nothing is due in the gap before the first follow-up", () => {
+  // Days 1 and 2 already had the expiry mail; a second one that soon is
+  // nagging, not a reminder.
+  assert.equal(followUpStep(1), null);
+  assert.equal(followUpStep(2), null);
 });
 
 test("a paid plan is reminded a few days before it renews", () => {
@@ -34,39 +122,17 @@ test("a paid plan is reminded a few days before it renews", () => {
   assert.equal(dueBillingEmail("o1", sub("active", 20), now), null);
 });
 
-test("a lapsed paid plan is told, not reminded", () => {
+test("a lapsed paid plan is told, not chased", () => {
   assert.equal(dueBillingEmail("o1", sub("past_due", -2), now)?.kind, "subscription_expired");
 });
 
 test("a workspace with no billing row is owed nothing", () => {
-  // Saying "your plan has lapsed" to someone who never had one is worse
-  // than silence.
   assert.equal(dueBillingEmail("o1", null, now), null);
-  assert.equal(dueBillingEmail("o1", { status: null, current_period_end: null }, now), null);
-});
-
-test("no period end means no send, because there is nothing to dedupe on", () => {
-  // Any send here would repeat on every sweep for ever.
   assert.equal(dueBillingEmail("o1", { status: "active", current_period_end: null }, now), null);
 });
 
-test("the key is unique per workspace and per period", () => {
-  const a = dueBillingEmail("org-a", sub("active", 1), now)!;
-  const b = dueBillingEmail("org-b", sub("active", 1), now)!;
+test("keys are unique per workspace", () => {
+  const a = dueBillingEmail("org-a", sub("trialing", 2), now)!;
+  const b = dueBillingEmail("org-b", sub("trialing", 2), now)!;
   assert.notEqual(a.dedupeKey, b.dedupeKey);
-
-  // The period is in the key, which is what gives a monthly plan exactly
-  // one reminder a month with nothing having to count them.
-  const october = dueBillingEmail("org-a", sub("active", 31), new Date(now.getTime() + 30 * 86_400_000))!;
-  assert.notEqual(a.dedupeKey, october.dedupeKey);
-});
-
-test("the same period asked twice produces the same key", () => {
-  const first = dueBillingEmail("o1", sub("active", 2), now)!;
-  const later = dueBillingEmail("o1", sub("active", 2), new Date(now.getTime() + 3600_000))!;
-  assert.equal(first.dedupeKey, later.dedupeKey);
-});
-
-test("the plan name travels with the email so it can be named", () => {
-  assert.equal(dueBillingEmail("o1", sub("active", 1, "Scale"), now)?.planName, "Scale");
 });

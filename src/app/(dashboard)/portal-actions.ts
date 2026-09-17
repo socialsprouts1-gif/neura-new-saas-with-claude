@@ -3,6 +3,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { emailBrand, sendEmail } from "@/lib/email";
+import { firstChatbotEmail } from "@/lib/email-templates";
+import { ownerEmail } from "@/lib/billing-emails";
 import { requireOrg } from "@/lib/org";
 import { NODE_DEFS, type FlowEdge, type FlowNode } from "@/types/flow";
 import { encryptToken } from "@/lib/crypto";
@@ -557,6 +561,12 @@ export async function saveChatbotFlow(formData: FormData): Promise<ActionResult>
     return { ok: false, error: error.message };
   }
 
+  // The first bot in this workspace is worth a word. Deduped on the
+  // workspace, so the second and the fiftieth are silent — a
+  // congratulations that arrives every time somebody adds a bot stops
+  // being a congratulations.
+  await congratulateFirstBot(supabase, orgId, name);
+
   revalidatePath("/chatbot");
   return { ok: true, message: "Bot created. Activate it when you're ready." };
 }
@@ -962,6 +972,45 @@ export async function deleteWebhook(formData: FormData): Promise<ActionResult> {
 }
 
 // ---------------------------------------------------------------- Commerce / Gallery
+
+/**
+ * Says well done for the first chatbot, and only the first.
+ *
+ * Counted rather than remembered: a workspace with exactly one bot has
+ * just made it. Cheap because it is a head-count query, and only on the
+ * create path.
+ *
+ * Never throws. A bot that saved and then failed because of an email
+ * would be the worst possible trade.
+ */
+async function congratulateFirstBot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  botName: string
+): Promise<void> {
+  try {
+    const { count } = await supabase
+      .from("chatbot_flows")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId);
+
+    if (count !== 1) return;
+
+    const admin = createAdminClient();
+    const to = await ownerEmail(admin, orgId);
+    if (!to) return;
+
+    await sendEmail({
+      to,
+      orgId,
+      kind: "first_chatbot",
+      dedupeKey: `${orgId}:first_chatbot`,
+      body: firstChatbotEmail(emailBrand(), { botName }),
+    });
+  } catch (error) {
+    console.error("Could not send the first-chatbot email", error);
+  }
+}
 
 export async function saveProduct(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
