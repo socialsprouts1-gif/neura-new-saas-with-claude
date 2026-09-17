@@ -4,6 +4,8 @@ import { PageHeader, StatCard, Card, Badge, Table, Td, EmptyState } from "@/comp
 import { explainEmailFailure, NEVER_ATTEMPTED } from "@/lib/email-errors";
 import { checkFrom, ACCEPTED_NOT_DELIVERED } from "@/lib/deliverability";
 import { isEmailConfigured, emailIdentity } from "@/lib/email";
+import { sendWelcomeToEveryone } from "../actions";
+import ActionForm from "@/components/ui/ActionForm";
 
 /**
  * Every message this deployment tried to send, and what came back.
@@ -51,6 +53,13 @@ export default async function AdminEmailsPage() {
   const leading = failed.map((row) => explainEmailFailure(row.error)).find(Boolean) ?? null;
 
   const configured = isEmailConfigured();
+
+  // How many workspaces a catch-up send would reach, shown before it is
+  // pressed. "Send to everyone" with no number next to it is a button
+  // nobody can consent to.
+  const { count: workspaces } = await supabase
+    .from("organizations")
+    .select("id", { count: "exact", head: true });
 
   // Whether what this deployment sends as can actually land. A provider
   // accepting a message and an inbox receiving one are different events,
@@ -119,6 +128,32 @@ export default async function AdminEmailsPage() {
           </div>
           <p className="text-sm text-white/75 leading-relaxed mb-2">{leading.summary}</p>
           <p className="text-sm text-white/50 leading-relaxed">{leading.fix}</p>
+        </Card>
+      )}
+
+      {configured && (workspaces ?? 0) > 0 && (
+        <Card className="mb-6">
+          <h2 className="font-semibold mb-1">Send the welcome again, to everyone</h2>
+          <p className="text-sm text-white/50 mb-4 leading-relaxed">
+            One message to each of your{" "}
+            <span className="text-white/75">{workspaces} workspace{workspaces === 1 ? "" : "s"}</span>
+            . For the people who signed up before the sending domain was verified and whose
+            welcome went to spam. Suspended workspaces, unsubscribed addresses and two workspaces
+            belonging to the same person are all left out, and running it twice in a day sends
+            nothing the second time.
+          </p>
+          <p className="text-[11px] text-[#FACC15] mb-4 leading-relaxed">
+            Email cannot be recalled, and identical mail to a whole list is how a new sending
+            domain earns a bad reputation. Worth doing once, not routinely.
+          </p>
+          <ActionForm action={sendWelcomeToEveryone} submitLabel="Send to everyone">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input type="checkbox" name="confirm" className="accent-[var(--accent)] w-4 h-4 mt-0.5" />
+              <span className="text-sm text-white/75">
+                Yes, email all {workspaces} workspace{workspaces === 1 ? "" : "s"} now
+              </span>
+            </label>
+          </ActionForm>
         </Card>
       )}
 

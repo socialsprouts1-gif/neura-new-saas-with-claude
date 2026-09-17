@@ -10,6 +10,7 @@ import { requirePlatformAdmin } from "@/lib/org";
 import { isPaymentProvider } from "@/lib/provider-meta";
 import { emailBrand, emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email-templates";
+import { planBroadcast, explainSkip, BROADCAST_KIND } from "@/lib/broadcast";
 import { readTrialDays } from "@/lib/trial";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
@@ -941,4 +942,130 @@ export async function setMemberRole(formData: FormData): Promise<ActionResult> {
   // stale until this re-renders.
   revalidatePath("/", "layout");
   return { ok: true, message: `Role set to ${role}.` };
+}
+
+/**
+ * Sends the welcome to every workspace, once.
+ *
+ * Built because the welcome that went out before the sending domain was
+ * verified landed in spam, so the people who signed up in that window
+ * never really got one. It is a one-off catch-up, not something to reach
+ * for often: identical mail to a whole list is how a new domain earns a
+ * bad reputation, and the people on it have already had this message once.
+ *
+ * Counted as marketing, whatever the original was. A welcome somebody
+ * receives because they just signed up is about their account; the same
+ * words sent to everybody because an operator pressed a button is bulk
+ * mail, so it carries an unsubscribe and honours the opt-out list.
+ */
+export async function sendWelcomeToEveryone(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  // Mailing every customer cannot be undone, so it does not happen on a
+  // stray click. The box is unticked every render.
+  if (formData.get("confirm") === null) {
+    return { ok: false, error: "Tick the box to confirm before sending." };
+  }
+
+  if (!isEmailConfigured()) {
+    return { ok: false, error: "Email is not configured on this deployment, so nothing was sent." };
+  }
+
+  const admin = createAdminClient();
+
+  const [{ data: orgs, error: orgError }, { data: optOuts }] = await Promise.all([
+    admin.from("organizations").select("id, name, suspended_at").order("created_at"),
+    admin.from("email_optouts").select("email"),
+  ]);
+
+  if (orgError) return { ok: false, error: orgError.message };
+  if (!orgs || orgs.length === 0) return { ok: false, error: "There are no workspaces to write to." };
+
+  // Resolved before planning, so the plan can say "nobody to write to"
+  // rather than discovering it halfway through a send.
+  const withEmail = await Promise.all(
+    orgs.map(async (org) => ({
+      id: org.id,
+      name: org.name,
+      suspendedAt: org.suspended_at,
+      email: await recipientFor(admin, org.id),
+    }))
+  );
+
+  const plan = planBroadcast(
+    withEmail,
+    (optOuts ?? []).map((row) => row.email),
+    new Date()
+  );
+
+  const trialDays = readTrialDays(
+    (await admin.from("platform_settings").select("value").eq("key", "billing").maybeSingle()).data
+      ?.value
+  );
+
+  let sent = 0;
+  let duplicate = 0;
+  const failures: string[] = [];
+
+  for (const target of plan.send) {
+    const outcome = await sendEmail({
+      to: target.email,
+      orgId: target.orgId,
+      kind: BROADCAST_KIND,
+      dedupeKey: target.dedupeKey,
+      body: (brand) => welcomeEmail(brand, { trialDays }),
+    });
+
+    if (outcome.ok && outcome.skipped === "duplicate") duplicate += 1;
+    else if (outcome.ok && !outcome.skipped) sent += 1;
+    else if (!outcome.ok) failures.push(`${target.email}: ${outcome.error ?? outcome.skipped}`);
+  }
+
+  revalidatePath("/admin/emails");
+
+  // Said plainly, because "done" on a send to every customer is not an
+  // answer anybody can act on.
+  const parts = [`Sent ${sent} welcome${sent === 1 ? "" : "s"}.`];
+  if (duplicate > 0) parts.push(`${duplicate} already went today.`);
+  if (plan.skipped.length > 0) {
+    const reasons = plan.skipped
+      .map((row) => `${row.name} (${explainSkip(row.why)})`)
+      .slice(0, 6)
+      .join(", ");
+    parts.push(`Skipped ${plan.skipped.length}: ${reasons}.`);
+  }
+  if (failures.length > 0) parts.push(`Failed ${failures.length}: ${failures.slice(0, 3).join("; ")}`);
+
+  return failures.length > 0 && sent === 0
+    ? { ok: false, error: parts.join(" ") }
+    : { ok: true, message: `${parts.join(" ")} The email log has what each provider said.` };
+}
+
+/**
+ * Who to write to for a workspace.
+ *
+ * The owner, or any member when there is no owner — a workspace whose
+ * signup role was set to something else has members and no owner, and
+ * skipping it would be skipping a real customer over a setting.
+ */
+async function recipientFor(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string
+): Promise<string | null> {
+  const { data: members } = await admin
+    .from("org_members")
+    .select("user_id, role")
+    .eq("org_id", orgId);
+
+  if (!members || members.length === 0) return null;
+
+  const first = members.find((member) => member.role === "owner") ?? members[0];
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("user_id", first.user_id)
+    .maybeSingle();
+
+  return profile?.email?.trim() || null;
 }
