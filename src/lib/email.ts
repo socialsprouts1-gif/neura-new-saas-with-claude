@@ -318,8 +318,28 @@ async function brandLogo(
       .maybeSingle();
 
     const url = (data?.value as { logoUrl?: unknown } | null)?.logoUrl;
-    return typeof url === "string" && /^https:\/\//i.test(url.trim()) ? url.trim() : null;
+    if (typeof url === "string" && /^https:\/\//i.test(url.trim())) return url.trim();
   } catch {
-    return null;
+    // Falls through to the bundled mark.
   }
+
+  return bundledLogo();
+}
+
+/**
+ * The NX mark that ships with the app.
+ *
+ * So an email has the logo on it before anybody has uploaded anything —
+ * which is the state every deployment starts in, and the state this one
+ * was in while its mail went out with the name in type instead.
+ *
+ * A PNG rather than public/logo.svg: Gmail, Outlook and Yahoo all strip
+ * SVG from a message body. Regenerate it with
+ * `node scripts/build-email-logo.mjs` after changing the mark.
+ */
+function bundledLogo(): string | null {
+  const appUrl = emailBrand().appUrl;
+  // Only an https origin is worth pointing a mail client at. On a local
+  // http dev server the wordmark is the honest answer.
+  return /^https:\/\//i.test(appUrl) ? `${appUrl}/logo-email.png` : null;
 }

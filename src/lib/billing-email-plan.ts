@@ -39,10 +39,12 @@ export interface DueEmail {
 /**
  * How early the daily countdown starts.
  *
- * Five, because a week's warning on a seven-day trial is a message on the
- * day someone signs up, which reads as a demand rather than a reminder.
+ * Six, so a seven-day trial is counted down from the day after signup:
+ * six days left, five, four, three, two, one, then the day it ends. Seven
+ * would put a reminder in the same hour as the welcome, which reads as a
+ * demand rather than a reminder.
  */
-export const COUNTDOWN_DAYS = 5;
+export const COUNTDOWN_DAYS = 6;
 
 /** How early a paid plan is told it is about to renew. */
 export const NOTICE_DAYS = 3;

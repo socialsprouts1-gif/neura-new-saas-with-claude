@@ -136,3 +136,63 @@ test("keys are unique per workspace", () => {
   const b = dueBillingEmail("org-b", sub("trialing", 2), now)!;
   assert.notEqual(a.dedupeKey, b.dedupeKey);
 });
+
+// --- the whole countdown, day by day --------------------------------------
+
+test("a seven-day trial is counted down every day from six to one", () => {
+  // The sequence asked for: six days remaining, five, four, three, two,
+  // one. Each has to be its own message, not a repeat, or the dedupe index
+  // refuses all but the first.
+  //
+  // Zero days left is not part of this: the period end has arrived, so the
+  // trial is over and what is owed is the payment message, asserted below.
+  const keys = new Set<string>();
+
+  for (let daysLeft = 6; daysLeft >= 1; daysLeft -= 1) {
+    const end = new Date(Date.UTC(2026, 8, 24, 12, 0, 0));
+    const now = new Date(end.getTime() - daysLeft * 86400000);
+    const due = dueBillingEmail(
+      "org1",
+      { status: "trialing", current_period_end: end.toISOString(), plans: null },
+      now
+    );
+
+    assert.ok(due, `nothing due at ${daysLeft} days left`);
+    assert.equal(due.kind, "trial_ending", `wrong kind at ${daysLeft}`);
+    assert.equal(due.daysLeft, daysLeft);
+    assert.ok(!keys.has(due.dedupeKey), `day ${daysLeft} repeats an earlier key`);
+    keys.add(due.dedupeKey);
+  }
+
+  assert.equal(keys.size, 6);
+});
+
+test("seven days out is still silent, so the welcome is not doubled", () => {
+  const end = new Date(Date.UTC(2026, 8, 24, 12, 0, 0));
+  const now = new Date(end.getTime() - 7 * 86400000);
+  assert.equal(
+    dueBillingEmail(
+      "org1",
+      { status: "trialing", current_period_end: end.toISOString(), plans: null },
+      now
+    ),
+    null
+  );
+});
+
+test("once it has expired the payment message comes, then the follow-ups", () => {
+  const end = new Date(Date.UTC(2026, 8, 24, 12, 0, 0));
+  const at = (daysSince: number) =>
+    dueBillingEmail(
+      "org1",
+      { status: "trialing", current_period_end: end.toISOString(), plans: null },
+      new Date(end.getTime() + daysSince * 86400000)
+    );
+
+  assert.equal(at(0)?.kind, "trial_expired");
+  assert.equal(at(1)?.kind, "trial_expired");
+  assert.equal(at(3)?.kind, "trial_followup");
+  assert.equal(at(6)?.kind, "trial_followup");
+  // Every three days through the first month, then weekly.
+  assert.notEqual(at(3)?.dedupeKey, at(6)?.dedupeKey);
+});

@@ -11,6 +11,7 @@ import { isPaymentProvider } from "@/lib/provider-meta";
 import { emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email-templates";
 import { planBroadcast, explainSkip, BROADCAST_KIND } from "@/lib/broadcast";
+import { sweepBillingEmails } from "@/lib/billing-emails";
 import { readTrialDays } from "@/lib/trial";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
@@ -1070,4 +1071,45 @@ async function recipientFor(
     .maybeSingle();
 
   return profile?.email?.trim() || null;
+}
+
+/**
+ * Runs the billing sweep now, instead of waiting for the cron.
+ *
+ * The countdown, the expiry notice and the follow-ups all fire once a day
+ * from a schedule. On a seven-day trial the first of them is not due until
+ * the sixth day, so for most of a week "no emails have arrived" and
+ * "nothing is wired up" are indistinguishable from a mailbox. This settles
+ * it in one press.
+ *
+ * Safe to press twice: every message the sweep sends is keyed to the
+ * workspace, the period and the day, and the unique index refuses a repeat.
+ */
+export async function runBillingEmailsNow(_formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  if (!isEmailConfigured()) {
+    return { ok: false, error: "Email is not configured on this deployment, so nothing was sent." };
+  }
+
+  const result = await sweepBillingEmails();
+  revalidatePath("/admin/emails");
+
+  if (result.checked === 0) {
+    return {
+      ok: true,
+      message:
+        "No workspace is on a trial or a paid plan, so there was nothing to check. Assign a plan or start a trial first.",
+    };
+  }
+
+  const parts = [`Checked ${result.checked}.`];
+  if (result.sent > 0) parts.push(`Sent ${result.sent}.`);
+  if (result.skipped > 0) parts.push(`${result.skipped} skipped — already sent, or nobody to write to.`);
+  if (result.failed > 0) parts.push(`${result.failed} failed; the email log has what the provider said.`);
+  if (result.sent === 0 && result.failed === 0) {
+    parts.push("Nothing was due today — that is the schedule working, not a fault.");
+  }
+
+  return { ok: true, message: parts.join(" ") };
 }

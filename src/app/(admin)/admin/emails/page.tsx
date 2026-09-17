@@ -4,7 +4,8 @@ import { PageHeader, StatCard, Card, Badge, Table, Td, EmptyState } from "@/comp
 import { explainEmailFailure, NEVER_ATTEMPTED } from "@/lib/email-errors";
 import { checkFrom, ACCEPTED_NOT_DELIVERED } from "@/lib/deliverability";
 import { isEmailConfigured, emailIdentity } from "@/lib/email";
-import { sendWelcomeToEveryone } from "../actions";
+import { sendWelcomeToEveryone, runBillingEmailsNow } from "../actions";
+import { previewBillingEmails } from "@/lib/billing-emails";
 import ActionForm from "@/components/ui/ActionForm";
 
 /**
@@ -60,6 +61,12 @@ export default async function AdminEmailsPage() {
   const { count: workspaces } = await supabase
     .from("organizations")
     .select("id", { count: "exact", head: true });
+
+  // What the schedule owes right now. The countdown starts six days before
+  // a trial ends, so for the first day of a seven-day trial the honest
+  // answer is "nothing yet" — and that needs saying, because it is
+  // otherwise indistinguishable from nothing being wired up.
+  const due = configured ? await previewBillingEmails() : [];
 
   // Whether what this deployment sends as can actually land. A provider
   // accepting a message and an inbox receiving one are different events,
@@ -128,6 +135,53 @@ export default async function AdminEmailsPage() {
           </div>
           <p className="text-sm text-white/75 leading-relaxed mb-2">{leading.summary}</p>
           <p className="text-sm text-white/50 leading-relaxed">{leading.fix}</p>
+        </Card>
+      )}
+
+      {configured && (
+        <Card className="mb-6">
+          <div className="flex flex-wrap items-center gap-2.5 mb-1">
+            <h2 className="font-semibold">Trial countdown and follow-ups</h2>
+            <Badge tone={due.length > 0 ? "green" : "grey"}>
+              {due.length > 0 ? `${due.length} due now` : "nothing due"}
+            </Badge>
+          </div>
+          <p className="text-sm text-white/50 mb-4 leading-relaxed">
+            The countdown runs every day from six days left down to one, then the payment message
+            on the day the trial ends, then a follow-up every three days for a month and weekly
+            after that. It fires from a daily schedule — this runs it now instead of waiting.
+          </p>
+
+          {due.length > 0 ? (
+            <ul className="text-xs space-y-1.5 mb-4">
+              {due.map((row, index) => (
+                <li key={`${row.orgName}-${index}`} className="flex flex-wrap items-center gap-2">
+                  <Badge tone="purple">{row.kind.replace(/_/g, " ")}</Badge>
+                  <span className="text-white/70">{row.orgName}</span>
+                  <span className="text-white/35">{row.email ?? "no address on file"}</span>
+                  <span className="text-white/30">
+                    {row.daysLeft >= 0
+                      ? `${row.daysLeft} day${row.daysLeft === 1 ? "" : "s"} left`
+                      : `${-row.daysLeft} day${row.daysLeft === -1 ? "" : "s"} since it ended`}
+                  </span>
+                  {row.alreadySent && <Badge tone="grey">already sent</Badge>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-white/40 mb-4 leading-relaxed">
+              Nothing is owed today. On a fresh seven-day trial the first countdown message is due
+              on the sixth day, so this staying empty for a day is the schedule working.
+            </p>
+          )}
+
+          <ActionForm action={runBillingEmailsNow} submitLabel="Run the sweep now">
+            <span className="sr-only">Sends whatever the schedule owes today.</span>
+          </ActionForm>
+          <p className="text-[11px] text-white/30 mt-2.5 leading-relaxed">
+            Safe to press twice — every message is keyed to the workspace, the period and the day,
+            so a repeat is refused rather than sent.
+          </p>
         </Card>
       )}
 

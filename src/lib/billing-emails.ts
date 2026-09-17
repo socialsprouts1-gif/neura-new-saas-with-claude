@@ -190,3 +190,60 @@ export async function ownerEmail(
 
   return profile?.email?.trim() || null;
 }
+
+export interface DuePreview {
+  orgName: string;
+  email: string | null;
+  kind: string;
+  daysLeft: number;
+  /** Already in email_log, so the sweep would refuse it. */
+  alreadySent: boolean;
+}
+
+/**
+ * What the next sweep would send, without sending it.
+ *
+ * These fire once a day on a schedule nobody watches, and the first
+ * countdown on a seven-day trial is not due until the sixth day — so
+ * "nothing has arrived" and "nothing is broken" look identical for most of
+ * a week. This makes the difference visible in one screen.
+ */
+export async function previewBillingEmails(now: Date = new Date()): Promise<DuePreview[]> {
+  const admin = createAdminClient();
+
+  const { data: subscriptions } = await admin
+    .from("subscriptions")
+    .select("org_id, status, current_period_end, plans(name), organizations(name)")
+    .in("status", ["trialing", "active", "past_due"]);
+
+  const preview: DuePreview[] = [];
+
+  for (const row of subscriptions ?? []) {
+    const due = dueBillingEmail(
+      row.org_id,
+      {
+        status: row.status,
+        current_period_end: row.current_period_end,
+        plans: row.plans as { name: string } | null,
+      },
+      now
+    );
+    if (!due) continue;
+
+    const { data: log } = await admin
+      .from("email_log")
+      .select("id")
+      .eq("dedupe_key", due.dedupeKey)
+      .maybeSingle();
+
+    preview.push({
+      orgName: (row.organizations as { name: string } | null)?.name ?? "—",
+      email: await ownerEmail(admin, row.org_id),
+      kind: due.kind,
+      daysLeft: due.daysLeft,
+      alreadySent: Boolean(log),
+    });
+  }
+
+  return preview;
+}
