@@ -1,4 +1,5 @@
 import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 import {
   amountInWords,
@@ -757,4 +758,56 @@ export function readScheduleItems(
   }
 
   return lines;
+}
+
+
+export interface RecurringSweep {
+  orgs: number;
+  due: number;
+  raised: number;
+  sent: number;
+  failed: number;
+  problems: string[];
+  error?: string;
+}
+
+/**
+ * Every workspace whose schedule has come due.
+ *
+ * Extracted from the cron route so the scheduler can call it in process.
+ * runDueRecurringInvoices below is per-workspace because a button on a
+ * settings page calls it with the org from the session; this is the same
+ * work for all of them.
+ */
+export async function runAllDueRecurringInvoices(origin: string): Promise<RecurringSweep> {
+  const supabase = createAdminClient();
+  const totals: RecurringSweep = { orgs: 0, due: 0, raised: 0, sent: 0, failed: 0, problems: [] };
+
+  const { data: schedules, error } = await supabase
+    .from("recurring_invoices")
+    .select("org_id, next_run_on")
+    .eq("is_active", true)
+    .lte("next_run_on", todayIn("Asia/Kolkata"))
+    .limit(500);
+
+  if (error) return { ...totals, error: error.message };
+
+  const orgIds = [...new Set((schedules ?? []).map((row) => row.org_id))];
+  totals.orgs = orgIds.length;
+  if (orgIds.length === 0) return totals;
+
+  for (const orgId of orgIds) {
+    // Each workspace's own timezone decides what "today" means for its
+    // schedules; the query above uses IST only to narrow the candidates.
+    const result = await runDueRecurringInvoices(supabase, orgId, origin);
+    totals.due += result.due;
+    totals.raised += result.raised;
+    totals.sent += result.sent;
+    totals.failed += result.failed;
+    if (result.firstError) totals.problems.push(`${orgId}: ${result.firstError}`);
+    if (result.error) totals.problems.push(`${orgId}: ${result.error}`);
+  }
+
+  totals.problems = totals.problems.slice(0, 10);
+  return totals;
 }

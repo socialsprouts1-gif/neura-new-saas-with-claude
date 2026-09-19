@@ -55,10 +55,17 @@ function escape(value: string): string {
 /**
  * The shell every message shares.
  *
- * `preheader` is the line a mail client shows next to the subject in the
- * list. Left unset it takes whatever text comes first, which is usually
- * the logo's alt text or a greeting — so it is set deliberately and then
- * hidden, which is the standard trick and the only way to control it.
+ * Built to look like it came from a company rather than a script, within
+ * what email actually renders. That rules out a great deal: Gmail strips
+ * <style> blocks, so every rule is inline; Outlook renders through Word,
+ * so the whole thing is nested tables rather than divs, and gradients and
+ * shadows are given a flat fallback colour underneath. What is left that
+ * still reads as designed is a dark banner, generous spacing, one clear
+ * action, and a footer that looks deliberate.
+ *
+ * `preheader` is the line a mail client shows beside the subject. Left
+ * unset it takes whatever text comes first, which is usually the logo's
+ * alt text — so it is set deliberately and then hidden.
  */
 function layout(
   brand: EmailBrand,
@@ -66,28 +73,50 @@ function layout(
   body: string,
   action?: { label: string; href: string }
 ): string {
+  // A real <a> with its own padding rather than a styled table cell, so the
+  // whole shape is clickable. Outlook ignores border-radius and renders a
+  // square button, which is fine — a square button still works.
   const button = action
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0;"><tr><td style="border-radius:10px;background:#00E08F;">
-        <a href="${escape(action.href)}" style="display:inline-block;padding:13px 26px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#06251A;text-decoration:none;border-radius:10px;">${escape(action.label)}</a>
-      </td></tr></table>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:30px 0 8px;"><tr>
+        <td align="center" bgcolor="#00E08F" style="border-radius:10px;background:#00E08F;">
+          <a href="${escape(action.href)}" style="display:inline-block;padding:14px 30px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#06251A;text-decoration:none;border-radius:10px;letter-spacing:0.01em;">${escape(action.label)}</a>
+        </td></tr></table>`
     : "";
 
   return `<!doctype html>
-<html><body style="margin:0;padding:0;background:#F4F6F8;">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"></head>
+<body style="margin:0;padding:0;background:#EEF1F5;-webkit-font-smoothing:antialiased;">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escape(preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#EEF1F5;padding:36px 14px;">
 <tr><td align="center">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:14px;padding:36px 32px;font-family:Helvetica,Arial,sans-serif;">
-    <tr><td style="padding-bottom:22px;">${header(brand)}</td></tr>
-    <tr><td style="font-size:15px;line-height:1.65;color:#25303F;">${body}${button}</td></tr>
-    <tr><td style="padding-top:26px;border-top:1px solid #E6EAEF;font-size:12px;line-height:1.6;color:#8894A5;">
-      Questions? Reply to this email or write to
-      <a href="mailto:${escape(brand.supportEmail)}" style="color:#8894A5;">${escape(brand.supportEmail)}</a>.${
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:580px;">
+
+    <!-- Banner. The flat bgcolor is what Outlook shows; everything else
+         gets the gradient over the top of it. -->
+    <tr><td bgcolor="#0B1220" style="background:#0B1220;background-image:linear-gradient(135deg,#0B1220 0%,#12203A 55%,#0E2A24 100%);border-radius:16px 16px 0 0;padding:30px 34px 26px;">
+      ${header(brand)}
+    </td></tr>
+
+    <tr><td bgcolor="#FFFFFF" style="background:#FFFFFF;padding:34px 34px 30px;font-family:Helvetica,Arial,sans-serif;">
+      <div style="font-size:15.5px;line-height:1.68;color:#1F2A37;">${body}</div>
+      ${button}
+    </td></tr>
+
+    <tr><td bgcolor="#FFFFFF" style="background:#FFFFFF;border-radius:0 0 16px 16px;padding:0 34px 30px;font-family:Helvetica,Arial,sans-serif;">
+      <div style="border-top:1px solid #E7EBF0;padding-top:22px;font-size:12.5px;line-height:1.65;color:#7C8898;">
+        Questions? Just reply to this email — it reaches a person — or write to
+        <a href="mailto:${escape(brand.supportEmail)}" style="color:#5B6675;">${escape(brand.supportEmail)}</a>.
+      </div>
+    </td></tr>
+
+    <tr><td style="padding:18px 34px 0;font-family:Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.6;color:#98A3B3;" align="center">
+      <a href="${escape(brand.appUrl)}" style="color:#98A3B3;text-decoration:none;">${escape(brand.name)}</a>${
         brand.unsubscribeUrl
-          ? `<br><a href="${escape(brand.unsubscribeUrl)}" style="color:#8894A5;text-decoration:underline;">Unsubscribe from these reminders</a>`
+          ? ` &nbsp;·&nbsp; <a href="${escape(brand.unsubscribeUrl)}" style="color:#98A3B3;text-decoration:underline;">Unsubscribe from these reminders</a>`
           : ""
       }
     </td></tr>
+
   </table>
 </td></tr></table>
 </body></html>`;
@@ -96,22 +125,27 @@ function layout(
 /**
  * The logo, or the name set in type when there is none.
  *
- * Height is set in the style and the width left to scale, because Outlook
- * ignores CSS height on an image and needs the attribute — giving both a
- * fixed value is what squashes a logo whose aspect ratio is not exactly
- * what was guessed here.
+ * It sits on the dark banner, which is what the mark was drawn for — the
+ * PNG is composed on that same dark square, so the two meet cleanly.
  *
- * The alt text is the brand name, not "logo": images are off by default in
- * a good share of inboxes, and what should appear in that space is the
- * company's name rather than the word logo.
+ * Height is the attribute and the width is left to scale: Outlook ignores
+ * CSS height on an image and needs the attribute, and giving both a fixed
+ * value squashes a logo whose aspect ratio is not what was guessed here.
+ *
+ * The alt text is the brand name, not "logo". Images are off by default in
+ * a good share of inboxes, and what belongs in that space is the company's
+ * name rather than the word logo.
  */
 function header(brand: EmailBrand): string {
   const logo = brand.logoUrl?.trim();
   if (!logo || !/^https:\/\//i.test(logo)) {
-    return `<span style="font-size:17px;font-weight:700;color:#0B1220;">${escape(brand.name)}</span>`;
+    return `<span style="font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;color:#FFFFFF;letter-spacing:-0.01em;">${escape(brand.name)}</span>`;
   }
 
-  return `<img src="${escape(logo)}" alt="${escape(brand.name)}" height="32" style="height:32px;width:auto;max-width:180px;border:0;outline:none;text-decoration:none;display:block;">`;
+  // color is on the image deliberately: when images are off, the alt text
+  // is what renders, and it inherits from here. Without it the brand name
+  // comes out near-black on the dark banner and reads as an empty box.
+  return `<img src="${escape(logo)}" alt="${escape(brand.name)}" height="40" style="height:40px;width:auto;max-width:200px;border:0;outline:none;text-decoration:none;display:block;color:#FFFFFF;font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;">`;
 }
 
 function plain(lines: string[], action?: { label: string; href: string }): string {

@@ -163,3 +163,41 @@ export function dueBillingEmail(
       return null;
   }
 }
+
+/**
+ * One message per person per kind, however many workspaces they own.
+ *
+ * Somebody who created four workspaces is still one person, and four
+ * identical "your trial ends tomorrow" arriving together is the fastest
+ * way to be marked as spam. The dedupe key cannot catch this: it is keyed
+ * to the workspace, and these are four different workspaces each correctly
+ * owed a message.
+ *
+ * Different kinds still both go. "Your trial ends tomorrow" for one
+ * workspace and "payment received" for another are not duplicates, and
+ * suppressing the second would hide money moving.
+ */
+export function collapseByRecipient<T extends { email: string | null; kind: string }>(
+  due: readonly T[]
+): { send: T[]; collapsed: T[] } {
+  const seen = new Set<string>();
+  const send: T[] = [];
+  const collapsed: T[] = [];
+
+  for (const row of due) {
+    const email = row.email?.trim().toLowerCase();
+    if (!email) {
+      send.push(row);
+      continue;
+    }
+
+    const key = `${email}|${row.kind}`;
+    if (seen.has(key)) collapsed.push(row);
+    else {
+      seen.add(key);
+      send.push(row);
+    }
+  }
+
+  return { send, collapsed };
+}

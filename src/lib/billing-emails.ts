@@ -1,7 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatMoney } from "@/types/admin";
-import { dueBillingEmail, type BillingEmailKind } from "@/lib/billing-email-plan";
+import {
+  dueBillingEmail,
+  collapseByRecipient,
+  type BillingEmailKind,
+  type DueEmail,
+} from "@/lib/billing-email-plan";
 import { sendEmail } from "@/lib/email";
 import {
   renewalReminderEmail,
@@ -114,6 +119,17 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
     return result;
   }
 
+  // Gathered first rather than sent as they are found, so one person owning
+  // several workspaces can be collapsed to one message before anything
+  // leaves. Four identical "your trial ends tomorrow" arriving together is
+  // what teaches somebody to filter everything this product sends.
+  const pending: Array<{
+    orgId: string;
+    email: string | null;
+    periodEnd: string | null;
+    due: DueEmail;
+  }> = [];
+
   for (const row of subscriptions) {
     result.checked += 1;
 
@@ -128,7 +144,23 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
     );
     if (!due) continue;
 
-    const to = await ownerEmail(admin, row.org_id);
+    pending.push({
+      orgId: row.org_id,
+      email: await ownerEmail(admin, row.org_id),
+      periodEnd: row.current_period_end,
+      due,
+    });
+  }
+
+  const { send, collapsed } = collapseByRecipient(
+    pending.map((row) => ({ ...row, kind: row.due.kind }))
+  );
+  result.skipped += collapsed.length;
+
+  for (const row of send) {
+    const to = row.email;
+    const due = row.due;
+
     if (!to) {
       result.skipped += 1;
       continue;
@@ -136,7 +168,7 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
 
     const outcome = await sendEmail({
       to,
-      orgId: row.org_id,
+      orgId: row.orgId,
       kind: due.kind,
       dedupeKey: due.dedupeKey,
       // A function rather than a built body, so the template is handed a
@@ -147,7 +179,7 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
         bodyFor(due.kind, withOptOut, {
           planName: due.planName,
           daysLeft: due.daysLeft,
-          renewsOn: longDate(row.current_period_end ?? ""),
+          renewsOn: longDate(row.periodEnd ?? ""),
           step: due.step ?? 0,
           fromPrice,
         }),
@@ -245,5 +277,7 @@ export async function previewBillingEmails(now: Date = new Date()): Promise<DueP
     });
   }
 
-  return preview;
+  // Collapsed the same way the sweep collapses it, so the screen promises
+  // what actually goes out rather than one line per workspace.
+  return collapseByRecipient(preview).send;
 }

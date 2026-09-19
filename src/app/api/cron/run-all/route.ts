@@ -1,54 +1,50 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isCronAuthorised } from "@/lib/cron-auth";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
+import { resumeParkedFlows } from "@/lib/flow-resume";
+import { dispatchDueReminders } from "@/lib/appointment-reminders";
+import { runAllDueRecurringInvoices } from "@/lib/invoice-engine";
+import { sweepBillingEmails } from "@/lib/billing-emails";
 
 // One URL that drives every scheduled job.
 //
-// The four jobs have separate routes because they fail separately and a
-// campaign queue stuck behind a slow invoice run is a bad trade. But a
-// person setting up a pinger has to paste a URL into a box, and asking
-// them to do it four times means three of them eventually get forgotten —
-// usually the three nobody notices until a customer does.
+// It used to reach the other routes over HTTP, which meant this endpoint
+// had to authenticate to itself — and since Vercel's own cron header is
+// stripped from an outgoing request, the only way to do that was a shared
+// secret. Without CRON_SECRET set, every job answered 401 and the whole
+// run refused with a 503. Vercel was calling this on schedule and nothing
+// was happening, which is indistinguishable from the schedule not existing.
 //
-// So this exists for the setup, not for the architecture: one address,
-// every job, and a per-job report so a failure still names itself.
+// Now it calls the work directly. No secret is needed for Vercel's own
+// cron, there are no HTTP round trips, and a job cannot fail for a reason
+// that has nothing to do with what it does.
 
 export const dynamic = "force-dynamic";
-
-/** In order, cheapest first, so a slow job cannot delay the queue. */
-const JOBS = [
-  "dispatch-campaigns",
-  "resume-flows",
-  "appointment-reminders",
-  "recurring-invoices",
-  "billing-emails",
-] as const;
+// Five jobs in one invocation, and a campaign queue can be long.
+export const maxDuration = 300;
 
 interface JobResult {
   job: string;
   ok: boolean;
-  status: number;
   detail?: unknown;
+  error?: string;
 }
+
+const JOBS: Array<{ name: string; run: (origin: string) => Promise<unknown> }> = [
+  { name: "dispatch-campaigns", run: () => dispatchDueCampaigns() },
+  { name: "resume-flows", run: () => resumeParkedFlows() },
+  { name: "appointment-reminders", run: () => dispatchDueReminders() },
+  { name: "recurring-invoices", run: (origin) => runAllDueRecurringInvoices(origin) },
+  { name: "billing-emails", run: () => sweepBillingEmails() },
+];
 
 export async function GET(request: NextRequest) {
   if (!isCronAuthorised(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const secret = process.env.CRON_SECRET;
-  if (!secret) {
-    // This route reaches the others over HTTP, and they only accept a
-    // bearer token or Vercel's own header — which a request this route
-    // makes to itself will never carry. Without a secret every job below
-    // would answer 401 and this would report four failures with no
-    // explanation, so say the real reason once instead.
-    return NextResponse.json(
-      {
-        error:
-          "CRON_SECRET is not set. Set it in the environment and use it as the Authorization: Bearer token, or call each /api/cron/* route directly.",
-      },
-      { status: 503 }
-    );
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });
   }
 
   const origin = request.nextUrl.origin;
@@ -56,34 +52,25 @@ export async function GET(request: NextRequest) {
 
   for (const job of JOBS) {
     try {
-      const response = await fetch(`${origin}/api/cron/${job}`, {
-        headers: { authorization: `Bearer ${secret}` },
-        cache: "no-store",
-      });
-
-      // Read the body either way: a failing job's reason is the only
-      // thing that makes this report worth more than a status code.
-      const detail = await response.json().catch(() => null);
-      results.push({ job, ok: response.ok, status: response.status, detail });
+      results.push({ job: job.name, ok: true, detail: await job.run(origin) });
     } catch (error) {
-      // One unreachable job must not stop the rest. A campaign queue that
-      // stops draining because the invoice run timed out is exactly the
-      // coupling the separate routes exist to avoid.
+      // One job's failure must not abandon the rest. A stuck invoice run
+      // silently costing everybody their trial reminders is exactly the
+      // coupling this loop exists to avoid.
       results.push({
-        job,
+        job: job.name,
         ok: false,
-        status: 0,
-        detail: error instanceof Error ? error.message : "Job could not be reached.",
+        error: error instanceof Error ? error.message : "Unknown failure",
       });
     }
   }
 
-  const failed = results.filter((result) => !result.ok);
+  const failed = results.filter((result) => !result.ok).length;
 
-  // 207 rather than 500 when only some failed: a pinger that retries the
-  // whole batch over one bad job would re-run the three that worked.
+  // 207 when some worked and some did not: a plain 500 tells a pinger to
+  // retry everything, including the jobs that already ran.
   return NextResponse.json(
-    { ran: results.length, failed: failed.length, results },
-    { status: failed.length === 0 ? 200 : failed.length === results.length ? 500 : 207 }
+    { ran: results.length, failed, results, at: new Date().toISOString() },
+    { status: failed === 0 ? 200 : 207 }
   );
 }

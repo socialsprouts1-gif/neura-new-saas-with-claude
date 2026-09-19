@@ -5,6 +5,7 @@ import {
   FOLLOW_UP_LAST_DAY,
   dueBillingEmail,
   followUpStep,
+  collapseByRecipient,
 } from "../src/lib/billing-email-plan.ts";
 
 const now = new Date("2026-09-17T10:00:00Z");
@@ -195,4 +196,56 @@ test("once it has expired the payment message comes, then the follow-ups", () =>
   assert.equal(at(6)?.kind, "trial_followup");
   // Every three days through the first month, then weekly.
   assert.notEqual(at(3)?.dedupeKey, at(6)?.dedupeKey);
+});
+
+// --- one person, several workspaces ---------------------------------------
+
+test("four workspaces owned by one person produce one message", () => {
+  // Exactly what the preview screen showed: the same address owed the same
+  // "one day left" four times over. The dedupe key cannot catch it, because
+  // each of those workspaces is correctly owed a message of its own.
+  const due = [
+    { email: "a@x.com", kind: "trial_ending" },
+    { email: "a@x.com", kind: "trial_ending" },
+    { email: "a@x.com", kind: "trial_ending" },
+    { email: "a@x.com", kind: "trial_ending" },
+  ];
+  const { send, collapsed } = collapseByRecipient(due);
+  assert.equal(send.length, 1);
+  assert.equal(collapsed.length, 3);
+});
+
+test("different people each still get theirs", () => {
+  const { send } = collapseByRecipient([
+    { email: "a@x.com", kind: "trial_ending" },
+    { email: "b@x.com", kind: "trial_ending" },
+  ]);
+  assert.equal(send.length, 2);
+});
+
+test("different kinds to one person both go", () => {
+  // Suppressing a receipt because a trial reminder went to the same inbox
+  // would hide money moving.
+  const { send } = collapseByRecipient([
+    { email: "a@x.com", kind: "trial_ending" },
+    { email: "a@x.com", kind: "payment_received" },
+  ]);
+  assert.equal(send.length, 2);
+});
+
+test("case and space do not let a duplicate through", () => {
+  const { send } = collapseByRecipient([
+    { email: "A@X.com", kind: "trial_ending" },
+    { email: " a@x.com ", kind: "trial_ending" },
+  ]);
+  assert.equal(send.length, 1);
+});
+
+test("rows with no address are kept so they can be reported, not silently dropped", () => {
+  const { send, collapsed } = collapseByRecipient([
+    { email: null, kind: "trial_ending" },
+    { email: null, kind: "trial_ending" },
+  ]);
+  assert.equal(send.length, 2);
+  assert.equal(collapsed.length, 0);
 });

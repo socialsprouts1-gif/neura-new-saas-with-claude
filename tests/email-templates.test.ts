@@ -38,7 +38,9 @@ test("every message has a subject, HTML and text", () => {
   // as an afterthought is how it ends up empty.
   for (const email of all) {
     assert.ok(email.subject.trim(), "subject");
-    assert.ok(email.html.includes("<html>"), "html");
+    // Matching the open tag rather than the exact string: the document
+    // carries a lang and a viewport now, which is what a mail client wants.
+    assert.ok(/<html[ >]/.test(email.html), "html");
     assert.ok(email.text.trim().length > 40, "text");
   }
 });
@@ -203,7 +205,7 @@ test("the logo height is fixed and the width left to scale", () => {
   // Both fixed is what squashes a logo whose shape was guessed wrong, and
   // Outlook ignores CSS height without the attribute.
   const body = welcomeEmail(withLogo, { trialDays: 7 });
-  assert.match(body.html, /height="32"/);
+  assert.match(body.html, /height="40"/);
   assert.match(body.html, /width:auto/);
 });
 
