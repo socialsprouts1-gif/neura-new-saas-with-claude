@@ -8,6 +8,7 @@ import { saveDefaultFeatures } from "../actions";
 import { resolveFeatures } from "@/lib/features";
 import { formatDate } from "@/types/admin";
 import PlatformGateway from "./PlatformGateway";
+import PaymentCheck from "./PaymentCheck";
 import KnownSettings from "./KnownSettings";
 import EmailCheck from "./EmailCheck";
 
@@ -58,6 +59,7 @@ export default async function AdminSettingsPage() {
 
       <KnownSettings />
 
+      <PaymentCheck />
       <PlatformGateway />
 
       <div className="space-y-6">
