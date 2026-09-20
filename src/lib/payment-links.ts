@@ -1,6 +1,7 @@
 import "server-only";
 
 import { basicAuth, jsonHeaders, providerFetch } from "@/lib/provider-http";
+import { describeKeyRejection } from "@/lib/razorpay-checkout";
 // The slug list and labels are plain data and live in provider-meta so a
 // client component can read them without pulling this module — and the API
 // clients below — into the browser bundle.
@@ -90,7 +91,7 @@ export async function createRazorpayOrder(
   connection: PaymentConnection,
   request: { amountPaise: number; currency: string; receipt: string; notes?: Record<string, string> }
 ): Promise<RazorpayOrderResult> {
-  const keyId = connection.config.key_id ?? connection.credentials.key_id ?? "";
+  const keyId = razorpayKeyId(connection);
   if (!keyId) {
     return { ok: false, error: "No Razorpay Key ID is stored for this gateway." };
   }
@@ -115,7 +116,7 @@ export async function createRazorpayOrder(
       ok: false,
       error:
         result.status === 401
-          ? "Razorpay rejected the key pair. Check the Key ID and secret are from the same mode — a live key with a test secret fails exactly like this."
+          ? describeKeyRejection(razorpayKeyId(connection))
           : (result.error ?? "Razorpay refused to create the order."),
     };
   }
@@ -134,11 +135,13 @@ export async function createRazorpayOrder(
   };
 }
 
+/** The public half of the pair, wherever the connect form put it. */
+function razorpayKeyId(connection: PaymentConnection): string {
+  return connection.config.key_id ?? connection.credentials.key_id ?? "";
+}
+
 function razorpayAuth(connection: PaymentConnection): string {
-  return basicAuth(
-    connection.config.key_id ?? connection.credentials.key_id ?? "",
-    connection.credentials.key_secret ?? ""
-  );
+  return basicAuth(razorpayKeyId(connection), connection.credentials.key_secret ?? "");
 }
 
 async function razorpayLink(
@@ -179,7 +182,7 @@ async function razorpayLink(
       ok: false,
       error:
         result.status === 401
-          ? "Razorpay rejected the key pair. Check the Key ID and secret are from the same mode — a live key with a test secret fails exactly like this."
+          ? describeKeyRejection(razorpayKeyId(connection))
           : (result.error ?? "Razorpay refused the payment link."),
     };
   }
@@ -197,7 +200,7 @@ async function razorpayTest(connection: PaymentConnection): Promise<string | nul
   });
   if (result.ok) return null;
   return result.status === 401
-    ? "Razorpay rejected the key pair. Check the Key ID and secret are from the same mode."
+    ? describeKeyRejection(razorpayKeyId(connection))
     : (result.error ?? "Razorpay refused the request.");
 }
 

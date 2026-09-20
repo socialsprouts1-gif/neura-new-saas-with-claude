@@ -67,9 +67,17 @@ export default async function IntegrationsPage({
     (connections ?? []).filter((row) => row.status === "connected").map((row) => row.provider)
   );
 
+  // The canonical origin, not whichever host this browser happened to use.
+  //
+  // Read off the request, www.neurachat.in and neurachat.in both produce a
+  // URL that looks right — and a webhook posted to the one that redirects
+  // can be dropped, because a sender is under no obligation to follow a
+  // redirect with the body intact. Razorpay is told the address that
+  // answers directly.
+  const configured = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
   const host = (await headers()).get("host") ?? "your-domain";
   const proto = host.startsWith("localhost") ? "http" : "https";
-  const apiBase = `${proto}://${host}/api`;
+  const apiBase = `${configured || `${proto}://${host}`}/api`;
 
   const cards: CardData[] = [
     {

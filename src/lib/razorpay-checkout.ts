@@ -103,3 +103,46 @@ export function readCheckoutFields(body: unknown): CheckoutFields | null {
     razorpay_signature: signature.trim(),
   };
 }
+
+export type KeyMode = "test" | "live" | "unknown";
+
+/**
+ * Which mode a Key ID belongs to, from its prefix.
+ *
+ * Razorpay stamps it on the key itself, and the key id is not a secret —
+ * so when a pair is rejected, the mode of the half we hold can be said out
+ * loud instead of asked about. "Check they are from the same mode" is
+ * advice; "the stored key is a test key" is something to check against.
+ */
+export function razorpayKeyMode(keyId: string | null | undefined): KeyMode {
+  const key = keyId?.trim() ?? "";
+  if (/^rzp_test_/i.test(key)) return "test";
+  if (/^rzp_live_/i.test(key)) return "live";
+  return "unknown";
+}
+
+/** Enough of a Key ID to recognise it, without printing the whole thing. */
+export function maskKeyId(keyId: string | null | undefined): string {
+  const key = keyId?.trim() ?? "";
+  if (!key) return "none stored";
+  return key.length <= 12 ? key : `${key.slice(0, 12)}…${key.slice(-4)}`;
+}
+
+/**
+ * Why Razorpay refused a key pair, naming what is actually stored.
+ *
+ * The regenerate clause is there because it is the likeliest cause and the
+ * least obvious: generating a new key pair invalidates the previous
+ * secret immediately, so a key id that still looks right paired with the
+ * secret written down last week fails exactly like a typo.
+ */
+export function describeKeyRejection(keyId: string | null | undefined): string {
+  const mode = razorpayKeyMode(keyId);
+  const shown = maskKeyId(keyId);
+
+  if (mode === "unknown") {
+    return `Razorpay rejected this key pair. The stored Key ID (${shown}) does not start with rzp_test_ or rzp_live_, so it does not look like a Razorpay key at all — check it was pasted whole.`;
+  }
+
+  return `Razorpay rejected this key pair. The stored Key ID is a ${mode} key (${shown}), so the secret must be the one shown when that exact key was generated, with the dashboard in ${mode} mode. Generating a new key pair invalidates the old secret immediately — if the key was regenerated, paste both halves of the new pair.`;
+}

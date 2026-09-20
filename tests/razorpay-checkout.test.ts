@@ -8,6 +8,9 @@ import {
   checkoutSignature,
   verifyCheckoutSignature,
   readCheckoutFields,
+  razorpayKeyMode,
+  maskKeyId,
+  describeKeyRejection,
 } from "../src/lib/razorpay-checkout.ts";
 
 const SECRET = "test_secret_not_a_real_key";
@@ -125,4 +128,47 @@ test("fields are trimmed, so a stray space cannot fail a good payment", () => {
   const read = readCheckoutFields({ ...real, razorpay_payment_id: " pay_xyz " });
   assert.equal(read?.razorpay_payment_id, "pay_xyz");
   assert.equal(verifyCheckoutSignature(read!, SECRET), true);
+});
+
+// --- telling somebody why a key pair was refused --------------------------
+
+test("the mode is read off the key's own prefix", () => {
+  assert.equal(razorpayKeyMode("rzp_test_TeQchBfSt1dJIm"), "test");
+  assert.equal(razorpayKeyMode("rzp_live_AbCdEfGhIjKlMn"), "live");
+  assert.equal(razorpayKeyMode("RZP_TEST_upper"), "test");
+});
+
+test("anything that is not a Razorpay key reads as unknown", () => {
+  assert.equal(razorpayKeyMode(""), "unknown");
+  assert.equal(razorpayKeyMode(null), "unknown");
+  assert.equal(razorpayKeyMode(undefined), "unknown");
+  assert.equal(razorpayKeyMode("sk_live_something_else"), "unknown");
+});
+
+test("a key id is shortened but still recognisable", () => {
+  // Not a secret, but printing the whole thing in an error invites it into
+  // a screenshot for no benefit.
+  const masked = maskKeyId("rzp_test_TeQchBfSt1dJIm");
+  assert.match(masked, /^rzp_test_TeQ/);
+  assert.match(masked, /dJIm$/);
+  assert.ok(masked.includes("…"));
+  assert.equal(maskKeyId(""), "none stored");
+});
+
+test("the rejection names the stored key's mode rather than asking about it", () => {
+  const message = describeKeyRejection("rzp_test_TeQchBfSt1dJIm");
+  assert.match(message, /test key/);
+  assert.match(message, /rzp_test_TeQ/);
+});
+
+test("the rejection mentions that regenerating kills the old secret", () => {
+  // The likeliest cause and the least obvious: the key id still looks
+  // right, and the secret written down last week is already dead.
+  assert.match(describeKeyRejection("rzp_live_AbCdEfGhIjKlMn"), /invalidates the old secret/);
+});
+
+test("a malformed key is called out as malformed, not as a mode mismatch", () => {
+  const message = describeKeyRejection("XJaKYBA7wYSzMl");
+  assert.match(message, /does not look like a Razorpay key/);
+  assert.doesNotMatch(message, /same mode/);
 });
