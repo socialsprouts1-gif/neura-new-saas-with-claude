@@ -12,7 +12,8 @@ import {
   type PlanInterval,
   type PlanOption,
 } from "@/lib/plan-grid";
-import { startCheckout, cancelSubscription } from "../checkout-actions";
+import { startModalCheckout, cancelSubscription } from "../checkout-actions";
+import { loadRazorpay, openRazorpay } from "@/lib/razorpay-modal";
 
 export type PickerPlan = PlanOption;
 
@@ -33,12 +34,17 @@ export default function PlanPicker({
   canManage,
   hasSubscription,
   cancelling,
+  brandName,
+  logoUrl,
 }: {
   plans: PickerPlan[];
   canManage: boolean;
   hasSubscription: boolean;
   /** Already set to end at the period's close. */
   cancelling: boolean;
+  /** Shown in the payment window, so it does not say "Razorpay" alone. */
+  brandName: string;
+  logoUrl: string | null;
 }) {
   const router = useRouter();
   const [coupon, setCoupon] = useState("");
@@ -67,21 +73,82 @@ export default function PlanPicker({
       data.set("plan_id", planId);
       if (coupon.trim()) data.set("coupon", coupon.trim());
 
-      const result = await startCheckout(data);
-      setBusy(null);
+      // The modal first, so the customer never leaves the page. It falls
+      // back to the hosted link on its own when the gateway is not Razorpay
+      // or the total is zero, and the branch below handles both.
+      const result = await startModalCheckout(data);
 
       if (!result.ok) {
+        setBusy(null);
         setNote({ ok: false, text: result.error ?? "Could not start the purchase." });
         return;
       }
 
-      if (result.payUrl) {
-        window.location.href = result.payUrl;
+      // No checkout object means startModalCheckout handed off to the
+      // hosted link — a coupon covering the whole price, or another gateway.
+      if (!result.checkout) {
+        setBusy(null);
+        if (result.payUrl) {
+          window.location.href = result.payUrl;
+          return;
+        }
+        setNote({ ok: true, text: result.message ?? "Done." });
+        router.refresh();
         return;
       }
 
-      // No link means there was nothing to pay — a full-value coupon.
-      setNote({ ok: true, text: result.message ?? "Done." });
+      const ready = await loadRazorpay();
+      if (!ready) {
+        setBusy(null);
+        setNote({
+          ok: false,
+          text: "The payment window could not load. Check an ad blocker is not blocking checkout.razorpay.com, or try again.",
+        });
+        return;
+      }
+
+      const outcome = await openRazorpay(result.checkout, { name: brandName, logoUrl });
+      setBusy(null);
+
+      if (outcome.kind === "dismissed") {
+        // Not an error. Saying "payment failed" to somebody who chose to
+        // close the window is how a checkout loses a customer twice.
+        setNote({ ok: true, text: "Payment window closed. Nothing has been charged." });
+        return;
+      }
+
+      if (outcome.kind === "failed") {
+        setNote({ ok: false, text: outcome.error });
+        return;
+      }
+
+      // Verified on the server before anything is claimed. The webhook does
+      // this too and may well get there first, which is why the answer
+      // distinguishes "activated" from "already done".
+      const response = await fetch("/api/payments/razorpay/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(outcome.fields),
+      });
+
+      const verdict = (await response.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; planName?: string | null }
+        | null;
+
+      if (!response.ok || !verdict?.ok) {
+        setNote({
+          ok: false,
+          text:
+            verdict?.error ??
+            "The payment went through but could not be confirmed here. It will be applied automatically within a minute — please refresh.",
+        });
+        return;
+      }
+
+      setNote({
+        ok: true,
+        text: verdict.planName ? `Payment received. You are on ${verdict.planName}.` : "Payment received.",
+      });
       router.refresh();
     });
 

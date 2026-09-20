@@ -61,6 +61,79 @@ export type PaymentLinkResult =
 
 const RAZORPAY_BASE = "https://api.razorpay.com/v1";
 
+export interface RazorpayOrder {
+  /** order_xxx, handed to the checkout modal in the browser. */
+  id: string;
+  amountPaise: number;
+  currency: string;
+  /** The public half of the key pair. Safe in a browser; the secret is not. */
+  keyId: string;
+}
+
+export type RazorpayOrderResult =
+  | ({ ok: true } & RazorpayOrder)
+  | { ok: false; error: string };
+
+/**
+ * An order for Standard Checkout, where the customer pays in a modal.
+ *
+ * Different from the payment link above, which sends them away to a page
+ * Razorpay hosts. Both end at the same webhook and the same order row —
+ * this one just keeps the customer on the site, which is worth a great
+ * deal on a checkout somebody reached from a pricing page.
+ *
+ * `receipt` is our own order reference, echoed back on every notification,
+ * and is what ties a payment to a row here. Razorpay caps it at 40
+ * characters and rejects anything longer outright.
+ */
+export async function createRazorpayOrder(
+  connection: PaymentConnection,
+  request: { amountPaise: number; currency: string; receipt: string; notes?: Record<string, string> }
+): Promise<RazorpayOrderResult> {
+  const keyId = connection.config.key_id ?? connection.credentials.key_id ?? "";
+  if (!keyId) {
+    return { ok: false, error: "No Razorpay Key ID is stored for this gateway." };
+  }
+
+  const result = await providerFetch(`${RAZORPAY_BASE}/orders`, {
+    method: "POST",
+    headers: jsonHeaders(razorpayAuth(connection)),
+    body: JSON.stringify({
+      amount: request.amountPaise,
+      currency: request.currency,
+      receipt: request.receipt.slice(0, 40),
+      // Captured automatically. The alternative is authorise-then-capture,
+      // where money is held and never taken unless a second call is made —
+      // which is a way to quietly not get paid.
+      payment_capture: 1,
+      ...(request.notes ? { notes: request.notes } : {}),
+    }),
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      error:
+        result.status === 401
+          ? "Razorpay rejected the key pair. Check the Key ID and secret are from the same mode — a live key with a test secret fails exactly like this."
+          : (result.error ?? "Razorpay refused to create the order."),
+    };
+  }
+
+  const body = result.body as { id?: string; amount?: number; currency?: string } | null;
+  if (!body?.id) {
+    return { ok: false, error: "Razorpay accepted the request but returned no order id." };
+  }
+
+  return {
+    ok: true,
+    id: body.id,
+    amountPaise: body.amount ?? request.amountPaise,
+    currency: body.currency ?? request.currency,
+    keyId,
+  };
+}
+
 function razorpayAuth(connection: PaymentConnection): string {
   return basicAuth(
     connection.config.key_id ?? connection.credentials.key_id ?? "",

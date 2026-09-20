@@ -3,6 +3,7 @@ import { requireOrg } from "@/lib/org";
 import { PageHeader, Card, StatCard, Badge, Table, Td, EmptyState, statusTone } from "@/components/ui/primitives";
 import { formatMoney, formatDate } from "@/types/admin";
 import { loadEntitlement, loadUsage } from "@/lib/entitlement";
+import { loadSiteContent } from "@/lib/site-content-server";
 import { daysRemaining } from "@/lib/checkout";
 import PlanPicker from "./PlanPicker";
 import UsageBars from "./UsageBars";
@@ -10,6 +11,9 @@ import UsageBars from "./UsageBars";
 export default async function BillingPage() {
   const { orgId, role } = await requireOrg();
   const supabase = await createClient();
+  // The payment window shows whoever is being paid. Left unset it says
+  // Razorpay, which is not who the customer thinks they are buying from.
+  const { brand } = await loadSiteContent();
 
   const [{ data: subscription }, { data: orders }, { data: plans }, { data: usage }] =
     await Promise.all([
@@ -139,6 +143,8 @@ export default async function BillingPage() {
             canManage={role === "owner" || role === "admin"}
             hasSubscription={Boolean(subscription?.plan_id) && entitlement.active}
             cancelling={Boolean(subscription?.cancel_at_period_end)}
+            brandName={brand.name ? `${brand.name}${brand.nameAccent}` : "Neura Chat"}
+            logoUrl={brand.logoUrl || null}
           />
         </Card>
       </div>

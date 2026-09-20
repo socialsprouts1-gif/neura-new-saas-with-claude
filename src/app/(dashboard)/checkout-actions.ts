@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOrg } from "@/lib/org";
 import { loadIntegration } from "@/lib/integration-store";
-import { createPaymentLink } from "@/lib/payment-links";
+import { createPaymentLink, createRazorpayOrder } from "@/lib/payment-links";
+import { checkAmount } from "@/lib/razorpay-checkout";
 import { isPaymentProvider } from "@/lib/provider-meta";
 import {
   chargeFor,
@@ -300,5 +301,147 @@ export async function cancelSubscription(): Promise<ActionResult> {
     message: subscription?.current_period_end
       ? `Cancelled. Everything keeps working until ${new Date(subscription.current_period_end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.`
       : "Cancelled.",
+  };
+}
+
+export interface ModalCheckout {
+  /** Razorpay's order id, handed to the checkout modal. */
+  razorpayOrderId: string;
+  amountPaise: number;
+  currency: string;
+  /** Public half of the key pair. The secret never leaves the server. */
+  keyId: string;
+  /** Our own order row, so the verify call knows what was bought. */
+  orderId: string;
+  planName: string;
+  customerEmail: string | null;
+}
+
+/**
+ * Starts a purchase the customer pays for without leaving the page.
+ *
+ * The same order row, the same reference and the same webhook as the
+ * payment link above — the only difference is where the card details are
+ * typed. Standard Checkout keeps them here, which on a checkout somebody
+ * reached from a pricing page is worth a great deal.
+ *
+ * Nothing is granted here. The row is written pending and stays pending
+ * until a signature has been checked, so the only thing that can put a
+ * workspace on a plan is money actually arriving.
+ */
+export async function startModalCheckout(
+  formData: FormData
+  // payUrl too, because this hands off to the hosted link when the total
+  // is zero or the gateway is not Razorpay, and the caller has to follow it.
+): Promise<ActionResult & { checkout?: ModalCheckout; payUrl?: string }> {
+  const ctx = await requireOrg();
+  if (ctx.role !== "owner" && ctx.role !== "admin") {
+    return { ok: false, error: "Only an owner or an admin can change the plan." };
+  }
+
+  const quoted = await quotePlan(formData);
+  if (!quoted.ok || !quoted.quote) return quoted;
+  const quote = quoted.quote;
+
+  // A free total has nothing for a gateway to do, and Razorpay refuses a
+  // zero-amount order outright. The link path already handles this, and
+  // sending somebody to a modal that cannot open is worse than a redirect.
+  if (quote.totalCents <= 0) {
+    return startCheckout(formData);
+  }
+
+  const amount = checkAmount(quote.totalCents);
+  if (!amount.ok) return { ok: false, error: amount.error };
+
+  const gateway = await platformGateway();
+  if (!gateway.ok) return { ok: false, error: gateway.error };
+
+  // Standard Checkout is Razorpay's. The other gateways have their own
+  // modals with different contracts, and pretending otherwise would mean
+  // opening a Razorpay modal against Cashfree credentials.
+  if (gateway.provider !== "razorpay") {
+    return startCheckout(formData);
+  }
+
+  const admin = createAdminClient();
+
+  const code = String(formData.get("coupon") ?? "").trim();
+  let couponId: string | null = null;
+  if (code) {
+    const { data: found } = await admin
+      .from("coupons")
+      .select("id")
+      .eq("code", code.toUpperCase())
+      .maybeSingle();
+    couponId = found?.id ?? null;
+  }
+
+  const { data: order, error: orderError } = await admin
+    .from("orders")
+    .insert({
+      org_id: ctx.orgId,
+      plan_id: quote.planId,
+      coupon_id: couponId,
+      kind: "subscription",
+      description: `${quote.name} (${quote.interval})`,
+      amount_cents: quote.totalCents,
+      discount_cents: quote.discountCents,
+      billing_interval: quote.interval,
+      currency: quote.currency,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (orderError || !order) {
+    return { ok: false, error: orderError?.message ?? "Could not start the purchase." };
+  }
+
+  const stored = await loadIntegration(admin, gateway.orgId, gateway.provider);
+  if (!stored) {
+    return {
+      ok: false,
+      error: `The platform's ${gateway.provider} credentials are missing. Platform staff need to connect it under Integrations on the payments workspace.`,
+    };
+  }
+
+  const created = await createRazorpayOrder(
+    {
+      provider: "razorpay",
+      credentials: stored.values,
+      config: stored.config ?? {},
+    },
+    {
+      amountPaise: amount.paise,
+      currency: quote.currency,
+      receipt: checkoutReference(order.id),
+      // Echoed back on the webhook, so a notification can be tied to a row
+      // even if the receipt is ever truncated.
+      notes: { order_id: order.id, org_id: ctx.orgId },
+    }
+  );
+
+  if (!created.ok) {
+    await admin.from("orders").update({ status: "failed" }).eq("id", order.id);
+    return { ok: false, error: created.error };
+  }
+
+  await admin
+    .from("orders")
+    .update({ provider: "razorpay", provider_reference: created.id })
+    .eq("id", order.id);
+
+  return {
+    ok: true,
+    message: "Opening the payment window.",
+    checkout: {
+      razorpayOrderId: created.id,
+      amountPaise: created.amountPaise,
+      currency: created.currency,
+      keyId: created.keyId,
+      orderId: order.id,
+      planName: quote.name,
+      customerEmail: ctx.user.email ?? null,
+    },
   };
 }
