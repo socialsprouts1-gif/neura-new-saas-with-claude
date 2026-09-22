@@ -362,5 +362,16 @@ export function headline(checks: readonly Check[]): string {
   if (warn > 0) {
     return `Nothing is blocked outright, but ${warn} thing${warn === 1 ? " needs" : "s need"} attention.`;
   }
-  return "Meta reports no problem with this account or number. If sends are still failing, the reason is on the message rather than the account — check the reason shown against the failed recipients.";
+  // Two different "still not working"s, and they lead to different places.
+  // A send that fails after all of this is about the message. A template
+  // refused after all of this has one gate left that no Graph call
+  // exposes: whether the permission sits at Standard or Advanced Access.
+  // Standard only reaches assets connected to your own app, and a
+  // CLIENT_OWNED account belongs to somebody else's business — which is
+  // exactly the shape of a read that works and a write that does not.
+  return [
+    "Meta reports no problem with this account or number.",
+    "If a send is failing, the reason is on the message rather than the account — check the reason shown against the failed recipients.",
+    "If a template is being refused, one gate is left that no check here can see: App Review → Permissions and Features → whatsapp_business_management, and whether it reads Advanced Access or Standard Access. Standard only reaches assets connected to your own app, and this account is owned by another business.",
+  ].join(" ");
 }

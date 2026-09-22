@@ -39,6 +39,15 @@ test("a clean result says to look at the message, not the account", () => {
   assert.match(line, /failed recipients/i);
 });
 
+test("a clean result names the one gate no Graph call can see", () => {
+  // Everything else being clear is exactly when Advanced Access is worth
+  // raising: Standard only reaches assets connected to your own app, and a
+  // CLIENT_OWNED account belongs to someone else's business.
+  const line = headline(healthChecks(healthy));
+  assert.match(line, /Advanced Access/);
+  assert.match(line, /whatsapp_business_management/);
+});
+
 // --- the one this exists for -----------------------------------------------
 
 test("a number that is not on the configured account is the first check and is fatal", () => {
