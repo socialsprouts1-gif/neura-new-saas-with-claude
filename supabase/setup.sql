@@ -1529,9 +1529,24 @@ create table if not exists public.contact_groups (
   name text not null,
   description text,
   colour text not null default '#00FF87',
+  -- One emoji on the tile, or an https logo that replaces it. Neither is
+  -- decoration: a shop running "Dealers", "Society A" and "Walk-ins"
+  -- picks the right one out of a list by its picture, not by reading.
+  icon text,
+  image_url text,
+  -- The number this segment is usually messaged from. A default, not a
+  -- constraint, and not a WhatsApp group: Meta's Cloud API has no group
+  -- endpoints, so each member receives their own message.
+  connection_id uuid references public.waba_connections(id) on delete set null,
   created_at timestamptz not null default now(),
   unique (org_id, name)
 );
+
+-- For a database created before these columns existed.
+alter table public.contact_groups
+  add column if not exists icon text,
+  add column if not exists image_url text,
+  add column if not exists connection_id uuid references public.waba_connections(id) on delete set null;
 
 create index if not exists contact_groups_org_idx on public.contact_groups(org_id);
 alter table public.contact_groups enable row level security;
@@ -1554,12 +1569,32 @@ create table if not exists public.contact_group_members (
   group_id uuid not null references public.contact_groups(id) on delete cascade,
   contact_id uuid not null references public.contacts(id) on delete cascade,
   org_id uuid not null references public.organizations(id) on delete cascade,
+  -- admin here means key contact: the person who speaks for the group,
+  -- pinned to the top of the list and messageable on their own. Not a
+  -- WhatsApp group administrator — there is no WhatsApp group.
+  role text not null default 'member',
   added_at timestamptz not null default now(),
   primary key (group_id, contact_id)
 );
 
+alter table public.contact_group_members
+  add column if not exists role text not null default 'member';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'contact_group_members_role_check'
+  ) then
+    alter table public.contact_group_members
+      add constraint contact_group_members_role_check
+      check (role in ('admin', 'member'));
+  end if;
+end $$;
+
 create index if not exists contact_group_members_contact_idx
   on public.contact_group_members(contact_id);
+create index if not exists contact_group_members_admin_idx
+  on public.contact_group_members (group_id) where role = 'admin';
 alter table public.contact_group_members enable row level security;
 
 drop policy if exists contact_group_members_select on public.contact_group_members;
@@ -1571,6 +1606,43 @@ create policy contact_group_members_insert on public.contact_group_members
 drop policy if exists contact_group_members_delete on public.contact_group_members;
 create policy contact_group_members_delete on public.contact_group_members
   for delete to authenticated using (public.is_org_member(org_id));
+
+-- Without this, promoting somebody would report success and change
+-- nothing: Postgres does not raise on an update whose rows RLS filters
+-- out, it reports zero rows changed, and PostgREST calls that a success.
+drop policy if exists contact_group_members_update on public.contact_group_members;
+create policy contact_group_members_update on public.contact_group_members
+  for update to authenticated
+  using (public.is_org_member(org_id)) with check (public.is_org_member(org_id));
+
+-- =========================================================================
+-- group_broadcasts — what was sent to a group, and how it went
+-- =========================================================================
+create table if not exists public.group_broadcasts (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  group_id uuid not null references public.contact_groups(id) on delete cascade,
+  connection_id uuid references public.waba_connections(id) on delete set null,
+  body text not null,
+  sent_count integer not null default 0,
+  skipped_count integer not null default 0,
+  failed_count integer not null default 0,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists group_broadcasts_group_idx
+  on public.group_broadcasts (group_id, created_at desc);
+
+alter table public.group_broadcasts enable row level security;
+
+drop policy if exists group_broadcasts_select on public.group_broadcasts;
+create policy group_broadcasts_select on public.group_broadcasts
+  for select to authenticated using (public.is_org_member(org_id));
+
+drop policy if exists group_broadcasts_insert on public.group_broadcasts;
+create policy group_broadcasts_insert on public.group_broadcasts
+  for insert to authenticated with check (public.is_org_member(org_id));
 
 -- =========================================================================
 -- contact_columns — custom fields on a contact

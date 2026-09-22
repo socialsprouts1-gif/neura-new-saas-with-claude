@@ -701,6 +701,10 @@ export type ContactGroup = {
   name: string;
   description: string | null;
   colour: string;
+  /** One emoji on the group tile. Falls back to the name's initials. */
+  icon: string | null;
+  /** An https logo, shown instead of the icon when set. */
+  image_url: string | null;
   /**
    * The number this segment is usually messaged from.
    *
@@ -729,6 +733,14 @@ export type ContactGroupMember = {
   group_id: string;
   contact_id: string;
   org_id: string;
+  /**
+   * "admin" means key contact — the person who speaks for the group.
+   *
+   * Not a WhatsApp group administrator: there is no WhatsApp group, and
+   * Meta's Cloud API has no group endpoints. It marks who gets pinned to
+   * the top of the member list and who "Key contacts only" sends to.
+   */
+  role: "admin" | "member";
   added_at: string;
 };
 

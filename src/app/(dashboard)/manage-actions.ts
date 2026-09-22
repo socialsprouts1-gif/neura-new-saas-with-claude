@@ -7,6 +7,13 @@ import type { ActionResult } from "./actions";
 import type { ContactColumnType } from "@/types/portal";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { planBroadcast, describePlan, checkBody } from "@/lib/group-broadcast";
+import {
+  checkIcon,
+  checkLogoUrl,
+  readRole,
+  readAudience,
+  describeAudience,
+} from "@/lib/group-identity";
 
 // The Manage workspace: saved replies, groups, custom columns, consent.
 // Each action re-derives the org from the session rather than trusting the
@@ -66,6 +73,9 @@ export async function saveContactGroup(formData: FormData): Promise<ActionResult
 
   if (!name) return { ok: false, error: "Group name is required." };
 
+  const icon = checkIcon(String(formData.get("icon") ?? ""));
+  if (!icon.ok) return { ok: false, error: icon.error };
+
   const supabase = await createClient();
   const connectionId = String(formData.get("connection_id") ?? "").trim();
 
@@ -76,6 +86,7 @@ export async function saveContactGroup(formData: FormData): Promise<ActionResult
       name,
       description: description || null,
       colour,
+      icon: icon.icon,
       connection_id: connectionId || null,
     });
 
@@ -102,7 +113,7 @@ export async function deleteContactGroup(formData: FormData): Promise<ActionResu
   return { ok: true, message: "Group deleted." };
 }
 
-/** Renames a group, or changes its colour and default number. */
+/** Renames a group, or changes its picture, colour and default number. */
 export async function updateContactGroup(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
 
@@ -111,28 +122,105 @@ export async function updateContactGroup(formData: FormData): Promise<ActionResu
   if (!id) return { ok: false, error: "No group given." };
   if (!name) return { ok: false, error: "Group name is required." };
 
+  const icon = checkIcon(String(formData.get("icon") ?? ""));
+  if (!icon.ok) return { ok: false, error: icon.error };
+
+  const logo = checkLogoUrl(String(formData.get("image_url") ?? ""));
+  if (!logo.ok) return { ok: false, error: logo.error };
+
   const connectionId = String(formData.get("connection_id") ?? "").trim();
 
   const supabase = await createClient();
-  const { error } = await supabase
+  // .select() so a write RLS filtered out is caught. Postgres does not
+  // raise on an update that matched no rows, and PostgREST calls that a
+  // success — which is how a green "Group updated." can change nothing.
+  const { data, error } = await supabase
     .from("contact_groups")
     .update({
       name,
       description: String(formData.get("description") ?? "").trim() || null,
       colour: String(formData.get("colour") ?? "#00FF87"),
+      icon: icon.icon,
+      image_url: logo.url,
       connection_id: connectionId || null,
     })
     .eq("id", id)
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .select("id");
 
   if (error) {
     if (error.code === "23505") return { ok: false, error: "A group with that name already exists." };
+    if (error.code === "42703") {
+      return {
+        ok: false,
+        error:
+          "This database has no icon or logo column yet. Run supabase/updates/run-me-latest.sql in the Supabase SQL editor, then try again.",
+      };
+    }
     return { ok: false, error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return { ok: false, error: "That group is not in this workspace, so nothing was changed." };
   }
 
   revalidatePath("/groups");
   revalidatePath(`/groups/${id}`);
   return { ok: true, message: "Group updated." };
+}
+
+/**
+ * Marks somebody as a key contact for a group, or unmarks them.
+ *
+ * "Admin" is what people call it, because WhatsApp groups have admins.
+ * This is not that — there is no WhatsApp group to administer. It marks
+ * the person who speaks for the rest, so they sit at the top of the list
+ * and can be messaged without messaging everybody.
+ */
+export async function setGroupMemberRole(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const groupId = String(formData.get("group_id") ?? "").trim();
+  const contactId = String(formData.get("contact_id") ?? "").trim();
+  if (!groupId || !contactId) return { ok: false, error: "No membership given." };
+
+  const role = readRole(formData.get("role"));
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("contact_group_members")
+    .update({ role })
+    .eq("group_id", groupId)
+    .eq("contact_id", contactId)
+    .eq("org_id", orgId)
+    .select("contact_id");
+
+  if (error) {
+    if (error.code === "42703") {
+      return {
+        ok: false,
+        error:
+          "This database has no role column on group members yet. Run supabase/updates/run-me-latest.sql in the Supabase SQL editor, then try again.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  // The table shipped with select, insert and delete policies and no
+  // update policy, so this used to report success and change nothing.
+  if (!data || data.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Nothing changed. If this database has not had supabase/updates/run-me-latest.sql run against it, group members cannot be updated yet.",
+    };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return {
+    ok: true,
+    message: role === "admin" ? "Marked as a key contact." : "No longer a key contact.",
+  };
 }
 
 /** Puts named contacts into a group. */
@@ -150,8 +238,15 @@ export async function addContactsToGroup(formData: FormData): Promise<ActionResu
   // Upsert rather than insert: somebody already in the group is not an
   // error, and refusing the whole batch because one of twenty was already
   // there would be a strange way to fail.
+  const role = readRole(formData.get("role"));
+
   const { error } = await supabase.from("contact_group_members").upsert(
-    contactIds.map((contactId) => ({ group_id: groupId, contact_id: contactId, org_id: orgId })),
+    contactIds.map((contactId) => ({
+      group_id: groupId,
+      contact_id: contactId,
+      org_id: orgId,
+      role,
+    })),
     { onConflict: "group_id,contact_id" }
   );
 
@@ -161,7 +256,10 @@ export async function addContactsToGroup(formData: FormData): Promise<ActionResu
   revalidatePath(`/groups/${groupId}`);
   return {
     ok: true,
-    message: `Added ${contactIds.length} contact${contactIds.length === 1 ? "" : "s"}.`,
+    message:
+      role === "admin"
+        ? `Added ${contactIds.length} key contact${contactIds.length === 1 ? "" : "s"}.`
+        : `Added ${contactIds.length} contact${contactIds.length === 1 ? "" : "s"}.`,
   };
 }
 
@@ -321,17 +419,29 @@ export async function broadcastToGroup(formData: FormData): Promise<ActionResult
   if (!checked.ok) return { ok: false, error: checked.error };
 
   const connectionId = String(formData.get("connection_id") ?? "").trim();
+  const audience = readAudience(formData.get("audience"));
   const supabase = await createClient();
 
-  const { data: rows, error: readError } = await supabase
+  const { data: allRows, error: readError } = await supabase
     .from("contact_group_members")
-    .select("contact_id, contacts(id, name, wa_id, opted_out)")
+    .select("contact_id, role, contacts(id, name, wa_id, opted_out)")
     .eq("group_id", groupId)
     .eq("org_id", orgId)
     .limit(500);
 
   if (readError) return { ok: false, error: readError.message };
-  if (!rows || rows.length === 0) return { ok: false, error: "This group has no contacts in it yet." };
+  if (!allRows || allRows.length === 0) {
+    return { ok: false, error: "This group has no contacts in it yet." };
+  }
+
+  // Narrowed before anything else happens, so "key contacts only" over a
+  // group with none says so rather than quietly sending to nobody.
+  const rows =
+    audience === "admins" ? allRows.filter((row) => readRole(row.role) === "admin") : allRows;
+
+  if (rows.length === 0) {
+    return { ok: false, error: describeAudience(audience, 0, allRows.length) };
+  }
 
   const contactIds = rows.map((row) => row.contact_id);
 

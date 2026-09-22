@@ -1,22 +1,30 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Phone, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { listConnections } from "@/lib/connections";
 import { optionLabel } from "@/lib/number-identity";
 import {
   updateContactGroup,
+  deleteContactGroup,
   addContactsToGroup,
   removeContactFromGroup,
+  setGroupMemberRole,
   broadcastToGroup,
 } from "../../manage-actions";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
-import { PageHeader, Card, Badge, EmptyState } from "@/components/ui/primitives";
+import { Card, Badge, EmptyState } from "@/components/ui/primitives";
 import { planBroadcast, describePlan, explainSkip } from "@/lib/group-broadcast";
+import { readRole, sortMembers, type GroupRole } from "@/lib/group-identity";
+import GroupAvatar from "../GroupAvatar";
+import IconPicker from "../IconPicker";
+import LogoField from "../LogoField";
+import ContactPicker from "../ContactPicker";
+import BroadcastFields from "../BroadcastFields";
 
 /**
- * One group: who is in it, and sending to them.
+ * One group: who is in it, who speaks for it, and sending to them.
  *
  * Worth saying once here rather than in three tooltips: this is not a
  * WhatsApp group. Meta's Cloud API has no group endpoints — groups exist
@@ -31,24 +39,14 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
 
   const [{ data: group }, { data: memberRows }, { data: contacts }, connections, { data: history }] =
     await Promise.all([
-      supabase
-        .from("contact_groups")
-        .select("*")
-        .eq("id", id)
-        .eq("org_id", orgId)
-        .maybeSingle(),
+      supabase.from("contact_groups").select("*").eq("id", id).eq("org_id", orgId).maybeSingle(),
       supabase
         .from("contact_group_members")
-        .select("contact_id, contacts(id, name, wa_id, opted_out)")
+        .select("contact_id, role, contacts(id, name, wa_id, opted_out)")
         .eq("group_id", id)
         .eq("org_id", orgId)
         .limit(500),
-      supabase
-        .from("contacts")
-        .select("id, name, wa_id")
-        .eq("org_id", orgId)
-        .order("name")
-        .limit(500),
+      supabase.from("contacts").select("id, name, wa_id").eq("org_id", orgId).order("name").limit(500),
       listConnections(supabase, orgId),
       supabase
         .from("group_broadcasts")
@@ -63,6 +61,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   const rows = memberRows ?? [];
   const memberIds = new Set(rows.map((row) => row.contact_id));
   const active = connections.filter((connection) => connection.status === "active");
+  const defaultNumber = group.connection_id ? active.find((c) => c.id === group.connection_id) : null;
 
   // The window is per conversation, so who can be reached right now is a
   // live question — answered here rather than after a send half-fails.
@@ -74,25 +73,27 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
         .in("contact_id", [...memberIds])
     : { data: [] };
 
-  const threadByContact = new Map(
-    (conversations ?? []).map((row) => [row.contact_id, row])
+  const threadByContact = new Map((conversations ?? []).map((row) => [row.contact_id, row]));
+
+  const members = sortMembers(
+    rows.map((row) => {
+      const contact = row.contacts as
+        | { id: string; name: string | null; wa_id: string; opted_out: boolean | null }
+        | null;
+      const thread = threadByContact.get(row.contact_id);
+      return {
+        contactId: row.contact_id,
+        role: readRole(row.role) as GroupRole,
+        name: contact?.name ?? null,
+        waId: contact?.wa_id ?? "",
+        optedOut: Boolean(contact?.opted_out),
+        conversationId: thread?.id ?? null,
+        lastInboundAt: thread?.last_inbound_at ?? null,
+      };
+    })
   );
 
-  const members = rows.map((row) => {
-    const contact = row.contacts as
-      | { id: string; name: string | null; wa_id: string; opted_out: boolean | null }
-      | null;
-    const thread = threadByContact.get(row.contact_id);
-    return {
-      contactId: row.contact_id,
-      name: contact?.name ?? null,
-      waId: contact?.wa_id ?? "",
-      optedOut: Boolean(contact?.opted_out),
-      conversationId: thread?.id ?? null,
-      lastInboundAt: thread?.last_inbound_at ?? null,
-    };
-  });
-
+  const admins = members.filter((member) => member.role === "admin").length;
   const plan = planBroadcast(members);
   const skipReason = new Map(plan.skipped.map((entry) => [entry.member.contactId, entry.why]));
   const notYetIn = (contacts ?? []).filter((contact) => !memberIds.has(contact.id));
@@ -107,10 +108,38 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
         All groups
       </Link>
 
-      <PageHeader
-        title={group.name}
-        subtitle={group.description ?? "A named segment of contacts."}
-      />
+      {/* The group's own header rather than the generic PageHeader: with a
+          picture and a name side by side it reads as a thing, which is
+          what makes a groups screen feel like a groups screen. */}
+      <div className="flex items-start gap-4 mb-7">
+        <GroupAvatar
+          name={group.name}
+          colour={group.colour}
+          icon={group.icon}
+          imageUrl={group.image_url}
+          size="lg"
+        />
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h1 className="text-2xl font-semibold tracking-tight truncate">{group.name}</h1>
+          <p className="text-sm text-white/45 mt-1">
+            {group.description || "A named list of customers."}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <Badge tone="grey">
+              {members.length} member{members.length === 1 ? "" : "s"}
+            </Badge>
+            {admins > 0 && <Badge tone="purple">{admins} key contact{admins === 1 ? "" : "s"}</Badge>}
+            {defaultNumber ? (
+              <span className="inline-flex items-center gap-1 text-[11px] text-white/40">
+                <Phone className="w-3 h-3" />
+                {optionLabel(defaultNumber)}
+              </span>
+            ) : (
+              <span className="text-[11px] text-white/30">No default number</span>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="grid lg:grid-cols-[1fr_380px] gap-6 items-start">
         <div className="space-y-6 order-2 lg:order-1">
@@ -130,19 +159,41 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
               <ul className="divide-y divide-white/6">
                 {members.map((member) => {
                   const why = skipReason.get(member.contactId);
+                  const isAdmin = member.role === "admin";
+
                   return (
                     <li
                       key={member.contactId}
                       className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm truncate">{member.name || member.waId}</div>
+                        <div className="text-sm truncate flex items-center gap-1.5">
+                          {isAdmin && (
+                            <Star className="w-3 h-3 flex-shrink-0 fill-[#A855F7] text-[#A855F7]" />
+                          )}
+                          {member.name || member.waId}
+                        </div>
                         <div className="text-[11px] text-white/35 tabular-nums">
                           {member.waId}
                           {why && <span className="text-white/30"> · {explainSkip(why)}</span>}
                         </div>
                       </div>
+
                       {!why && <Badge tone="green">reachable now</Badge>}
+
+                      {/* Promote and demote as the same control, because
+                          the state is binary and a dropdown for two values
+                          is a dropdown too many. */}
+                      <ActionForm
+                        action={setGroupMemberRole}
+                        submitLabel={isAdmin ? "Unmark" : "Key contact"}
+                        compact
+                      >
+                        <input type="hidden" name="group_id" value={group.id} />
+                        <input type="hidden" name="contact_id" value={member.contactId} />
+                        <input type="hidden" name="role" value={isAdmin ? "member" : "admin"} />
+                      </ActionForm>
+
                       <ActionForm action={removeContactFromGroup} submitLabel="Remove" compact>
                         <input type="hidden" name="group_id" value={group.id} />
                         <input type="hidden" name="contact_id" value={member.contactId} />
@@ -152,6 +203,12 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                 })}
               </ul>
             )}
+
+            <p className="text-[11px] text-white/30 mt-4 leading-relaxed">
+              A key contact is the person who speaks for the group — the owner in a dealer list,
+              the secretary on a committee. They sit at the top here and can be messaged without
+              messaging everybody. It is not a WhatsApp group admin; there is no WhatsApp group.
+            </p>
           </Card>
 
           {(history ?? []).length > 0 && (
@@ -190,6 +247,9 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
 
             <ActionForm action={broadcastToGroup} submitLabel="Send now" resetOnSuccess>
               <input type="hidden" name="group_id" value={group.id} />
+
+              <BroadcastFields admins={admins} total={members.length} />
+
               {active.length > 1 && (
                 <SelectField
                   label="Send from"
@@ -201,6 +261,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                   }))}
                 />
               )}
+
               <TextareaField
                 label="Message"
                 name="body"
@@ -215,60 +276,94 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             <h2 className="font-semibold mb-3">Add contacts</h2>
             {notYetIn.length === 0 ? (
               <p className="text-xs text-white/40 leading-relaxed">
-                Every contact in this workspace is already in this group.
+                Every contact in this workspace is already in this group. New contacts can be added
+                here the moment they exist.
               </p>
             ) : (
               <ActionForm action={addContactsToGroup} submitLabel="Add to group">
                 <input type="hidden" name="group_id" value={group.id} />
-                <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
-                  {notYetIn.map((contact) => (
-                    <label
-                      key={contact.id}
-                      className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        name="contact_ids"
-                        value={contact.id}
-                        className="accent-[var(--accent)] w-4 h-4"
-                      />
-                      <span className="text-xs min-w-0 flex-1 truncate">
-                        {contact.name || contact.wa_id}
-                        <span className="block text-[10px] text-white/30 tabular-nums">
-                          {contact.wa_id}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <ContactPicker contacts={notYetIn} />
+                <label className="flex items-center gap-2.5 mt-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="role"
+                    value="admin"
+                    className="accent-[var(--accent)] w-4 h-4"
+                  />
+                  <span className="text-xs text-white/60">Add these as key contacts</span>
+                </label>
               </ActionForm>
             )}
           </Card>
 
           <Card>
-            <h2 className="font-semibold mb-3">Group settings</h2>
+            <h2 className="font-semibold mb-1">Group settings</h2>
+            <p className="text-xs text-white/45 mb-4">
+              Name, picture and default number. All of it changeable at any time.
+            </p>
+
             <ActionForm action={updateContactGroup} submitLabel="Save">
               <input type="hidden" name="id" value={group.id} />
-              <Field label="Name" name="name" required defaultValue={group.name} />
-              <Field
-                label="Description"
-                name="description"
-                defaultValue={group.description ?? ""}
-              />
-              {active.length > 0 && (
+              <div className="space-y-4">
+                <Field label="Name" name="name" required defaultValue={group.name} />
+                <Field
+                  label="Description"
+                  name="description"
+                  defaultValue={group.description ?? ""}
+                />
+
                 <SelectField
-                  label="Default number"
-                  name="connection_id"
-                  defaultValue={group.connection_id ?? ""}
+                  label="Colour"
+                  name="colour"
+                  defaultValue={group.colour}
                   options={[
-                    { value: "", label: "No default" },
-                    ...active.map((connection) => ({
-                      value: connection.id,
-                      label: optionLabel(connection),
-                    })),
+                    { value: "#00FF87", label: "Green" },
+                    { value: "#00D4FF", label: "Cyan" },
+                    { value: "#A855F7", label: "Purple" },
+                    { value: "#FACC15", label: "Amber" },
+                    { value: "#F87171", label: "Red" },
                   ]}
                 />
-              )}
+
+                <IconPicker defaultValue={group.icon} colour={group.colour} groupName={group.name} />
+
+                <LogoField defaultValue={group.image_url} orgId={orgId} colour={group.colour} />
+
+                {active.length > 0 ? (
+                  <SelectField
+                    label="Default number"
+                    name="connection_id"
+                    defaultValue={group.connection_id ?? ""}
+                    options={[
+                      { value: "", label: "No default" },
+                      ...active.map((connection) => ({
+                        value: connection.id,
+                        label: optionLabel(connection),
+                      })),
+                    ]}
+                  />
+                ) : (
+                  <p className="text-[11px] text-white/35 leading-relaxed">
+                    No WhatsApp number is connected yet. Connect one on{" "}
+                    <Link href="/numbers" className="text-accent-ink hover:underline">
+                      Numbers
+                    </Link>{" "}
+                    and it can be set as this group&apos;s default.
+                  </p>
+                )}
+              </div>
+            </ActionForm>
+          </Card>
+
+          <Card className="border-red-500/15">
+            <h2 className="font-semibold mb-1">Delete this group</h2>
+            <p className="text-xs text-white/45 mb-4 leading-relaxed">
+              Removes the list and its send history. The {members.length} contact
+              {members.length === 1 ? "" : "s"} in it stay in your workspace, with their
+              conversations and tags untouched.
+            </p>
+            <ActionForm action={deleteContactGroup} submitLabel="Delete group" compact>
+              <input type="hidden" name="id" value={group.id} />
             </ActionForm>
           </Card>
         </div>
