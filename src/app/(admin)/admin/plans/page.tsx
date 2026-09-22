@@ -7,6 +7,7 @@ import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
 import { readTrialDays } from "@/lib/trial";
+import { applyPlanTemplates } from "../actions";
 
 export default async function AdminPlansPage() {
   await requirePlatformAdmin();
@@ -29,6 +30,35 @@ export default async function AdminPlansPage() {
   return (
     <div className="p-6 md:p-8">
       <PageHeader title="Plans" subtitle="The subscription catalogue offered to tenants." />
+
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">Fill in the plan cards</h2>
+        <p className="text-sm text-white/50 mb-4 leading-relaxed">
+          The bullets on a pricing card are a comparison, and written one plan at a time they stop
+          being one — three true statements about three tiers that cannot be read against each
+          other. This writes a parallel set: every tier answers the same questions, in the same
+          order, so the only thing that moves between the cards is what actually differs.
+        </p>
+        <p className="text-[11px] text-white/35 mb-4 leading-relaxed">
+          Prices, limits and whether a plan is active are never touched. Wording you have already
+          written is left alone unless you tick the box.
+        </p>
+        <ActionForm action={applyPlanTemplates} submitLabel="Fill in the cards">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              name="overwrite"
+              className="accent-[var(--accent)] w-4 h-4 mt-0.5"
+            />
+            <span className="text-sm text-white/75">
+              Replace wording that is already there
+              <span className="block text-[11px] text-white/40">
+                Off by default, so this cannot overwrite copy somebody wrote on purpose.
+              </span>
+            </span>
+          </label>
+        </ActionForm>
+      </Card>
 
       {/* The trial belongs beside the price list: how long someone gets for
           free is part of the offer, not a setting buried in a JSON box. */}

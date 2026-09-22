@@ -104,8 +104,9 @@ export default async function RemindersPage() {
           )}
 
           <p className="text-xs text-white/35 mt-4">
-            Reminders are scheduled and tracked here. The job that fires them when they come due
-            is not built yet, so a pending reminder will show as overdue rather than sending.
+            A reminder raises itself on screen with a sound the moment it comes due, anywhere in
+            the app — not only on this page. Marking one done, or snoozing it, is on the popup.
+            Anything already overdue will appear the next time you open the app.
           </p>
         </div>
 

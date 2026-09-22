@@ -12,6 +12,7 @@ import { emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email-templates";
 import { planBroadcast, explainSkip, BROADCAST_KIND } from "@/lib/broadcast";
 import { sweepBillingEmails } from "@/lib/billing-emails";
+import { fillFor } from "@/lib/plan-templates";
 import { readTrialDays } from "@/lib/trial";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
@@ -1112,4 +1113,70 @@ export async function runBillingEmailsNow(_formData: FormData): Promise<ActionRe
   }
 
   return { ok: true, message: parts.join(" ") };
+}
+
+/**
+ * Fills in the wording on the plan cards, without repricing anything.
+ *
+ * The bullets on a pricing card are a comparison, and written one plan at
+ * a time they stop being one — three true statements about three tiers
+ * that cannot be read against each other. These are parallel: every tier
+ * answers the same questions in the same order.
+ *
+ * Price, limits and whether a plan is active are never touched. A button
+ * that tidies wording must not quietly change what the product costs.
+ * Copy somebody has already written is left alone too, unless the box to
+ * replace it is ticked.
+ */
+export async function applyPlanTemplates(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const overwrite = formData.get("overwrite") !== null;
+  const admin = createAdminClient();
+
+  const { data: plans, error } = await admin
+    .from("plans")
+    .select("id, slug, name, description, features")
+    .order("sort_order");
+
+  if (error) return { ok: false, error: error.message };
+  if (!plans || plans.length === 0) {
+    return { ok: false, error: "There are no plans to fill in yet. Create them first." };
+  }
+
+  const filled: string[] = [];
+  const untouched: string[] = [];
+
+  for (const plan of plans) {
+    const fill = fillFor(plan, { overwrite });
+    if (!fill) {
+      untouched.push(plan.name);
+      continue;
+    }
+
+    const { error: writeError } = await admin.from("plans").update(fill).eq("id", plan.id);
+    if (writeError) return { ok: false, error: `${plan.name}: ${writeError.message}` };
+    filled.push(plan.name);
+  }
+
+  revalidatePath("/admin/plans");
+  revalidatePath("/billing");
+  revalidatePath("/");
+
+  if (filled.length === 0) {
+    return {
+      ok: true,
+      message:
+        "Nothing to fill in — every plan already has a description and bullets. Tick the box to replace them.",
+    };
+  }
+
+  const done = `Filled in ${filled.join(", ")}.`;
+  return {
+    ok: true,
+    message:
+      untouched.length > 0
+        ? `${done} Left alone: ${untouched.join(", ")} — already written, or no template for that name.`
+        : done,
+  };
 }

@@ -691,6 +691,65 @@ export async function cancelReminder(formData: FormData): Promise<ActionResult> 
   return { ok: true, message: "Reminder cancelled." };
 }
 
+/**
+ * Marks a reminder as shown, once somebody has actually seen it.
+ *
+ * "sent" is the existing terminal state and is what the Sent counter on
+ * the page already reports, so a reminder that has been raised on screen
+ * and acknowledged is the same thing as one that fired.
+ *
+ * Only a pending one is touched. A reminder cancelled in another tab
+ * between the poll and the click must stay cancelled — the popup is the
+ * stale view in that race, not the database.
+ */
+export async function acknowledgeReminder(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No reminder given." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("reminders")
+    .update({ status: "sent" })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .eq("status", "pending");
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/reminders");
+  return { ok: true, message: "Reminder cleared." };
+}
+
+/**
+ * Pushes a reminder out by a few minutes.
+ *
+ * The honest answer to a nudge arriving mid-task. Without it the only
+ * choices are dismissing something not yet dealt with, or leaving a popup
+ * on screen — and the first is how a follow-up gets lost.
+ */
+export async function snoozeReminder(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "").trim();
+  const minutes = Number(formData.get("minutes") ?? 10);
+
+  if (!id) return { ok: false, error: "No reminder given." };
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 60 * 24 * 7) {
+    return { ok: false, error: "Snooze for between a minute and a week." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("reminders")
+    .update({ remind_at: new Date(Date.now() + minutes * 60_000).toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .eq("status", "pending");
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/reminders");
+  return { ok: true, message: `Snoozed for ${minutes} minutes.` };
+}
+
 // ---------------------------------------------------------------- Integrations
 
 export async function connectIntegration(formData: FormData): Promise<ActionResult> {

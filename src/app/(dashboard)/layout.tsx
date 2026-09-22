@@ -5,6 +5,7 @@ import Sidebar from "./_components/Sidebar";
 import TopBar from "./_components/TopBar";
 import BillingBanner from "./_components/BillingBanner";
 import SuspendedBanner from "./_components/SuspendedBanner";
+import ReminderWatcher from "./_components/ReminderWatcher";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // requireOrg redirects to /setup when Supabase isn't configured and to
@@ -34,6 +35,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
             and manages its own internal scrolling instead. */}
         <main className="flex-1 overflow-y-auto min-h-0">{children}</main>
       </div>
+
+      {/* Here rather than on the reminders page: a reminder that only
+          appears on the page about reminders is one nobody is looking at.
+          It renders nothing at all until something is due. */}
+      {features.reminders !== false && <ReminderWatcher />}
     </div>
   );
 }
