@@ -289,20 +289,43 @@ export function planLayer(keys: unknown): Record<string, boolean> {
   );
 }
 
+/**
+ * The offs from a stored layer, ignoring its ons.
+ *
+ * For a layer that may only take things away. A stored `true` there would
+ * be indistinguishable from "not mentioned", and letting it grant a
+ * feature would make a switch labelled "off everywhere" able to turn
+ * something on.
+ */
+function offOnly(layer: unknown): Record<string, boolean> {
+  return Object.fromEntries(Object.entries(clean(layer)).filter(([, on]) => on === false));
+}
+
 export interface FeatureSources {
-  /** The platform-wide default for a new workspace. */
+  /** The platform-wide default for a workspace nothing else has spoken for. */
   platform?: unknown;
   /** The plan's included keys, as a string array. */
   plan?: unknown;
-  /** This workspace's own overrides. Wins over everything. */
+  /** This workspace's own overrides. Wins over the plan. */
   org?: unknown;
+  /**
+   * Switched off for the whole platform, whatever anything else says.
+   *
+   * The layer that was missing. `platform` is a default: a plan sets every
+   * togglable key explicitly, so any workspace on a plan overrides it
+   * completely — which is correct for a default and useless for an
+   * operator trying to withdraw a half-finished screen from everybody.
+   * Only the offs are read, so this can never hand a feature out.
+   */
+  disabled?: unknown;
 }
 
 /**
  * The effective answer for one workspace.
  *
- * Locked features are forced on at the end, so no combination of a bad plan
- * row and a stale override can take the inbox away.
+ * Locked features are forced on at the very end, so no combination of a
+ * bad plan row, a stale override or an over-broad kill switch can take the
+ * inbox away.
  */
 export function resolveFeatures(sources: FeatureSources = {}): Record<string, boolean> {
   const effective = {
@@ -310,6 +333,7 @@ export function resolveFeatures(sources: FeatureSources = {}): Record<string, bo
     ...clean(sources.platform),
     ...planLayer(sources.plan),
     ...clean(sources.org),
+    ...offOnly(sources.disabled),
   };
 
   for (const feature of FEATURES) {
@@ -317,6 +341,16 @@ export function resolveFeatures(sources: FeatureSources = {}): Record<string, bo
   }
 
   return effective;
+}
+
+/**
+ * Which features are switched off platform-wide.
+ *
+ * Read by the screens that would otherwise offer a toggle that cannot
+ * win, so they can say why instead of lying.
+ */
+export function killedKeys(disabled: unknown): string[] {
+  return Object.keys(offOnly(disabled));
 }
 
 /**

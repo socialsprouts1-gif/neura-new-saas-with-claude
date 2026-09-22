@@ -4,7 +4,7 @@ import { savePlatformSetting } from "../actions";
 import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, EmptyState } from "@/components/ui/primitives";
 import FeatureGrid from "../FeatureGrid";
-import { saveDefaultFeatures } from "../actions";
+import { saveDefaultFeatures, saveKilledFeatures } from "../actions";
 import { resolveFeatures } from "@/lib/features";
 import { formatDate } from "@/types/admin";
 import PlatformGateway from "./PlatformGateway";
@@ -22,6 +22,7 @@ export default async function AdminSettingsPage() {
     .order("key");
 
   const defaults = settings?.find((row) => row.key === "feature_defaults");
+  const killed = settings?.find((row) => row.key === "feature_kill");
 
   // Everything that now has a form of its own is dropped from the raw
   // list: two editors for one value is how they end up disagreeing, and
@@ -31,6 +32,7 @@ export default async function AdminSettingsPage() {
     "branding",
     "signups",
     "feature_defaults",
+    "feature_kill",
     "platform_payment_org",
   ]);
   const advanced = (settings ?? []).filter((row) => !HAS_A_FORM.has(row.key));
@@ -50,8 +52,23 @@ export default async function AdminSettingsPage() {
         <FeatureGrid
           action={saveDefaultFeatures}
           enabled={resolveFeatures({ platform: defaults?.value })}
-          note="Applies to workspaces created from now on. Existing ones keep whatever they have — changing the default must never take a screen away from somebody already using it. A plan can narrow this further, and a single workspace can be given an exception on its own Access screen."
+          note="The weakest layer, and deliberately so: it is a starting point, not a rule. A plan states every feature explicitly, so any workspace on one — including every trial — overrides this completely, and a single workspace can be given its own exception on its Access screen. To take a feature away from everybody regardless, use the card below."
           submitLabel="Save defaults"
+        />
+      </Card>
+
+      {/* The control that was missing, and the reason somebody unticked
+          Meetings above and kept finding it on another workspace's
+          sidebar. That was the default being overridden by a plan, which
+          is correct behaviour and no use at all when a half-finished
+          screen has to be withdrawn today. */}
+      <Card className="mb-6 border-[#F87171]/20">
+        <h2 className="font-semibold mb-1">Switched off everywhere</h2>
+        <FeatureGrid
+          action={saveKilledFeatures}
+          enabled={resolveFeatures({ disabled: killed?.value })}
+          note="Unticking something here removes it from every workspace immediately — existing ones included — over the top of any plan and any per-workspace exception. This is how you withdraw a screen that is not ready. Nothing here can grant a feature: a ticked box only means this card is not the thing taking it away."
+          submitLabel="Save platform switches"
         />
       </Card>
 

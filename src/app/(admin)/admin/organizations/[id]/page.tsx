@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { PageHeader, Card, Badge, StatCard } from "@/components/ui/primitives";
 import { formatDate, formatMoney } from "@/types/admin";
-import { resolveFeatures } from "@/lib/features";
+import { resolveFeatures, killedKeys, featureDef } from "@/lib/features";
 import FeatureGrid from "../../FeatureGrid";
 import ActionForm, { SelectField } from "@/components/ui/ActionForm";
 import { assignPlan } from "../../actions";
@@ -42,7 +42,10 @@ export default async function AdminOrganizationPage({
         .eq("org_id", id)
         .maybeSingle(),
       supabase.from("org_members").select("user_id, role").eq("org_id", id),
-      supabase.from("platform_settings").select("value").eq("key", "feature_defaults").maybeSingle(),
+      supabase
+        .from("platform_settings")
+        .select("key, value")
+        .in("key", ["feature_defaults", "feature_kill"]),
       supabase
         .from("plans")
         .select("id, name, billing_interval, price_cents, currency")
@@ -57,12 +60,24 @@ export default async function AdminOrganizationPage({
   // What the customer actually has now, and what they would have from the
   // plan alone. The grid marks the difference between the two so it is
   // obvious which boxes are a deliberate exception for this workspace.
+  const settings = new Map((defaults ?? []).map((row) => [row.key, row.value]));
+  const platform = settings.get("feature_defaults");
+  const disabled = settings.get("feature_kill");
+
   const effective = resolveFeatures({
-    platform: defaults?.value,
+    platform,
     plan: plan?.feature_keys,
     org: org.feature_overrides,
+    disabled,
   });
-  const fromPlan = resolveFeatures({ platform: defaults?.value, plan: plan?.feature_keys });
+  const fromPlan = resolveFeatures({ platform, plan: plan?.feature_keys });
+
+  // A feature withdrawn platform-wide cannot be granted here, so the grid
+  // must not offer it as if it could. Ticking a box that silently loses
+  // is the same lie as a green confirmation over a write RLS filtered out.
+  const withdrawn = killedKeys(disabled)
+    .map((key) => featureDef(key)?.label ?? key)
+    .sort();
 
   return (
     <div className="p-6 md:p-8">
@@ -146,9 +161,16 @@ export default async function AdminOrganizationPage({
           enabled={effective}
           planKeys={fromPlan}
           note={
-            plan
-              ? `Starts from what the ${plan.name} plan includes. Anything you change here is stored as an exception for this workspace alone, and marked "override" — so if they move to another tier, only the exceptions follow them.`
-              : "This workspace has no plan, so it currently gets everything. Anything you switch off here is stored as an exception for this workspace alone."
+            [
+              plan
+                ? `Starts from what the ${plan.name} plan includes. Anything you change here is stored as an exception for this workspace alone, and marked "override" — so if they move to another tier, only the exceptions follow them.`
+                : "This workspace has no plan, so it currently gets everything. Anything you switch off here is stored as an exception for this workspace alone.",
+              withdrawn.length > 0
+                ? `${withdrawn.join(", ")} ${withdrawn.length === 1 ? "is" : "are"} switched off for the whole platform under Platform settings, and cannot be turned back on from here.`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" ")
           }
           submitLabel="Save access"
         />

@@ -8,6 +8,7 @@ import {
   pathAllowed,
   planLayer,
   resolveFeatures,
+  killedKeys,
   togglableKeys,
 } from "../src/lib/features.ts";
 
@@ -192,5 +193,61 @@ describe("featureDef", () => {
 
   it("returns undefined for a key nothing matches", () => {
     assert.equal(featureDef("nope"), undefined);
+  });
+});
+
+describe("switched off for the whole platform", () => {
+  it("a killed feature stays off even when the plan includes it", () => {
+    // The exact case that made this layer necessary: a workspace on a
+    // trial plan that lists meetings ignored the platform default
+    // entirely, because planLayer sets every togglable key explicitly.
+    const features = resolveFeatures({
+      platform: { meetings: false },
+      plan: ["inbox", "meetings", "leads"],
+      disabled: { meetings: false },
+    });
+    assert.equal(features.meetings, false);
+    assert.equal(features.leads, true);
+  });
+
+  it("without the kill switch, a plan does override the platform default", () => {
+    const features = resolveFeatures({
+      platform: { meetings: false },
+      plan: ["inbox", "meetings"],
+    });
+    assert.equal(features.meetings, true);
+  });
+
+  it("a killed feature stays off even when a workspace has an exception for it", () => {
+    const features = resolveFeatures({
+      org: { meetings: true },
+      disabled: { meetings: false },
+    });
+    assert.equal(features.meetings, false);
+  });
+
+  it("the kill layer can only take away, never grant", () => {
+    const features = resolveFeatures({
+      plan: ["inbox"],
+      disabled: { leads: true },
+    });
+    assert.equal(features.leads, false);
+  });
+
+  it("a locked feature cannot be killed", () => {
+    const features = resolveFeatures({ disabled: { inbox: false, contacts: false } });
+    assert.equal(features.inbox, true);
+    assert.equal(features.contacts, true);
+  });
+
+  it("an unknown key in the kill list is ignored", () => {
+    const features = resolveFeatures({ disabled: { not_a_feature: false } });
+    assert.deepEqual(features, resolveFeatures());
+  });
+
+  it("killedKeys lists only what is actually switched off", () => {
+    assert.deepEqual(killedKeys({ meetings: false, leads: true, bogus: false }), ["meetings"]);
+    assert.deepEqual(killedKeys(null), []);
+    assert.deepEqual(killedKeys({}), []);
   });
 });

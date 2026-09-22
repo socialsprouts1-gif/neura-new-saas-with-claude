@@ -826,7 +826,63 @@ export async function saveDefaultFeatures(formData: FormData): Promise<ActionRes
 
   revalidatePath("/admin/settings");
   revalidatePath("/", "layout");
-  return { ok: true, message: "Defaults saved. Existing workspaces keep what they have." };
+  return {
+    ok: true,
+    message:
+      "Defaults saved. A workspace already on a plan keeps what the plan gives it — to withdraw a feature from everybody, use Switched off everywhere.",
+  };
+}
+
+/**
+ * Withdraws a feature from every workspace, whatever their plan says.
+ *
+ * The control that was missing. saveDefaultFeatures sets a default, and a
+ * default is the weakest layer there is: a plan states every togglable
+ * key explicitly, so any workspace on one — including every trial —
+ * overrides it completely. Unticking Meetings there and finding Meetings
+ * still on someone else's sidebar is that working exactly as designed,
+ * which is no comfort at all when the screen is half-finished and needs
+ * to be gone.
+ *
+ * Only the offs are stored, and this layer can only take away.
+ */
+export async function saveKilledFeatures(formData: FormData): Promise<ActionResult> {
+  const admin = await requirePlatformAdmin();
+
+  const ticked = new Set(formData.getAll("features").map((key) => String(key)));
+  const value: Record<string, boolean> = {};
+  for (const key of togglableKeys()) {
+    if (!ticked.has(key)) value[key] = false;
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("platform_settings").upsert(
+    {
+      key: "feature_kill",
+      value,
+      description:
+        "Features withdrawn from every workspace, over any plan or exception. Only the ones switched off are listed.",
+      updated_at: new Date().toISOString(),
+      updated_by: admin.id,
+    },
+    { onConflict: "key" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  // Every dashboard layout re-reads features, so this has to clear all of
+  // them rather than only the admin screen that set it.
+  revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
+
+  const off = Object.keys(value).length;
+  return {
+    ok: true,
+    message:
+      off === 0
+        ? "Nothing is switched off platform-wide. Every workspace is back to what its plan gives it."
+        : `${off} feature${off === 1 ? "" : "s"} switched off for every workspace, including ones already running.`,
+  };
 }
 
 /** What a plan includes. Empty means everything. */

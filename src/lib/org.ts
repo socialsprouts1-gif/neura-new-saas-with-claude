@@ -78,7 +78,13 @@ export async function requireOrg(): Promise<OrgContext> {
       .eq("id", resolved.org_id)
       .maybeSingle(),
     supabase.from("platform_admins").select("user_id").eq("user_id", user.id).maybeSingle(),
-    supabase.from("platform_settings").select("value").eq("key", "feature_defaults").maybeSingle(),
+    // Both feature layers in one round trip. feature_defaults is what a
+    // workspace starts with; feature_kill is what is withdrawn from every
+    // workspace regardless of plan or exception.
+    supabase
+      .from("platform_settings")
+      .select("key, value")
+      .in("key", ["feature_defaults", "feature_kill"]),
   ]);
 
   // A subscription embeds as an array even when there is at most one.
@@ -86,10 +92,13 @@ export async function requireOrg(): Promise<OrgContext> {
     ? (org.subscriptions[0] as { plans?: { feature_keys?: unknown } | null } | undefined)
     : (org?.subscriptions as { plans?: { feature_keys?: unknown } | null } | null | undefined);
 
+  const settings = new Map((defaults ?? []).map((row) => [row.key, row.value]));
+
   const features = resolveFeatures({
-    platform: defaults?.value,
+    platform: settings.get("feature_defaults"),
     plan: subscription?.plans?.feature_keys,
     org: org?.feature_overrides,
+    disabled: settings.get("feature_kill"),
   });
 
   // The welcome, from the path every signup actually takes.
