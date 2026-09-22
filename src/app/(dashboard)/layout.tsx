@@ -6,6 +6,7 @@ import TopBar from "./_components/TopBar";
 import BillingBanner from "./_components/BillingBanner";
 import SuspendedBanner from "./_components/SuspendedBanner";
 import ReminderWatcher from "./_components/ReminderWatcher";
+import ScheduleTicker from "./_components/ScheduleTicker";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // requireOrg redirects to /setup when Supabase isn't configured and to
@@ -40,6 +41,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           appears on the page about reminders is one nobody is looking at.
           It renders nothing at all until something is due. */}
       {features.reminders !== false && <ReminderWatcher />}
+
+      {/* Renders nothing. It exists so a message scheduled for 3:25 goes
+          out at 3:25 rather than whenever the once-a-day server cron
+          happens to fire. */}
+      <ScheduleTicker />
     </div>
   );
 }

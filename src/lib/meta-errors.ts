@@ -129,6 +129,13 @@ const META_SUBCODE_HELP: Record<string, string> = {
   // setting that was never broken. A flow uploaded with the wrong number's
   // token lands here, and "check your System User assets" is the wrong
   // advice for it entirely.
+  // The generic 139000 is an account-level block. This subcode is
+  // narrower and arrives from one place only — publishing a Flow — so it
+  // is worth telling apart: the account is not restricted, it simply has
+  // not cleared the bar Meta sets before a Flow may go live.
+  "139000:4233020":
+    "Meta will not publish a Flow from this WhatsApp Business Account yet. Publishing a Flow requires the business to be verified and the account to be in good standing — a draft can still be tested against numbers on the account, which is what the Test send button does. Complete Business verification in Meta Business Suite → Business settings → Security Centre, and check Account Quality shows no restriction. Nothing in the form itself needs changing.",
+
   "100:33":
     "Meta cannot see that item with this access token. Usually it belongs to a different WhatsApp Business Account than the number being used — check you are on the number it was created on. Otherwise the token's System User has not been given that account as an asset: assigning assets does not update an existing token, so add the WhatsApp Account in Business settings → Users → System users → Add assets, then generate a new token and paste that one.",
   "100:44":

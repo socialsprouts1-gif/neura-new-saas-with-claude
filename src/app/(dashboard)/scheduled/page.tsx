@@ -13,7 +13,8 @@ import {
   Td,
   EmptyState,
 } from "@/components/ui/primitives";
-import { describeWhen } from "@/lib/scheduled-message";
+import { describeWhen, dueForSend } from "@/lib/scheduled-message";
+import DueRunner from "./DueRunner";
 
 /**
  * Messages written now and delivered later.
@@ -56,6 +57,10 @@ export default async function ScheduledPage() {
   // this render, unlike in a client component that can re-render at will.
   const now = new Date();
 
+  // Anything already past its time. The runner below only polls when this
+  // is non-zero, so an empty queue costs nothing.
+  const dueNow = dueForSend(all, now).length;
+
   return (
     <div className="p-6 md:p-8">
       <PageHeader
@@ -63,8 +68,22 @@ export default async function ScheduledPage() {
         subtitle="Write it now, have it arrive when it should."
       />
 
+      {/* Said plainly, because the alternative is somebody watching a
+          message sit at "pending" past its time and concluding the feature
+          is broken. It is not — it is waiting for something to run. */}
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">How these get sent</h2>
+        <p className="text-sm text-white/50 leading-relaxed mb-4">
+          Messages go out when the scheduler runs. It runs by itself every minute while you
+          have Neura Chat open in a browser tab — any page, not just this one — and once a day
+          from the server as a backstop. So keeping a tab open is the surest way to have
+          something land on the minute. The button below sends anything already due, right now.
+        </p>
+        <DueRunner dueNow={dueNow} />
+      </Card>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Waiting" value={pending.length} />
+        <StatCard label="Waiting" value={pending.length} hint={dueNow > 0 ? `${dueNow} due now` : undefined} />
         <StatCard label="Sent" value={all.filter((r) => r.status === "sent").length} />
         <StatCard label="Failed" value={all.filter((r) => r.status === "failed").length} />
         <StatCard label="Cancelled" value={all.filter((r) => r.status === "cancelled").length} />

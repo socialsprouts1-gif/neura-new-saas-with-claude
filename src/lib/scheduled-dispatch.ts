@@ -24,17 +24,29 @@ const EMPTY: DispatchResult = { due: 0, sent: 0, failed: 0, stale: 0 };
 /** One run should finish inside a serverless invocation. */
 const BATCH = 50;
 
-export async function dispatchScheduledMessages(now: Date = new Date()): Promise<DispatchResult> {
+/**
+ * @param orgId Only this workspace's messages. Passed when the app itself
+ *   drives a run — a signed-in person may push their own queue along, and
+ *   must not be able to push everybody else's.
+ */
+export async function dispatchScheduledMessages(
+  now: Date = new Date(),
+  orgId?: string
+): Promise<DispatchResult> {
   const supabase = createAdminClient();
   const result: DispatchResult = { ...EMPTY };
 
-  const { data: rows, error } = await supabase
+  let query = supabase
     .from("scheduled_messages")
     .select("id, org_id, contact_id, wa_id, connection_id, body, send_at, status")
     .eq("status", "pending")
     .lte("send_at", now.toISOString())
     .order("send_at")
     .limit(BATCH);
+
+  if (orgId) query = query.eq("org_id", orgId);
+
+  const { data: rows, error } = await query;
 
   if (error) return { ...EMPTY, error: error.message };
 
