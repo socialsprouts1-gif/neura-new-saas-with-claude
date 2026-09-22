@@ -12,11 +12,25 @@ import {
 } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
+import {
+  summariseFailures,
+  describeOutcome,
+  isAccountWide,
+  type FailedRecipient,
+} from "@/lib/campaign-failures";
 import { NewCampaignButton, CampaignRowActions, SendQueuedButton } from "./CampaignToolbar";
 import type { TemplateOption } from "./CampaignBuilder";
 
-export default async function CampaignsPage() {
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ group?: string }>;
+}) {
   const { orgId } = await requireFeature("campaigns");
+  // Arriving from a group's page, where the honest advice for contacts
+  // outside the 24-hour window is "send a template instead". Following
+  // that advice should not mean re-finding the group on another screen.
+  const { group: fromGroup } = await searchParams;
   const supabase = await createClient();
 
   const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
@@ -66,6 +80,31 @@ export default async function CampaignsPage() {
 
   const byCampaign = new Map((progress ?? []).map((entry) => [entry.campaign_id, entry]));
 
+  // Why the failures failed. Every send already recorded its reason on the
+  // recipient row and none of it was ever shown, so a campaign read
+  // "0 / 5 · 5 failed" and stopped — enough to know something is wrong,
+  // not enough to do anything about it. Read here rather than rolled up at
+  // send time so campaigns that already failed explain themselves without
+  // being run again.
+  const { data: failures } = rows.length
+    ? await supabase
+        .from("campaign_recipients")
+        .select("campaign_id, error")
+        .eq("status", "failed")
+        .in(
+          "campaign_id",
+          rows.map((row) => row.id)
+        )
+        .limit(2000)
+    : { data: [] };
+
+  const failuresByCampaign = new Map<string, FailedRecipient[]>();
+  for (const row of failures ?? []) {
+    const list = failuresByCampaign.get(row.campaign_id) ?? [];
+    list.push({ error: row.error });
+    failuresByCampaign.set(row.campaign_id, list);
+  }
+
   const tags = [
     ...new Set((contacts ?? []).flatMap((contact) => contact.tags ?? []).filter(Boolean)),
   ].sort();
@@ -99,6 +138,7 @@ export default async function CampaignsPage() {
               tags={tags}
               groups={groups ?? []}
               numbers={numbers}
+              initialGroup={fromGroup}
             />
           </div>
         }
@@ -135,6 +175,8 @@ export default async function CampaignsPage() {
             const total = Number(counts?.total ?? 0);
             const sent = Number(counts?.sent ?? 0);
             const failed = Number(counts?.failed ?? 0);
+            const reasons = summariseFailures(failuresByCampaign.get(campaign.id) ?? []);
+            const outcome = describeOutcome(sent, reasons);
 
             return (
               <tr key={campaign.id} className="hover:bg-white/3 transition-colors align-top">
@@ -148,6 +190,27 @@ export default async function CampaignsPage() {
                   {campaign.last_error && (
                     <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
                       {campaign.last_error}
+                    </div>
+                  )}
+
+                  {reasons.length > 0 && (
+                    <div className="mt-2 max-w-md space-y-1.5">
+                      {outcome && (
+                        <p className="text-[11px] text-white/50 leading-relaxed">{outcome}</p>
+                      )}
+                      {reasons.map((entry) => (
+                        <p
+                          key={entry.reason}
+                          className={`text-[11px] leading-relaxed ${
+                            isAccountWide(entry.reason) ? "text-[#FACC15]" : "text-[#F87171]"
+                          }`}
+                        >
+                          {entry.count > 1 && (
+                            <span className="text-white/40 tabular-nums">{entry.count}× </span>
+                          )}
+                          {entry.reason}
+                        </p>
+                      ))}
                     </div>
                   )}
                 </Td>

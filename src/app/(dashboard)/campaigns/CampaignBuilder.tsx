@@ -63,12 +63,20 @@ export default function CampaignBuilder({
   groups,
   numbers,
   onClose,
+  initialGroup,
 }: {
   templates: TemplateOption[];
   tags: string[];
   groups: Array<{ id: string; name: string }>;
   numbers: Array<{ id: string; label: string }>;
   onClose: () => void;
+  /**
+   * Opened from a group's own page, which is where somebody reads that
+   * these contacts need a template and where they should be able to act
+   * on it — rather than being sent to another screen to re-pick the
+   * group they were already looking at.
+   */
+  initialGroup?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -79,9 +87,11 @@ export default function CampaignBuilder({
   const [connectionId, setConnectionId] = useState<string>("");
   const [variables, setVariables] = useState<string[]>([]);
 
-  const [mode, setMode] = useState<Mode>("all");
+  const preselected = initialGroup && groups.some((entry) => entry.id === initialGroup);
+
+  const [mode, setMode] = useState<Mode>(preselected ? "group" : "all");
   const [tag, setTag] = useState(tags[0] ?? "");
-  const [group, setGroup] = useState(groups[0]?.id ?? "");
+  const [group, setGroup] = useState(preselected ? initialGroup : (groups[0]?.id ?? ""));
   const [countryCode, setCountryCode] = useState("91");
   const [pasted, setPasted] = useState("");
   const [sheet, setSheet] = useState<{ headers: string[]; rows: string[][] } | null>(null);

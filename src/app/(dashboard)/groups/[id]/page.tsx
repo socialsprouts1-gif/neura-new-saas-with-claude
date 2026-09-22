@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Phone, Star } from "lucide-react";
+import { ArrowLeft, Megaphone, Phone, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { listConnections } from "@/lib/connections";
@@ -244,6 +244,27 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
               private reply is what you want anyway. Anyone who last wrote over 24 hours ago needs
               an approved template, which is what a campaign is for.
             </p>
+
+            {/* When nobody is reachable, the panel used to state the
+                rule and stop. "Use a campaign instead" is correct advice
+                and was a dead end: it meant leaving for another screen and
+                finding this group again in a dropdown. */}
+            {members.length > 0 && plan.send.length === 0 && (
+              <div className="mb-4 p-3 rounded-xl border border-[#FACC15]/25 bg-[#FACC15]/5">
+                <p className="text-xs text-[#FACC15] leading-relaxed mb-2.5">
+                  None of these {members.length} can be sent a plain message right now — they last
+                  wrote more than 24 hours ago, or have never written. WhatsApp only allows free
+                  text inside that window. An approved template reaches them regardless.
+                </p>
+                <Link
+                  href={`/campaigns?group=${group.id}`}
+                  className="btn-secondary text-xs inline-flex"
+                >
+                  <Megaphone className="w-3.5 h-3.5" />
+                  Send a template to this group
+                </Link>
+              </div>
+            )}
 
             <ActionForm action={broadcastToGroup} submitLabel="Send now" resetOnSuccess>
               <input type="hidden" name="group_id" value={group.id} />

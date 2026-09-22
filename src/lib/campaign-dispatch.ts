@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { rollUpFailure } from "@/lib/campaign-failures";
 import { resolveConnection } from "@/lib/connections";
 import {
   sendTemplateMessage,
@@ -271,9 +272,24 @@ async function closeFinishedCampaigns(supabase: Admin) {
       .eq("status", "pending");
 
     if ((count ?? 0) === 0) {
+      // Why it went the way it went, recorded on the campaign itself.
+      // A campaign that completes having sent nothing is the case people
+      // actually hit, and "completed" next to an empty progress bar is a
+      // cruel thing to show somebody with no explanation beside it.
+      const { data: failures } = await supabase
+        .from("campaign_recipients")
+        .select("error")
+        .eq("campaign_id", campaign.id)
+        .eq("status", "failed")
+        .limit(500);
+
       await supabase
         .from("campaigns")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          last_error: rollUpFailure(failures ?? []),
+        })
         .eq("id", campaign.id);
     }
   }

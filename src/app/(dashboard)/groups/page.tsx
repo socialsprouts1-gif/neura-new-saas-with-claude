@@ -55,14 +55,44 @@ export default async function GroupsPage() {
           Cloud API has no group endpoints at all. */}
       <Card className="mb-6 border-white/10">
         <p className="text-sm text-white/55 leading-relaxed">
-          <span className="text-white/80">These are not WhatsApp groups.</span> Meta&apos;s Cloud
-          API has no way to create one or post into one — groups exist only in the WhatsApp app
-          itself, and every tool that claims otherwise is driving an unofficial library that gets
-          numbers banned. A group here is a named list, and sending to it delivers a separate
-          message to each person. That is usually what you want: replies come back as private
-          conversations, nobody sees anybody else&apos;s number, and one member cannot mute it for
-          everyone.
+          <span className="text-white/80">
+            These are not WhatsApp groups, and nothing here will appear as a group on your phone.
+          </span>{" "}
+          Meta&apos;s Cloud API has no way to create one or post into one — groups exist only in
+          the WhatsApp app itself, and every tool that claims otherwise is driving an unofficial
+          library that gets numbers banned. A group here is a named list of customers, and sending
+          to it delivers a separate message to each person. That is usually what you want anyway:
+          replies come back as private conversations, nobody sees anybody else&apos;s number, and
+          one member cannot mute it for everyone.
         </p>
+
+        {/* Saying only what a group is not leaves the obvious question
+            unanswered, and somebody who cannot send to one reasonably
+            concludes the whole screen is pointless. */}
+        <div className="mt-4 pt-4 border-t border-white/8">
+          <p className="text-xs font-medium text-white/70 mb-2">What a group is for</p>
+          <ul className="text-sm text-white/50 leading-relaxed space-y-1.5 list-disc pl-4">
+            <li>
+              <span className="text-white/70">As a campaign audience.</span> This is the main one.
+              Pick a group in{" "}
+              <Link href="/campaigns" className="text-accent-ink hover:underline">
+                Campaigns
+              </Link>{" "}
+              and an approved template goes to everyone in it — which works whether or not they
+              have written to you recently.
+            </li>
+            <li>
+              <span className="text-white/70">For a quick note to people already talking to you.</span>{" "}
+              Plain text only reaches someone who wrote within the last 24 hours. That is
+              WhatsApp&apos;s rule, not ours, and the group page says who qualifies before you
+              send.
+            </li>
+            <li>
+              <span className="text-white/70">To keep a list straight.</span> Key contacts, a
+              default number, and a record of what was last sent to them.
+            </li>
+          </ul>
+        </div>
       </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

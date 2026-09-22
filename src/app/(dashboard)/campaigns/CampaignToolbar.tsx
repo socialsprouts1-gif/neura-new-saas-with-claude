@@ -15,13 +15,16 @@ export function NewCampaignButton({
   tags,
   groups,
   numbers,
+  initialGroup,
 }: {
   templates: TemplateOption[];
   tags: string[];
   groups: Array<{ id: string; name: string }>;
   numbers: Array<{ id: string; label: string }>;
+  /** Arrived from a group page: open straight onto that group. */
+  initialGroup?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(initialGroup));
 
   return (
     <>
@@ -35,6 +38,7 @@ export function NewCampaignButton({
           tags={tags}
           groups={groups}
           numbers={numbers}
+          initialGroup={initialGroup}
           onClose={() => setOpen(false)}
         />
       )}
