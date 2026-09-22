@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { checkScheduled } from "@/lib/scheduled-message";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email";
@@ -1561,4 +1562,88 @@ export async function importFlow(raw: string): Promise<ActionResult & { id?: str
 
   revalidatePath("/chatbot");
   return { ok: true, id: data.id, message: `Imported "${name}" as a draft.` };
+}
+
+// ------------------------------------------------------- Scheduled messages
+
+/**
+ * Writes a message now for delivery later.
+ *
+ * Checked here rather than at send time: a message that turns out to be
+ * unsendable at nine tomorrow morning fails when nobody is watching, and
+ * the whole reason it was scheduled is that nobody would be.
+ */
+export async function scheduleMessage(formData: FormData): Promise<ActionResult> {
+  const { orgId, user } = await requireOrg();
+
+  const contactId = String(formData.get("contact_id") ?? "").trim();
+  const typed = String(formData.get("wa_id") ?? "").trim();
+  const connectionId = String(formData.get("connection_id") ?? "").trim();
+
+  const supabase = await createClient();
+
+  // A contact from the picker wins over a typed number: it is the one with
+  // a conversation attached, and a plain message can only go inside one.
+  let waId = typed;
+  if (contactId) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("wa_id")
+      .eq("id", contactId)
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (contact?.wa_id) waId = contact.wa_id;
+  }
+
+  const checked = checkScheduled({
+    waId,
+    body: String(formData.get("body") ?? ""),
+    sendAt: String(formData.get("send_at") ?? ""),
+  });
+
+  if (!checked.ok) return { ok: false, error: checked.error };
+
+  const { error } = await supabase.from("scheduled_messages").insert({
+    org_id: orgId,
+    contact_id: contactId || null,
+    wa_id: checked.waId,
+    connection_id: connectionId || null,
+    body: checked.body,
+    send_at: checked.sendAt.toISOString(),
+    created_by: user.id,
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/scheduled");
+  return {
+    ok: true,
+    message: `Scheduled for ${checked.sendAt.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    })}.`,
+  };
+}
+
+/** Stops one that has not gone yet. */
+export async function cancelScheduledMessage(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No message given." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("scheduled_messages")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    // Only a pending one. Cancelling something already delivered would be
+    // a lie on the screen about what the customer received.
+    .eq("status", "pending");
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/scheduled");
+  return { ok: true, message: "Cancelled. It will not be sent." };
 }

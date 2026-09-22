@@ -29,6 +29,7 @@ import type {
   FlowSend,
   FlowResponse,
   Meeting,
+  ScheduledMessage,
   Invoice,
   InvoiceItem,
   InvoiceSettings,
@@ -133,6 +134,12 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      scheduled_messages: {
+        Row: ScheduledMessage;
+        Insert: Partial<ScheduledMessage> & { org_id: string; wa_id: string; body: string; send_at: string };
+        Update: Partial<ScheduledMessage>;
+        Relationships: [];
       };
       email_optouts: {
         Row: {

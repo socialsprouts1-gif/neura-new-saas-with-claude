@@ -108,6 +108,26 @@ export const MEETING_STATUSES = ["scheduled", "completed", "cancelled", "no_show
 export type MeetingStatus = (typeof MEETING_STATUSES)[number];
 
 /** An appointment with a contact — a commitment, not a nudge. */
+export type ScheduledMessageStatus = "pending" | "sent" | "failed" | "cancelled";
+
+export type ScheduledMessage = {
+  id: string;
+  org_id: string;
+  contact_id: string | null;
+  /** Kept beside contact_id so a deleted contact cannot orphan the send. */
+  wa_id: string;
+  connection_id: string | null;
+  body: string;
+  send_at: string;
+  status: ScheduledMessageStatus;
+  sent_at: string | null;
+  error: string | null;
+  wa_message_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Meeting = {
   id: string;
   org_id: string;
@@ -129,6 +149,13 @@ export type Meeting = {
   calendar_event_id: string | null;
   calendar_synced_at: string | null;
   calendar_error: string | null;
+  /** google_meet, zoom, calendly, phone, in_person, other. */
+  platform: string | null;
+  meeting_url: string | null;
+  /** Which WhatsApp number the confirmation goes out on. */
+  connection_id: string | null;
+  confirmation_sent_at: string | null;
+  confirmation_error: string | null;
   created_at: string;
   updated_at: string;
 };

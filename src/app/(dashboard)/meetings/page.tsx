@@ -3,13 +3,16 @@ import { requireFeature } from "@/lib/org";
 import { HeroHeader, EmptyState, StatCard } from "@/components/ui/primitives";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { saveMeeting } from "../leads-actions";
+import { MEETING_PLATFORMS, PLATFORM_LABEL } from "@/lib/meeting-platform";
+import { listConnections } from "@/lib/connections";
+import { optionLabel } from "@/lib/number-identity";
 import MeetingRow, { type MeetingItem } from "./MeetingRow";
 
 export default async function MeetingsPage() {
   const { orgId } = await requireFeature("meetings");
   const supabase = await createClient();
 
-  const [{ data: meetings, error }, { data: contacts }] = await Promise.all([
+  const [{ data: meetings, error }, { data: contacts }, connections] = await Promise.all([
     supabase
       .from("meetings")
       .select("*, contacts(name, wa_id)")
@@ -22,9 +25,14 @@ export default async function MeetingsPage() {
       .eq("org_id", orgId)
       .order("name")
       .limit(500),
+    listConnections(supabase, orgId),
   ]);
 
   const all = meetings ?? [];
+  // Only a working number can carry a confirmation, so only those are
+  // offered — naming one that is disabled is the same outage with a
+  // different cause.
+  const activeNumbers = connections.filter((connection) => connection.status === "active");
 
   const items: MeetingItem[] = all.map((meeting) => {
     const contact = meeting.contacts as { name: string | null; wa_id: string } | null;
@@ -111,8 +119,9 @@ export default async function MeetingsPage() {
 
         <div className="order-1 lg:order-2 glass-card p-6">
           <h2 className="font-semibold mb-1">Schedule a meeting</h2>
-          <p className="text-sm text-white/50 mb-5">
-            Nothing is sent to the customer — this is your own calendar of commitments.
+          <p className="text-sm text-white/50 mb-5 leading-relaxed">
+            Pick a contact and the confirmation goes to them on WhatsApp — what it is, when, how
+            long, and how to join.
           </p>
 
           <ActionForm action={saveMeeting} submitLabel="Schedule" resetOnSuccess>
@@ -138,12 +147,56 @@ export default async function MeetingsPage() {
                 defaultValue="30"
                 hint="In minutes."
               />
-              <Field
-                label="Location"
-                name="location"
-                placeholder="Google Meet, office, phone…"
+              <SelectField
+                label="Where"
+                name="platform"
+                defaultValue="google_meet"
+                options={MEETING_PLATFORMS.map((platform) => ({
+                  value: platform,
+                  label: PLATFORM_LABEL[platform],
+                }))}
               />
+              <Field
+                label="Meeting link"
+                name="meeting_url"
+                placeholder="https://meet.google.com/abc-defg-hij"
+                hint="Needed for Google Meet, Zoom and Calendly. The link and the platform have to agree — a Zoom link under Google Meet sends the customer to the wrong place."
+              />
+              <Field
+                label="Address or number"
+                name="location"
+                placeholder="12 MG Road, Akola"
+                hint="For an in-person meeting or a phone call. Left blank when there is a link."
+              />
+
+              {activeNumbers.length > 1 && (
+                <SelectField
+                  label="Confirm from"
+                  name="connection_id"
+                  options={activeNumbers.map((connection) => ({
+                    value: connection.id,
+                    label: optionLabel(connection),
+                  }))}
+                />
+              )}
+
               <TextareaField label="Notes" name="notes" rows={3} />
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="notify"
+                  defaultChecked
+                  className="accent-[var(--accent)] w-4 h-4 mt-0.5"
+                />
+                <span className="text-sm text-white/75">
+                  Tell the customer on WhatsApp
+                  <span className="block text-[11px] text-white/40 leading-relaxed">
+                    Needs a contact picked above, and a conversation with them inside WhatsApp&apos;s
+                    24-hour window. The meeting saves either way.
+                  </span>
+                </span>
+              </label>
             </div>
           </ActionForm>
         </div>

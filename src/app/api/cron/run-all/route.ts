@@ -6,6 +6,7 @@ import { resumeParkedFlows } from "@/lib/flow-resume";
 import { dispatchDueReminders } from "@/lib/appointment-reminders";
 import { runAllDueRecurringInvoices } from "@/lib/invoice-engine";
 import { sweepBillingEmails } from "@/lib/billing-emails";
+import { dispatchScheduledMessages } from "@/lib/scheduled-dispatch";
 
 // One URL that drives every scheduled job.
 //
@@ -36,6 +37,7 @@ const JOBS: Array<{ name: string; run: (origin: string) => Promise<unknown> }> =
   { name: "resume-flows", run: () => resumeParkedFlows() },
   { name: "appointment-reminders", run: () => dispatchDueReminders() },
   { name: "recurring-invoices", run: (origin) => runAllDueRecurringInvoices(origin) },
+  { name: "scheduled-messages", run: () => dispatchScheduledMessages() },
   { name: "billing-emails", run: () => sweepBillingEmails() },
 ];
 
