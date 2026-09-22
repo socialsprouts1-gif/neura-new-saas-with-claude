@@ -324,7 +324,17 @@ export type Invoice = {
   payment_reference: string | null;
   /** Unguessable, because the page it opens needs no login. */
   public_token: string;
+  /**
+   * When a WhatsApp message actually went out.
+   *
+   * Not the same fact as status. status reads "sent" from the moment the
+   * invoice is issued, whether or not anything reached the customer.
+   */
   sent_at: string | null;
+  /** Why the last send failed. Cleared when one succeeds. */
+  delivery_error: string | null;
+  /** The number it is sent from. Null falls back to the conversation's. */
+  connection_id: string | null;
   last_reminded_at: string | null;
   created_by: string | null;
   created_at: string;

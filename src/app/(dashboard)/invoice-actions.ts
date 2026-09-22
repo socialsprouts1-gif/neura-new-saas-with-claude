@@ -258,6 +258,10 @@ export async function saveInvoice(
     customer_email:
       String(formData.get("customer_email") ?? "").trim() || custom.email || null,
     currency: settings.currency,
+    // Which number it goes out from. Asked here rather than inferred from
+    // whichever conversation the sender happens to find — with several
+    // numbers connected that inference is a choice nobody can see.
+    connection_id: String(formData.get("connection_id") ?? "").trim() || null,
     inter_state: interState,
     notes: String(formData.get("notes") ?? "").trim() || null,
     updated_at: new Date().toISOString(),

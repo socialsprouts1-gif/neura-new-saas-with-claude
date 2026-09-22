@@ -4,6 +4,7 @@ import { requireFeature } from "@/lib/org";
 import { loadInvoiceSettings } from "@/lib/invoice-engine";
 import { formatInvoiceAmount, isOverdue, todayIn } from "@/lib/invoices";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
 import InvoiceListBrowser from "./InvoiceListBrowser";
 import type { InvoiceListRow } from "./InvoiceRow";
 
@@ -18,6 +19,14 @@ export default async function InvoiceListPage() {
   const supabase = await createClient();
 
   const settings = await loadInvoiceSettings(supabase, orgId);
+
+  // The numbers an invoice can go out from. Asked on the invoice rather
+  // than inferred from whichever conversation the sender finds.
+  const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+    isDefault: Boolean(connection.isDefault),
+  }));
 
   const [invoicesResult, contactsResult] = await Promise.all([
     supabase
@@ -83,6 +92,8 @@ export default async function InvoiceListPage() {
     publicToken: row.public_token,
     paymentLinkUrl: row.payment_link_url,
     sentAt: row.sent_at,
+    deliveryError: row.delivery_error,
+    connectionId: row.connection_id,
     createdAt: row.created_at,
     recurringId: row.recurring_id,
     lines: linesByInvoice.get(row.id) ?? [],
@@ -152,6 +163,7 @@ export default async function InvoiceListPage() {
             gstin: custom.gstin ?? custom.GSTIN ?? null,
           };
         })}
+        numbers={numbers}
         defaultTax={Number(settings.default_tax_percent) || 0}
         sellerGstin={settings.gstin}
         roundToRupee={settings.round_to_rupee}

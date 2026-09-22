@@ -23,6 +23,7 @@ export interface BuilderLine {
 export interface BuilderInvoice {
   id: string;
   contactId: string | null;
+  connectionId: string | null;
   customerName: string;
   customerGstin: string;
   customerAddress: string;
@@ -53,6 +54,7 @@ function blankLine(defaultTax: number): BuilderLine {
  */
 export default function InvoiceBuilder({
   contacts,
+  numbers = [],
   defaultTax,
   sellerGstin,
   roundToRupee,
@@ -61,6 +63,8 @@ export default function InvoiceBuilder({
   onDone,
 }: {
   contacts: Array<{ id: string; label: string; gstin: string | null }>;
+  /** The connected numbers this invoice can be sent from. */
+  numbers?: Array<{ id: string; label: string; isDefault: boolean }>;
   defaultTax: number;
   sellerGstin: string | null;
   roundToRupee: boolean;
@@ -73,6 +77,9 @@ export default function InvoiceBuilder({
   );
   const [customerGstin, setCustomerGstin] = useState(existing?.customerGstin ?? "");
   const [contactId, setContactId] = useState(existing?.contactId ?? "");
+  const [connectionId, setConnectionId] = useState(
+    existing?.connectionId ?? numbers.find((number) => number.isDefault)?.id ?? ""
+  );
 
   const update = (index: number, patch: Partial<BuilderLine>) =>
     setLines((current) =>
@@ -128,6 +135,33 @@ export default function InvoiceBuilder({
             Bill to
           </h4>
           <div className="grid sm:grid-cols-2 gap-4">
+            {numbers.length > 0 && (
+              <label className="block sm:col-span-2">
+                <span className="block text-xs font-medium text-white/70 mb-1.5">
+                  Send from
+                </span>
+                <select
+                  name="connection_id"
+                  value={connectionId}
+                  onChange={(event) => setConnectionId(event.target.value)}
+                  className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-all"
+                >
+                  <option value="" className="bg-[var(--surface-3)]">
+                    Whichever number the conversation is on
+                  </option>
+                  {numbers.map((number) => (
+                    <option key={number.id} value={number.id} className="bg-[var(--surface-3)]">
+                      {number.label}
+                      {number.isDefault ? " · default" : ""}
+                    </option>
+                  ))}
+                </select>
+                <span className="block text-[11px] text-white/35 mt-1.5">
+                  The invoice message goes out from this number and lands in that chat.
+                </span>
+              </label>
+            )}
+
             <label className="block">
               <span className="block text-xs font-medium text-white/70 mb-1.5">Customer</span>
               <select

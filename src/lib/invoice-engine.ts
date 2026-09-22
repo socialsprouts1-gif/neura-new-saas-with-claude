@@ -362,7 +362,7 @@ export async function sendInvoice(
   const { data: invoice } = await supabase
     .from("invoices")
     .select(
-      "id, number, status, total_cents, amount_paid_cents, currency, due_on, public_token, contact_id, conversation_id, payment_link_url"
+      "id, number, status, total_cents, amount_paid_cents, currency, due_on, public_token, contact_id, conversation_id, connection_id, payment_link_url"
     )
     .eq("org_id", orgId)
     .eq("id", invoiceId)
@@ -370,8 +370,26 @@ export async function sendInvoice(
 
   if (!invoice) return { ok: false, error: "That invoice no longer exists." };
   if (!invoice.number) return { ok: false, error: "Issue the invoice before sending it." };
+
+  /**
+   * Keeps the reason on the row.
+   *
+   * status is already "sent" by the time any of this runs — issueInvoice
+   * writes it before a message is attempted — so a refusal that lives
+   * only in the returned error disappears on reload and leaves an
+   * invoice claiming to have been sent. sent_at stays null either way;
+   * this is what turns that into something readable.
+   */
+  const refuse = async (error: string, extra: Partial<SendResult> = {}): Promise<SendResult> => {
+    await supabase
+      .from("invoices")
+      .update({ delivery_error: error.slice(0, 500), updated_at: new Date().toISOString() })
+      .eq("id", invoiceId);
+    return { ok: false, error, ...extra };
+  };
+
   if (!invoice.contact_id) {
-    return { ok: false, error: "This invoice has no contact to send to." };
+    return refuse("This invoice has no contact to send to.");
   }
 
   const { data: contact } = await supabase
@@ -381,9 +399,9 @@ export async function sendInvoice(
     .eq("id", invoice.contact_id)
     .maybeSingle();
 
-  if (!contact?.wa_id) return { ok: false, error: "This invoice's contact has no WhatsApp number." };
+  if (!contact?.wa_id) return refuse("This invoice's contact has no WhatsApp number.");
   if (contact.opted_out) {
-    return { ok: false, error: "This contact has opted out of messages from you." };
+    return refuse("This contact has opted out of messages from you.");
   }
 
   // The thread it was raised in, when there is one, otherwise the one the
@@ -396,18 +414,21 @@ export async function sendInvoice(
   );
 
   if (!conversation) {
-    return {
-      ok: false,
-      error:
-        "There is no WhatsApp conversation with this contact yet. They have to message you first — WhatsApp does not let a business open a chat with free-form text.",
-    };
+    return refuse(
+      "There is no WhatsApp conversation with this contact yet. They have to message you first — WhatsApp does not let a business open a chat with free-form text."
+    );
   }
 
+  // The number the invoice was raised on wins, then the one the
+  // conversation belongs to, then the workspace default. Explicit beats
+  // inferred: with several numbers connected, "whichever thread this
+  // happens to be in" is a choice the operator cannot see or correct.
   const connection = await loadOrgConnection(supabase, orgId, {
+    connectionId: invoice.connection_id,
     conversationId: conversation.id,
   });
   if (!connection) {
-    return { ok: false, error: "No active WhatsApp connection for this workspace." };
+    return refuse("No active WhatsApp connection for this workspace.");
   }
 
   const outstanding = invoice.total_cents - invoice.amount_paid_cents;
@@ -433,13 +454,12 @@ export async function sendInvoice(
   });
 
   if (!sent.ok) {
-    return {
-      ok: false,
-      outsideWindow: sent.outsideWindow,
-      error: sent.outsideWindow
+    return refuse(
+      sent.outsideWindow
         ? "Outside WhatsApp's 24-hour window, so a plain message will not go out. Send an approved template from Campaigns, or wait for the customer to write first. The invoice link is on the invoice either way."
-        : sent.error,
-    };
+        : (sent.error ?? "WhatsApp refused the message."),
+      { outsideWindow: sent.outsideWindow }
+    );
   }
 
   const now = new Date().toISOString();
@@ -447,8 +467,15 @@ export async function sendInvoice(
     .from("invoices")
     .update(
       options.reminder
-        ? { last_reminded_at: now, updated_at: now }
-        : { sent_at: now, conversation_id: conversation.id, updated_at: now }
+        ? { last_reminded_at: now, delivery_error: null, updated_at: now }
+        : {
+            sent_at: now,
+            conversation_id: conversation.id,
+            // Cleared, so a retry that works does not leave yesterday's
+            // refusal sitting next to a delivered invoice.
+            delivery_error: null,
+            updated_at: now,
+          }
     )
     .eq("id", invoice.id);
 

@@ -15,6 +15,7 @@ import {
   setInvoiceStatus,
 } from "../../invoice-actions";
 import InvoiceBuilder, { type BuilderInvoice } from "./InvoiceBuilder";
+import { describeDelivery } from "@/lib/invoice-delivery";
 
 export interface InvoiceListRow {
   id: string;
@@ -35,6 +36,8 @@ export interface InvoiceListRow {
   publicToken: string;
   paymentLinkUrl: string | null;
   sentAt: string | null;
+  deliveryError: string | null;
+  connectionId: string | null;
   createdAt: string;
   recurringId: string | null;
   lines: Array<{
@@ -60,6 +63,7 @@ export default function InvoiceRow({
   invoice,
   today,
   contacts,
+  numbers,
   defaultTax,
   sellerGstin,
   roundToRupee,
@@ -67,6 +71,7 @@ export default function InvoiceRow({
   invoice: InvoiceListRow;
   today: string;
   contacts: Array<{ id: string; label: string; gstin: string | null }>;
+  numbers: Array<{ id: string; label: string; isDefault: boolean }>;
   defaultTax: number;
   sellerGstin: string | null;
   roundToRupee: boolean;
@@ -76,6 +81,11 @@ export default function InvoiceRow({
 
   const outstanding = invoice.totalCents - invoice.amountPaidCents;
   const settled = invoice.status === "paid" || invoice.status === "cancelled";
+  const delivery = describeDelivery({
+    status: invoice.status,
+    sent_at: invoice.sentAt,
+    delivery_error: invoice.deliveryError,
+  });
   // Overdue is derived, never stored: storing it would need something to
   // sweep every invoice at midnight to keep it true.
   const overdue =
@@ -88,6 +98,7 @@ export default function InvoiceRow({
     const existing: BuilderInvoice = {
       id: invoice.id,
       contactId: invoice.contactId,
+      connectionId: invoice.connectionId,
       customerName: invoice.customerName ?? "",
       customerGstin: invoice.customerGstin ?? "",
       customerAddress: invoice.customerAddress ?? "",
@@ -107,6 +118,7 @@ export default function InvoiceRow({
     return (
       <InvoiceBuilder
         contacts={contacts}
+        numbers={numbers}
         defaultTax={defaultTax}
         sellerGstin={sellerGstin}
         roundToRupee={roundToRupee}
@@ -130,7 +142,21 @@ export default function InvoiceRow({
             </Badge>
             {invoice.interState && <Badge tone="grey">IGST</Badge>}
             {invoice.recurringId && <Badge tone="purple">recurring</Badge>}
+
+            {/* A second badge, because the first one is about the money and
+                this one is about the message. An issued invoice reads
+                "sent" the moment it gets a number, whether or not anything
+                reached the customer. */}
+            {delivery.state === "undelivered" && (
+              <Badge tone="amber">{delivery.label}</Badge>
+            )}
           </div>
+
+          {delivery.detail && (
+            <p className="text-[11px] text-[#FACC15] leading-relaxed mb-1.5 max-w-xl">
+              {delivery.detail}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/50">
             {invoice.customerName && (

@@ -16,6 +16,7 @@ export default function InvoiceListBrowser({
   migrationError,
   today,
   contacts,
+  numbers,
   defaultTax,
   sellerGstin,
   roundToRupee,
@@ -26,6 +27,7 @@ export default function InvoiceListBrowser({
   migrationError: string | null;
   today: string;
   contacts: Array<{ id: string; label: string; gstin: string | null }>;
+  numbers: Array<{ id: string; label: string; isDefault: boolean }>;
   defaultTax: number;
   sellerGstin: string | null;
   roundToRupee: boolean;
@@ -80,6 +82,7 @@ export default function InvoiceListBrowser({
       {creating ? (
         <InvoiceBuilder
           contacts={contacts}
+          numbers={numbers}
           defaultTax={defaultTax}
           sellerGstin={sellerGstin}
           roundToRupee={roundToRupee}
@@ -146,6 +149,7 @@ export default function InvoiceListBrowser({
               invoice={invoice}
               today={today}
               contacts={contacts}
+              numbers={numbers}
               defaultTax={defaultTax}
               sellerGstin={sellerGstin}
               roundToRupee={roundToRupee}

@@ -3814,7 +3814,14 @@ create table if not exists public.invoices (
   -- What goes in the link sent to the customer. Random and unguessable,
   -- because the page it opens needs no login.
   public_token text not null default encode(gen_random_bytes(18), 'hex'),
+  -- sent_at is the delivery fact, and status is the accounting one: an
+  -- issued invoice reads "sent" whether or not a WhatsApp message ever
+  -- reached anybody, so the two must not be conflated.
   sent_at timestamptz,
+  delivery_error text,
+  -- Which number it goes out from. Null means use the conversation's
+  -- number, then the workspace default.
+  connection_id uuid references public.waba_connections(id) on delete set null,
   last_reminded_at timestamptz,
 
   created_by uuid references auth.users(id) on delete set null,
@@ -3827,6 +3834,15 @@ create table if not exists public.invoices (
 create unique index if not exists invoices_number_idx
   on public.invoices(org_id, number)
   where number is not null;
+
+-- For a database created before these columns existed.
+alter table public.invoices
+  add column if not exists delivery_error text,
+  add column if not exists connection_id uuid references public.waba_connections(id) on delete set null;
+
+create index if not exists invoices_undelivered_idx
+  on public.invoices (org_id)
+  where sent_at is null and status <> 'draft';
 
 create unique index if not exists invoices_token_idx on public.invoices(public_token);
 create index if not exists invoices_org_idx on public.invoices(org_id, created_at desc);
