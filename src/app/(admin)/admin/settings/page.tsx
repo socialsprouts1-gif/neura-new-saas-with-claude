@@ -5,7 +5,7 @@ import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, EmptyState } from "@/components/ui/primitives";
 import FeatureGrid from "../FeatureGrid";
 import { saveDefaultFeatures, saveKilledFeatures } from "../actions";
-import { resolveFeatures } from "@/lib/features";
+import { resolveFeatures, killedKeys, featureDef } from "@/lib/features";
 import { formatDate } from "@/types/admin";
 import PlatformGateway from "./PlatformGateway";
 import PaymentCheck from "./PaymentCheck";
@@ -23,6 +23,9 @@ export default async function AdminSettingsPage() {
 
   const defaults = settings?.find((row) => row.key === "feature_defaults");
   const killed = settings?.find((row) => row.key === "feature_kill");
+  const withdrawn = killedKeys(killed?.value)
+    .map((key) => featureDef(key)?.label ?? key)
+    .sort();
 
   // Everything that now has a form of its own is dropped from the raw
   // list: two editors for one value is how they end up disagreeing, and
@@ -64,6 +67,24 @@ export default async function AdminSettingsPage() {
           screen has to be withdrawn today. */}
       <Card className="mb-6 border-[#F87171]/20">
         <h2 className="font-semibold mb-1">Switched off everywhere</h2>
+
+        {/* The state, read back from what is stored, so a save can be
+            confirmed at a glance. Two cards on one page both showing a
+            grid with Meetings unticked are otherwise indistinguishable —
+            and the whole problem was saving the one that could not win. */}
+        <p className="text-xs mb-3">
+          {withdrawn.length > 0 ? (
+            <span className="text-[#F87171]">
+              Currently withdrawn from every workspace: {withdrawn.join(", ")}.
+            </span>
+          ) : (
+            <span className="text-white/40">
+              Nothing is switched off platform-wide right now. Every workspace gets whatever its
+              plan and its own exceptions allow.
+            </span>
+          )}
+        </p>
+
         <FeatureGrid
           action={saveKilledFeatures}
           enabled={resolveFeatures({ disabled: killed?.value })}

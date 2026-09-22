@@ -2,14 +2,13 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rollUpFailure } from "@/lib/campaign-failures";
+import { buildTemplateComponents } from "@/lib/template-components";
 import { resolveConnection } from "@/lib/connections";
 import {
   sendTemplateMessage,
   describeMetaError,
   MetaApiError,
-  type MetaTemplateComponent,
 } from "@/lib/meta-whatsapp";
-import { variablesIn } from "@/lib/template-spec";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 
 // Draining the campaign queue.
@@ -176,7 +175,7 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
 
   const { data: template } = await supabase
     .from("message_templates")
-    .select("name, language, status, body_text, header_format")
+    .select("name, language, status, body_text, header_format, header_text, header_media_url")
     .eq("id", templateId)
     .maybeSingle();
 
@@ -223,6 +222,27 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
     ? await supabase.from("contacts").select("id, wa_id").in("id", contactIds)
     : { data: [] };
 
+  // header_format was read here and thrown away, so a template with an
+  // image, video or document header was sent with a body component and
+  // nothing else. Meta refuses that whole message, every time, for every
+  // recipient — which is how a campaign against a perfectly healthy
+  // account reads "0 sent, 5 failed".
+  const built = buildTemplateComponents(
+    {
+      bodyText: template.body_text ?? "",
+      headerFormat: template.header_format,
+      headerText: template.header_text,
+      headerMediaUrl: template.header_media_url,
+    },
+    variables
+  );
+
+  // Stopped before a single recipient is touched. campaign_recipients has
+  // no un-fail, so burning the audience on a fault that is the same for
+  // all of them would permanently record people as attempted when nothing
+  // could ever have been sent.
+  if (!built.ok) return { ok: false as const, error: built.error };
+
   return {
     ok: true as const,
     campaignStatus: campaign.status,
@@ -230,30 +250,9 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
     accessToken,
     templateName: template.name,
     language: template.language,
-    components: buildSendComponents(template.body_text ?? "", variables),
+    components: built.components,
     contactNumbers: new Map((contacts ?? []).map((contact) => [contact.id, contact.wa_id])),
   };
-}
-
-/**
- * The body parameters for a send.
- *
- * Only as many as the template actually declares: sending a parameter the
- * template does not have is a 400, and sending one fewer is a different 400.
- */
-function buildSendComponents(bodyText: string, variables: string[]): MetaTemplateComponent[] {
-  const count = variablesIn(bodyText).length;
-  if (count === 0) return [];
-
-  return [
-    {
-      type: "body",
-      parameters: Array.from({ length: count }, (_, index) => ({
-        type: "text",
-        text: variables[index]?.trim() || " ",
-      })),
-    },
-  ];
 }
 
 /** A campaign with nothing left pending is finished. */

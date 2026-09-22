@@ -18,6 +18,7 @@ import {
 import { metaErrorDetail } from "@/lib/meta-errors";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 import { diagnoseTemplateAccess } from "@/lib/template-diagnosis";
+import { templateSendable } from "@/lib/template-components";
 import {
   buildComponents,
   normaliseName,
@@ -535,7 +536,7 @@ export async function createCampaign(input: {
 
   const { data: template } = await supabase
     .from("message_templates")
-    .select("id, name, status, body_text")
+    .select("id, name, status, body_text, header_format, header_text, header_media_url")
     .eq("id", input.templateId)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -555,6 +556,17 @@ export async function createCampaign(input: {
   if (filled < needed) {
     return { ok: false, error: `This template needs ${needed} variable value(s).` };
   }
+
+  // A template with a media header and no media saved against it cannot
+  // be sent to anybody, so it is refused before an audience is queued
+  // rather than after every recipient has been marked failed.
+  const unsendable = templateSendable({
+    bodyText: template.body_text ?? "",
+    headerFormat: template.header_format,
+    headerText: template.header_text,
+    headerMediaUrl: template.header_media_url,
+  });
+  if (unsendable) return { ok: false, error: unsendable };
 
   // An uploaded contacts sheet becomes contacts first, so resolveAudience
   // finds them a moment later and every recipient carries a contact id.
