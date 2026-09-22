@@ -376,6 +376,8 @@ export async function checkNumberHealth(
     qualityRating: number?.quality_rating ?? null,
     platformType: number?.platform_type ?? null,
     numberStatus: number?.status ?? null,
+    wabaName: waba?.name ?? null,
+    ownershipType: waba?.ownership_type ?? null,
   });
 
   return { ok: true, checks, wabaId, headline: headline(checks) };

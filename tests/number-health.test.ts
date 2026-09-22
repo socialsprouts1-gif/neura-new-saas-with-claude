@@ -17,6 +17,8 @@ const healthy: NumberFacts = {
   qualityRating: "GREEN",
   platformType: "CLOUD_API",
   numberStatus: "CONNECTED",
+  wabaName: "Neurachat",
+  ownershipType: "CLIENT_OWNED",
 };
 
 const find = (facts: NumberFacts, label: string) =>
@@ -125,4 +127,33 @@ test("worstTone ranks bad over warn over unknown", () => {
   assert.equal(worstTone([{ label: "a", tone: "warn", detail: "" }, { label: "b", tone: "bad", detail: "" }]), "bad");
   assert.equal(worstTone([{ label: "a", tone: "unknown", detail: "" }, { label: "b", tone: "warn", detail: "" }]), "warn");
   assert.equal(worstTone([{ label: "a", tone: "ok", detail: "" }]), "ok");
+});
+
+// --- which account this is -------------------------------------------------
+
+test("the account's name and kind are reported, never judged", () => {
+  const check = find({ ...healthy, wabaName: "Neurachat", ownershipType: "CLIENT_OWNED" }, "Which account this is");
+  assert.equal(check.tone, "ok");
+  assert.match(check.detail, /Neurachat/);
+  assert.match(check.detail, /CLIENT_OWNED/);
+});
+
+test("an unfamiliar ownership type is passed through rather than called a fault", () => {
+  // Meta's enum here is not stable enough to branch on. Anything it says
+  // is reported as-is; guessing which values are fatal is how an error
+  // message ends up confidently wrong.
+  const check = find({ ...healthy, wabaName: "X", ownershipType: "SOMETHING_NEW" }, "Which account this is");
+  assert.equal(check.tone, "ok");
+  assert.match(check.detail, /SOMETHING_NEW/);
+});
+
+test("an account Meta would not name is unknown, not a failure", () => {
+  const facts = { ...healthy, wabaName: null, ownershipType: null };
+  assert.equal(find(facts, "Which account this is").tone, "unknown");
+  assert.equal(worstTone(healthChecks(facts)), "unknown");
+});
+
+test("the identity line explains why a template is not on every number", () => {
+  const check = find({ ...healthy, wabaName: "Neurachat" }, "Which account this is");
+  assert.match(check.detail, /Templates belong to an account/);
 });

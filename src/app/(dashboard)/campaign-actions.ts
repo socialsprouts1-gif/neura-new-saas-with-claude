@@ -17,7 +17,7 @@ import {
 } from "@/lib/meta-whatsapp";
 import { metaErrorDetail } from "@/lib/meta-errors";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
-import { diagnoseTemplateAccess } from "@/lib/template-diagnosis";
+import { diagnoseTemplateAccess, describeWabaKind } from "@/lib/template-diagnosis";
 import { templateSendable } from "@/lib/template-components";
 import {
   buildComponents,
@@ -164,6 +164,42 @@ function isAccountLevel(error: unknown): boolean {
  * waiting on an error message, and a diagnosis that fails is worth less
  * than the message they are waiting for.
  */
+/**
+ * The other WhatsApp accounts this workspace has numbers on.
+ *
+ * Templates belong to an account, so a refusal on one says nothing about
+ * the others — and with four numbers connected, "try a different one" is
+ * only useful advice if it names which.
+ */
+async function otherAccounts(
+  supabase: Client,
+  orgId: string,
+  currentWabaId: string
+): Promise<string | null> {
+  try {
+    const connections = await listActiveConnections(supabase, orgId);
+    const others = connections.filter((connection) => connection.wabaId !== currentWabaId);
+    if (others.length === 0) return null;
+
+    // One line per distinct account, not per number: two numbers on one
+    // account are one alternative, not two.
+    const byWaba = new Map<string, string[]>();
+    for (const connection of others) {
+      const labels = byWaba.get(connection.wabaId) ?? [];
+      labels.push(describe(connection));
+      byWaba.set(connection.wabaId, labels);
+    }
+
+    const listed = [...byWaba.entries()]
+      .map(([wabaId, labels]) => `${labels.join(" / ")} (account ${wabaId})`)
+      .join("; ");
+
+    return `This workspace also has ${listed}. Templates belong to an account, so switching the number at the top of this form creates it on a different one — worth trying before going to Meta.`;
+  } catch {
+    return null;
+  }
+}
+
 async function diagnoseSilently(credentials: {
   wabaId: string;
   phoneNumberId: string;
@@ -334,9 +370,28 @@ export async function submitTemplate(
       ? ((await diagnoseSilently(credentials)) ?? NOTHING_LEFT_TO_CHECK)
       : null;
 
-    const reason = `${described} (WhatsApp Business Account ${credentials.wabaId})${
-      verdict ? ` — ${verdict}` : ""
-    }${verdict ? ` ${CREATE_IT_IN_META_INSTEAD}` : ""}`;
+    // When every gate reads as open, the remaining question is which
+    // account this actually is. A portfolio can hold the WhatsApp Business
+    // app beside real Cloud API accounts, and several with the same name,
+    // so naming it — and naming the other accounts this workspace could
+    // create on instead — turns a dead end into a next step.
+    const whichAccount =
+      verdict === NOTHING_LEFT_TO_CHECK
+        ? await describeWabaKind(credentials.wabaId, credentials.token).catch(() => null)
+        : null;
+
+    const elsewhere =
+      verdict === NOTHING_LEFT_TO_CHECK ? await otherAccounts(supabase, orgId, credentials.wabaId) : null;
+
+    const reason = [
+      `${described} (WhatsApp Business Account ${credentials.wabaId})`,
+      verdict ? `— ${verdict}` : "",
+      whichAccount ?? "",
+      elsewhere ?? "",
+      verdict ? CREATE_IT_IN_META_INSTEAD : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     // Kept as a draft with the reason attached, so it can be fixed and
     // resubmitted rather than retyped.

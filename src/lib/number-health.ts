@@ -28,6 +28,9 @@ export interface NumberFacts {
   platformType?: string | null;
   numberStatus?: string | null;
   nameStatus?: string | null;
+  /** What Meta calls this account, and what kind it says it is. */
+  wabaName?: string | null;
+  ownershipType?: string | null;
 }
 
 export type CheckTone = "ok" | "warn" | "bad" | "unknown";
@@ -50,6 +53,7 @@ export function healthChecks(facts: NumberFacts): Check[] {
   const checks: Check[] = [];
 
   checks.push(numberBelongsCheck(facts));
+  checks.push(accountIdentityCheck(facts));
   checks.push(verificationCheck(facts.businessVerification));
   checks.push(reviewCheck(facts.accountReview));
   checks.push(numberStatusCheck(facts.numberStatus));
@@ -75,6 +79,43 @@ function numberBelongsCheck(facts: NumberFacts): Check {
     detail: `Account ${facts.wabaId} does not list this number — it holds ${
       listed || "no numbers at all"
     }. Sending may still work, because a send only uses the number id, but templates, forms and flows are created on the account and will keep failing. Correct the WABA id under Integrations, taking it from the account in WhatsApp Manager that lists this number.`,
+  };
+}
+
+/**
+ * Which of your accounts this is.
+ *
+ * Never a fault, always worth saying. A business portfolio can hold the
+ * WhatsApp Business app beside real Cloud API accounts, and several
+ * accounts sharing a name — so "templates are refused on this one and
+ * work on that one" is only actionable once the two can be told apart.
+ * Reported rather than judged: Meta's ownership_type enum is not stable
+ * enough to branch on, and guessing which values are fatal is how an
+ * error message ends up confidently wrong.
+ */
+function accountIdentityCheck(facts: NumberFacts): Check {
+  const name = facts.wabaName?.trim();
+  const ownership = facts.ownershipType?.trim();
+
+  if (!name && !ownership) {
+    return {
+      label: "Which account this is",
+      tone: "unknown",
+      detail: `Meta did not name account ${facts.wabaId}. Usually it means the token may send from it but not read its settings.`,
+    };
+  }
+
+  const said = [
+    name ? `Meta calls it \u201c${name}\u201d` : null,
+    ownership ? `ownership type ${ownership}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return {
+    label: "Which account this is",
+    tone: "ok",
+    detail: `${said}. Templates belong to an account, so a template created here is not available on your other numbers unless they are on this same one.`,
   };
 }
 

@@ -67,6 +67,39 @@ export async function diagnoseTemplateAccess(input: TemplateAccess): Promise<str
 }
 
 /**
+ * What kind of account this is, in Meta's own words.
+ *
+ * "WhatsApp accounts cannot be used with this API" is a statement about
+ * the account's kind, and the one field that describes that —
+ * ownership_type — was being fetched by getWabaDetails and thrown away.
+ * A portfolio can hold the WhatsApp Business app alongside real Cloud API
+ * accounts, and several accounts with the same name, so "which of these
+ * four am I posting to" is a genuine question with a readable answer.
+ *
+ * Reported rather than judged. Meta's enum here is not documented
+ * stably enough to branch on, and guessing which values are fatal is how
+ * an error message ends up confidently wrong — this session has already
+ * had three of those. The name and the type are facts; what they mean is
+ * left to the operator and to Meta's support, who can act on them.
+ */
+export async function describeWabaKind(
+  wabaId: string,
+  accessToken: string
+): Promise<string | null> {
+  let waba;
+  try {
+    waba = await getWabaDetails(wabaId, accessToken);
+  } catch {
+    return null;
+  }
+
+  const parts = [`Meta calls this account "${waba.name ?? wabaId}" (id ${wabaId})`];
+  if (waba.ownership_type) parts.push(`and reports its ownership type as ${waba.ownership_type}`);
+
+  return `${parts.join(" ")}. If you have more than one WhatsApp account in this business portfolio, check in Meta → WhatsApp Manager that this is the one you meant — templates belong to an account, so creating one on the wrong account is a refusal that looks like a broken form.`;
+}
+
+/**
  * Whether the token was granted this account, and for what.
  *
  * Sending and managing are separate grants. A token holding only
