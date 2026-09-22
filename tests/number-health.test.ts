@@ -19,6 +19,7 @@ const healthy: NumberFacts = {
   numberStatus: "CONNECTED",
   wabaName: "Neurachat",
   ownershipType: "CLIENT_OWNED",
+  canManageTemplates: true,
 };
 
 const find = (facts: NumberFacts, label: string) =>
@@ -156,4 +157,40 @@ test("an account Meta would not name is unknown, not a failure", () => {
 test("the identity line explains why a template is not on every number", () => {
   const check = find({ ...healthy, wabaName: "Neurachat" }, "Which account this is");
   assert.match(check.detail, /Templates belong to an account/);
+});
+
+// --- templates -------------------------------------------------------------
+
+test("a token that can read templates is reported as able to create them", () => {
+  const check = find(healthy, "Templates");
+  assert.equal(check.tone, "ok");
+  assert.match(check.detail, /same permission/);
+});
+
+test("a token refused template management is a blocking problem", () => {
+  const check = find(
+    { ...healthy, canManageTemplates: false, manageProblem: "Meta said no." },
+    "Templates"
+  );
+  assert.equal(check.tone, "bad");
+  assert.equal(check.detail, "Meta said no.");
+});
+
+test("a refusal with no reason still explains the shape of the problem", () => {
+  const check = find({ ...healthy, canManageTemplates: false }, "Templates");
+  assert.equal(check.tone, "bad");
+  assert.match(check.detail, /separate permissions/);
+});
+
+test("a probe that could not run is unknown, not a pass", () => {
+  // The whole point: a check that did not happen must never read as one
+  // that happened and succeeded.
+  const check = find({ ...healthy, canManageTemplates: null }, "Templates");
+  assert.equal(check.tone, "unknown");
+  assert.equal(worstTone(healthChecks({ ...healthy, canManageTemplates: null })), "unknown");
+});
+
+test("a template refusal makes the headline name a blocking problem", () => {
+  const line = headline(healthChecks({ ...healthy, canManageTemplates: false }));
+  assert.match(line, /^1 thing here will stop/);
 });

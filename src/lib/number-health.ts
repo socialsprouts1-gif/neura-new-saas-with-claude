@@ -31,6 +31,13 @@ export interface NumberFacts {
   /** What Meta calls this account, and what kind it says it is. */
   wabaName?: string | null;
   ownershipType?: string | null;
+  /**
+   * Whether the token may manage templates here.
+   *
+   * true / false from an actual probe, null when Meta could not be asked.
+   */
+  canManageTemplates?: boolean | null;
+  manageProblem?: string | null;
 }
 
 export type CheckTone = "ok" | "warn" | "bad" | "unknown";
@@ -59,6 +66,7 @@ export function healthChecks(facts: NumberFacts): Check[] {
   checks.push(numberStatusCheck(facts.numberStatus));
   checks.push(qualityCheck(facts.qualityRating));
   checks.push(platformCheck(facts.platformType));
+  checks.push(templateManagementCheck(facts));
 
   return checks;
 }
@@ -235,6 +243,42 @@ function platformCheck(value: string | null | undefined): Check {
     label: "Platform",
     tone: "bad",
     detail: `Meta says ${platform.toLowerCase().replace(/_/g, " ")}. This app sends over the Cloud API — a number still on the WhatsApp Business app or on-premises cannot be driven from here.`,
+  };
+}
+
+/**
+ * Whether templates can be created on this account.
+ *
+ * Sending and managing are separate permissions on Meta's side, which is
+ * why an account can run a perfect inbox and refuse every template. The
+ * only honest way to report it is to ask: listing templates needs the
+ * same permission creating one does, so a successful read proves the
+ * permission without writing anything.
+ */
+function templateManagementCheck(facts: NumberFacts): Check {
+  if (facts.canManageTemplates === true) {
+    return {
+      label: "Templates",
+      tone: "ok",
+      detail:
+        "The stored token can read the templates on this account, which is the same permission creating one needs. If creating still fails, the refusal is not about permission.",
+    };
+  }
+
+  if (facts.canManageTemplates === false) {
+    return {
+      label: "Templates",
+      tone: "bad",
+      detail:
+        facts.manageProblem ??
+        "Meta will not let this token manage templates on this account. Sending and managing are separate permissions, which is why the inbox works and templates do not.",
+    };
+  }
+
+  return {
+    label: "Templates",
+    tone: "unknown",
+    detail: "This could not be checked — Meta did not answer.",
   };
 }
 

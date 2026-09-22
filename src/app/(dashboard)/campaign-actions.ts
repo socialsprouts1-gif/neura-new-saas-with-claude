@@ -131,7 +131,7 @@ const ACCOUNT_LEVEL_SUBCODES = new Set(["100:2388339"]);
  * in this codebase can change the answer.
  */
 const NOTHING_LEFT_TO_CHECK =
-  "everything this app can check on the account is in order: the number is on it, the token may manage it, and Meta reports it as approved and verified. That leaves a refusal only Meta can explain — quote the fbtrace_id below to support.";
+  "every check this app can run came back clear: the number is on the account, Meta reports the account approved and the business verified, and the stored token can list the templates on it — which is the same permission creating one needs, so the permission is not the problem either. That leaves a refusal only Meta can explain. Open Meta's whole answer below and quote its fbtrace_id to WhatsApp support; it identifies this exact request in their logs.";
 
 /**
  * The way round a refusal this app cannot lift.

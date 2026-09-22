@@ -13,6 +13,7 @@ import {
   MetaApiError,
 } from "@/lib/meta-whatsapp";
 import { healthChecks, headline, type Check } from "@/lib/number-health";
+import { probeTemplateManagement } from "@/lib/template-diagnosis";
 import type { ActionResult } from "../actions";
 
 // Managing the set of WhatsApp numbers in a workspace.
@@ -366,6 +367,11 @@ export async function checkNumberHealth(
   const waba = await getWabaDetails(wabaId, accessToken).catch(() => null);
   const number = await getPhoneNumber(phoneNumberId, accessToken).catch(() => null);
 
+  // Asked, not assumed. Sending and managing templates are separate
+  // permissions, so a green inbox says nothing about whether a template
+  // can be created here.
+  const manage = await probeTemplateManagement(wabaId, accessToken).catch(() => null);
+
   const checks = healthChecks({
     wabaId,
     phoneNumberId,
@@ -378,6 +384,8 @@ export async function checkNumberHealth(
     numberStatus: number?.status ?? null,
     wabaName: waba?.name ?? null,
     ownershipType: waba?.ownership_type ?? null,
+    canManageTemplates: manage ? manage.can : null,
+    manageProblem: manage && manage.can === false ? manage.why : null,
   });
 
   return { ok: true, checks, wabaId, headline: headline(checks) };

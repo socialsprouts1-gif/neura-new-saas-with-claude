@@ -5,6 +5,7 @@ import {
   getPhoneNumber,
   getWabaDetails,
   listWabaPhoneNumbers,
+  listMessageTemplates,
 } from "@/lib/meta-whatsapp";
 import {
   WABA_MANAGEMENT_SCOPE,
@@ -59,11 +60,20 @@ export async function diagnoseTemplateAccess(input: TemplateAccess): Promise<str
   // Order matters: the token is checked before the account, because a
   // token that cannot manage the account is also the reason the account's
   // own fields may read as fine.
-  return (
-    (await describeTokenScope(input)) ??
-    (await describeWabaStanding(wabaId, accessToken)) ??
-    (await describeCoexistence(phoneNumberId, accessToken))
-  );
+  const fromScope = await describeTokenScope(input);
+  if (fromScope) return fromScope;
+
+  const standing = await describeWabaStanding(wabaId, accessToken);
+  if (standing) return standing;
+
+  // Probed rather than inferred. The scope check above answers only for a
+  // connection on this deployment's own Meta app; this one answers for
+  // every connection, by asking Meta to do the read half of the same
+  // permission the create needs.
+  const probe = await probeTemplateManagement(wabaId, accessToken);
+  if (probe.can === false) return probe.why;
+
+  return await describeCoexistence(phoneNumberId, accessToken);
 }
 
 /**
@@ -82,6 +92,48 @@ export async function diagnoseTemplateAccess(input: TemplateAccess): Promise<str
  * had three of those. The name and the type are facts; what they mean is
  * left to the operator and to Meta's support, who can act on them.
  */
+/**
+ * Whether this token may manage templates on this account at all.
+ *
+ * Reading and writing templates need the same permission —
+ * whatsapp_business_management — so GET /message_templates answers
+ * "could a create ever work here" without creating anything.
+ *
+ * This exists because the scope check above goes silent whenever the
+ * connection belongs to a different Meta app than this deployment's, and
+ * a silent check is indistinguishable from a passing one. The summary
+ * shown on a refusal claimed "the token may manage it" in both cases,
+ * which is an assertion about something never actually tested. A probe
+ * that runs for every connection is worth more than an inference that
+ * runs for some.
+ */
+export type ManageProbe =
+  | { can: true }
+  | { can: false; why: string }
+  | { can: null; why: string };
+
+export async function probeTemplateManagement(
+  wabaId: string,
+  accessToken: string
+): Promise<ManageProbe> {
+  try {
+    await listMessageTemplates(wabaId, accessToken);
+    return { can: true };
+  } catch (error) {
+    if (!(error instanceof MetaApiError)) {
+      return { can: null, why: "Meta did not answer, so this could not be established." };
+    }
+
+    return {
+      can: false,
+      why: `Meta will not even list the templates on account ${wabaId} with this token, so creating one was never going to work. ${describeMetaError(
+        error.status,
+        error.body
+      )} Reading and writing templates need the same permission — whatsapp_business_management — which is separate from the one that sends messages. That is why the inbox and campaigns work and this does not.`,
+    };
+  }
+}
+
 export async function describeWabaKind(
   wabaId: string,
   accessToken: string
