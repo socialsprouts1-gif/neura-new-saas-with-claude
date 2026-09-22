@@ -1,0 +1,227 @@
+// What Meta actually thinks of the account a number sends from.
+//
+// Pure by design: no fetch, no env, no server-only, so it can be tested.
+//
+// The gap this closes: a business portfolio can show "Verified" and a
+// payment method next to a green tick, and sends still fail — because
+// that panel was showing a different WhatsApp Business Account than the
+// one the app sends from. Portfolios routinely hold several, often with
+// the same name, and the WhatsApp Business app appears in the same list
+// as the Cloud API accounts. Checking the wrong one looks exactly like
+// checking the right one.
+//
+// So the fix is not advice. It is reading the facts back for the exact
+// WABA id the app is configured with, and saying which gate is shut.
+
+export interface NumberFacts {
+  /** The account the app is configured to send from. */
+  wabaId: string;
+  phoneNumberId: string;
+  /** Whether the WABA actually lists this phone number id. */
+  numberOnWaba: boolean;
+  /** The numbers it does list, for when it does not. */
+  wabaNumbers: string[];
+  /** Meta's own strings. Absent when Meta did not return the field. */
+  businessVerification?: string | null;
+  accountReview?: string | null;
+  qualityRating?: string | null;
+  platformType?: string | null;
+  numberStatus?: string | null;
+  nameStatus?: string | null;
+}
+
+export type CheckTone = "ok" | "warn" | "bad" | "unknown";
+
+export interface Check {
+  label: string;
+  tone: CheckTone;
+  detail: string;
+}
+
+const norm = (value: string | null | undefined) => value?.trim().toUpperCase() ?? "";
+
+/**
+ * The line that matters most, first.
+ *
+ * Ordered by what blocks what: an id mismatch makes every other answer
+ * on this page about the wrong account, so it goes above them.
+ */
+export function healthChecks(facts: NumberFacts): Check[] {
+  const checks: Check[] = [];
+
+  checks.push(numberBelongsCheck(facts));
+  checks.push(verificationCheck(facts.businessVerification));
+  checks.push(reviewCheck(facts.accountReview));
+  checks.push(numberStatusCheck(facts.numberStatus));
+  checks.push(qualityCheck(facts.qualityRating));
+  checks.push(platformCheck(facts.platformType));
+
+  return checks;
+}
+
+function numberBelongsCheck(facts: NumberFacts): Check {
+  if (facts.numberOnWaba) {
+    return {
+      label: "Number is on this account",
+      tone: "ok",
+      detail: `WhatsApp Business Account ${facts.wabaId} lists this number. Everything below is about that account — the one the app actually sends from.`,
+    };
+  }
+
+  const listed = facts.wabaNumbers.filter(Boolean).join(", ");
+  return {
+    label: "Number is on this account",
+    tone: "bad",
+    detail: `Account ${facts.wabaId} does not list this number — it holds ${
+      listed || "no numbers at all"
+    }. Sending may still work, because a send only uses the number id, but templates, forms and flows are created on the account and will keep failing. Correct the WABA id under Integrations, taking it from the account in WhatsApp Manager that lists this number.`,
+  };
+}
+
+function verificationCheck(value: string | null | undefined): Check {
+  const status = norm(value);
+  if (!status) {
+    return {
+      label: "Business verification",
+      tone: "unknown",
+      detail: "Meta did not report this. It usually means the token cannot read the account's settings, only send from it.",
+    };
+  }
+  if (status === "VERIFIED") {
+    return { label: "Business verification", tone: "ok", detail: "Verified." };
+  }
+  if (status === "PENDING" || status === "PENDING_NEED_MORE_INFO" || status === "PENDING_SUBMISSION") {
+    return {
+      label: "Business verification",
+      tone: "warn",
+      detail: `Meta says ${status.toLowerCase().replace(/_/g, " ")}. Publishing a Flow stays blocked until this finishes.`,
+    };
+  }
+  return {
+    label: "Business verification",
+    tone: "bad",
+    detail: `Meta says ${status.toLowerCase().replace(/_/g, " ")} for THIS account. A different account in the same portfolio being verified does not carry over — verification is per business, and the Flow publish check reads this field. Meta Business Suite → Business settings → Security Centre.`,
+  };
+}
+
+function reviewCheck(value: string | null | undefined): Check {
+  const status = norm(value);
+  if (!status) {
+    return {
+      label: "Account review",
+      tone: "unknown",
+      detail: "Meta did not report this.",
+    };
+  }
+  if (status === "APPROVED") {
+    return { label: "Account review", tone: "ok", detail: "Approved." };
+  }
+  if (status === "PENDING") {
+    return {
+      label: "Account review",
+      tone: "warn",
+      detail: "Meta is still reviewing this account. Template sends are usually limited until it clears.",
+    };
+  }
+  return {
+    label: "Account review",
+    tone: "bad",
+    detail: `Meta says ${status.toLowerCase()}. While an account is rejected or restricted its templates will not send, whatever their own status says.`,
+  };
+}
+
+function numberStatusCheck(value: string | null | undefined): Check {
+  const status = norm(value);
+  if (!status) {
+    return {
+      label: "Number status",
+      tone: "unknown",
+      detail: "Meta did not report this. Some tokens and number types omit it; on its own that is not a fault.",
+    };
+  }
+  if (status === "CONNECTED") {
+    return { label: "Number status", tone: "ok", detail: "Connected and able to send." };
+  }
+  if (status === "PENDING" || status === "MIGRATED") {
+    return {
+      label: "Number status",
+      tone: "warn",
+      detail: `Meta says ${status.toLowerCase()}. It is not fully live yet.`,
+    };
+  }
+  return {
+    label: "Number status",
+    tone: "bad",
+    detail: `Meta says ${status.toLowerCase()}. A number that is flagged or restricted cannot send until that clears.`,
+  };
+}
+
+function qualityCheck(value: string | null | undefined): Check {
+  const rating = norm(value);
+  if (!rating || rating === "UNKNOWN") {
+    return {
+      label: "Quality rating",
+      tone: "unknown",
+      detail: "Not rated yet. Normal for a number that has sent very little.",
+    };
+  }
+  if (rating === "GREEN") {
+    return { label: "Quality rating", tone: "ok", detail: "Green." };
+  }
+  if (rating === "YELLOW") {
+    return {
+      label: "Quality rating",
+      tone: "warn",
+      detail: "Yellow. Recipients have been blocking or reporting; the daily sending limit may be cut if it drops further.",
+    };
+  }
+  return {
+    label: "Quality rating",
+    tone: "bad",
+    detail: "Red. The number is close to being restricted, and sending limits are already reduced.",
+  };
+}
+
+function platformCheck(value: string | null | undefined): Check {
+  const platform = norm(value);
+  if (!platform) {
+    return { label: "Platform", tone: "unknown", detail: "Meta did not report this." };
+  }
+  if (platform === "CLOUD_API") {
+    return { label: "Platform", tone: "ok", detail: "Cloud API, which is what this app uses." };
+  }
+  return {
+    label: "Platform",
+    tone: "bad",
+    detail: `Meta says ${platform.toLowerCase().replace(/_/g, " ")}. This app sends over the Cloud API — a number still on the WhatsApp Business app or on-premises cannot be driven from here.`,
+  };
+}
+
+/** The worst thing found, for colouring the summary. */
+export function worstTone(checks: readonly Check[]): CheckTone {
+  if (checks.some((check) => check.tone === "bad")) return "bad";
+  if (checks.some((check) => check.tone === "warn")) return "warn";
+  if (checks.some((check) => check.tone === "unknown")) return "unknown";
+  return "ok";
+}
+
+/**
+ * One sentence for the top.
+ *
+ * Names the count of real problems rather than saying "issues found",
+ * because one blocked gate and four is a different afternoon.
+ */
+export function headline(checks: readonly Check[]): string {
+  const bad = checks.filter((check) => check.tone === "bad").length;
+  const warn = checks.filter((check) => check.tone === "warn").length;
+
+  if (bad > 0) {
+    return `${bad} thing${bad === 1 ? "" : "s"} here will stop messages going out. Meta reported ${
+      bad === 1 ? "it" : "them"
+    } for this exact account.`;
+  }
+  if (warn > 0) {
+    return `Nothing is blocked outright, but ${warn} thing${warn === 1 ? " needs" : "s need"} attention.`;
+  }
+  return "Meta reports no problem with this account or number. If sends are still failing, the reason is on the message rather than the account — check the reason shown against the failed recipients.";
+}

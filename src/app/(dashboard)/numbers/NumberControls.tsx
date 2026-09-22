@@ -2,14 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Pencil, Power, RefreshCw, Star } from "lucide-react";
+import { Check, Loader2, Pencil, Power, RefreshCw, Star, Stethoscope } from "lucide-react";
 import {
+  checkNumberHealth,
   refreshAllNumbers,
   refreshNumber,
   registerNumber,
   renameNumber,
   setDefaultNumber,
 } from "./number-actions";
+import type { Check as AccountCheck } from "@/lib/number-health";
 
 export function RefreshAllButton() {
   const router = useRouter();
@@ -221,6 +223,87 @@ export function RegisterNumberButton({ id }: { id: string }) {
         Meta → WhatsApp → Two-step verification. Not your login password.
       </p>
       {note && <p className="text-[11px] text-[#F87171] max-w-[16rem] text-right">{note}</p>}
+    </div>
+  );
+}
+
+const TONE_STYLE: Record<string, { dot: string; text: string }> = {
+  ok: { dot: "bg-[#00FF87]", text: "text-white/55" },
+  warn: { dot: "bg-[#FACC15]", text: "text-[#FACC15]" },
+  bad: { dot: "bg-[#F87171]", text: "text-[#F87171]" },
+  unknown: { dot: "bg-white/25", text: "text-white/40" },
+};
+
+/**
+ * Asks Meta about the account behind this number.
+ *
+ * Separate from "Check with Meta", which asks about the number. Every
+ * gate that stops a campaign or a Flow lives one level up, on the
+ * account — and a portfolio holding three accounts with the same name is
+ * how somebody ends up reading a verified one while the app sends from
+ * another.
+ */
+export function AccountCheckButton({ id }: { id: string }) {
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<{
+    checks?: AccountCheck[];
+    headline?: string;
+    wabaId?: string;
+    error?: string;
+  } | null>(null);
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const answer = await checkNumberHealth(id);
+            setResult(
+              answer.ok
+                ? { checks: answer.checks, headline: answer.headline, wabaId: answer.wabaId }
+                : { error: answer.error }
+            );
+          })
+        }
+        className="btn-secondary text-xs"
+      >
+        {pending ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        ) : (
+          <Stethoscope className="w-3.5 h-3.5" />
+        )}
+        Diagnose account
+      </button>
+
+      {result?.error && (
+        <p className="text-xs text-[#F87171] mt-2.5 max-w-xl leading-relaxed">{result.error}</p>
+      )}
+
+      {result?.checks && (
+        <div className="mt-3 p-3.5 rounded-xl border border-white/10 bg-white/3 max-w-xl">
+          <p className="text-xs text-white/70 leading-relaxed mb-1">{result.headline}</p>
+          <p className="text-[10px] text-white/30 font-mono mb-3">
+            Read from Meta for account {result.wabaId}
+          </p>
+
+          <ul className="space-y-2">
+            {result.checks.map((check) => {
+              const tone = TONE_STYLE[check.tone] ?? TONE_STYLE.unknown;
+              return (
+                <li key={check.label} className="flex gap-2.5">
+                  <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${tone.dot}`} />
+                  <div className="min-w-0">
+                    <div className="text-xs text-white/75">{check.label}</div>
+                    <div className={`text-[11px] leading-relaxed ${tone.text}`}>{check.detail}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

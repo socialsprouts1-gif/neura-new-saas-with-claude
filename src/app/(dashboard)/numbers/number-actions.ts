@@ -6,10 +6,13 @@ import { requireOrg } from "@/lib/org";
 import { resolveConnection, listConnections } from "@/lib/connections";
 import {
   getPhoneNumber,
+  getWabaDetails,
+  listWabaPhoneNumbers,
   registerPhoneNumber,
   describeMetaError,
   MetaApiError,
 } from "@/lib/meta-whatsapp";
+import { healthChecks, headline, type Check } from "@/lib/number-health";
 import type { ActionResult } from "../actions";
 
 // Managing the set of WhatsApp numbers in a workspace.
@@ -312,4 +315,68 @@ export async function registerNumber(id: string, pin: string): Promise<ActionRes
   // Read it straight back: registration is asynchronous enough that a
   // success here does not on its own mean the number is CONNECTED.
   return refreshNumber(id);
+}
+
+/**
+ * Asks Meta about the account this number sends from, and reports back.
+ *
+ * refreshNumber asks about the number. This asks about the account behind
+ * it, which is where every gate that blocks templates, campaigns and Flow
+ * publishing actually lives.
+ *
+ * The reason it exists: Meta Business Suite shows one account at a time,
+ * a portfolio routinely holds several with the same name, and the
+ * WhatsApp Business app sits in the same list as the Cloud API accounts.
+ * Somebody can look at a verified account with a card on it, next to a
+ * green tick, and be looking at a different account from the one the app
+ * sends from — and there is nothing on that screen to say so. This reads
+ * the same fields back for the exact WABA id in the connection.
+ */
+export async function checkNumberHealth(
+  id: string
+): Promise<ActionResult & { checks?: Check[]; wabaId?: string; headline?: string }> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  const connection = await resolveConnection(supabase, orgId, { connectionId: id });
+  if ("error" in connection) return { ok: false, error: connection.error };
+
+  const { wabaId, phoneNumberId, accessToken } = connection;
+
+  // Sequential rather than Promise.all: when the token cannot open the
+  // account at all, the other two calls fail the same way, and three
+  // copies of one error is a worse answer than one.
+  let numbers: Awaited<ReturnType<typeof listWabaPhoneNumbers>>;
+  try {
+    numbers = await listWabaPhoneNumbers(wabaId, accessToken);
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Meta would not open WhatsApp Business Account ${wabaId} with this token. ${
+        error instanceof MetaApiError
+          ? describeMetaError(error.status, error.body)
+          : "Meta did not answer."
+      }`,
+    };
+  }
+
+  // Both are best-effort: a send-only token reads the number but not the
+  // account's settings, and reporting nothing for those fields is more
+  // honest than failing the whole check over them.
+  const waba = await getWabaDetails(wabaId, accessToken).catch(() => null);
+  const number = await getPhoneNumber(phoneNumberId, accessToken).catch(() => null);
+
+  const checks = healthChecks({
+    wabaId,
+    phoneNumberId,
+    numberOnWaba: numbers.some((entry) => entry.id === phoneNumberId),
+    wabaNumbers: numbers.map((entry) => entry.display_phone_number ?? entry.id),
+    businessVerification: waba?.business_verification_status ?? null,
+    accountReview: waba?.account_review_status ?? null,
+    qualityRating: number?.quality_rating ?? null,
+    platformType: number?.platform_type ?? null,
+    numberStatus: number?.status ?? null,
+  });
+
+  return { ok: true, checks, wabaId, headline: headline(checks) };
 }

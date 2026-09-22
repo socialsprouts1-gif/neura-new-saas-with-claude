@@ -17,6 +17,7 @@ import {
   CheckNumberButton,
   NumberLabel,
   RegisterNumberButton,
+  AccountCheckButton,
 } from "./NumberControls";
 
 export default async function NumbersPage() {
@@ -133,6 +134,16 @@ export default async function NumbersPage() {
                   {connection.lastError && (
                     <p className="text-xs text-[#F87171] mt-2 max-w-xl">{connection.lastError}</p>
                   )}
+
+                  {/* Asks about the account, not the number. Every gate
+                      that stops a campaign or a Flow publish lives up
+                      there, and Business Suite shows one account at a time
+                      — so a portfolio with three accounts of the same name
+                      is how somebody reads a verified one while the app
+                      sends from another. */}
+                  <div className="mt-3">
+                    <AccountCheckButton id={connection.id} />
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
