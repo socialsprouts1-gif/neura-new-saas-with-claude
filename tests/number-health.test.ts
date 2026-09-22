@@ -20,6 +20,8 @@ const healthy: NumberFacts = {
   wabaName: "Neurachat",
   ownershipType: "CLIENT_OWNED",
   canManageTemplates: true,
+  connectionAppId: "999813322854160",
+  deploymentAppId: "999813322854160",
 };
 
 const find = (facts: NumberFacts, label: string) =>
@@ -193,4 +195,32 @@ test("a probe that could not run is unknown, not a pass", () => {
 test("a template refusal makes the headline name a blocking problem", () => {
   const line = headline(healthChecks({ ...healthy, canManageTemplates: false }));
   assert.match(line, /^1 thing here will stop/);
+});
+
+// --- which Meta app issued the token ---------------------------------------
+
+test("a token from the deployment's own app is reported as matching", () => {
+  const check = find(healthy, "Which Meta app");
+  assert.equal(check.tone, "ok");
+  assert.match(check.detail, /999813322854160/);
+});
+
+test("a token from another app is flagged, because approvals are per app", () => {
+  const check = find({ ...healthy, connectionAppId: "111111111111111" }, "Which Meta app");
+  assert.equal(check.tone, "warn");
+  assert.match(check.detail, /111111111111111/);
+  assert.match(check.detail, /999813322854160/);
+  assert.match(check.detail, /approves a permission for one app/);
+});
+
+test("a mismatch warns rather than failing — it is not automatically a fault", () => {
+  // A deployment may legitimately hold connections made through another
+  // app. Calling that broken would be asserting a cause again.
+  const checks = healthChecks({ ...healthy, connectionAppId: "111111111111111" });
+  assert.equal(worstTone(checks), "warn");
+});
+
+test("nothing to compare against is unknown, not a pass", () => {
+  assert.equal(find({ ...healthy, deploymentAppId: null }, "Which Meta app").tone, "unknown");
+  assert.equal(find({ ...healthy, connectionAppId: null }, "Which Meta app").tone, "unknown");
 });

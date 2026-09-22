@@ -14,6 +14,7 @@ import {
 } from "@/lib/meta-whatsapp";
 import { healthChecks, headline, type Check } from "@/lib/number-health";
 import { probeTemplateManagement } from "@/lib/template-diagnosis";
+import { getEmbeddedSignupEnv } from "@/lib/embedded-signup";
 import type { ActionResult } from "../actions";
 
 // Managing the set of WhatsApp numbers in a workspace.
@@ -386,6 +387,8 @@ export async function checkNumberHealth(
     ownershipType: waba?.ownership_type ?? null,
     canManageTemplates: manage ? manage.can : null,
     manageProblem: manage && manage.can === false ? manage.why : null,
+    connectionAppId: connection.metaAppId,
+    deploymentAppId: getEmbeddedSignupEnv()?.appId ?? null,
   });
 
   return { ok: true, checks, wabaId, headline: headline(checks) };

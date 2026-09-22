@@ -38,6 +38,10 @@ export interface NumberFacts {
    */
   canManageTemplates?: boolean | null;
   manageProblem?: string | null;
+  /** The Meta app the stored token was issued by. */
+  connectionAppId?: string | null;
+  /** The Meta app this deployment is configured as. */
+  deploymentAppId?: string | null;
 }
 
 export type CheckTone = "ok" | "warn" | "bad" | "unknown";
@@ -67,6 +71,7 @@ export function healthChecks(facts: NumberFacts): Check[] {
   checks.push(qualityCheck(facts.qualityRating));
   checks.push(platformCheck(facts.platformType));
   checks.push(templateManagementCheck(facts));
+  checks.push(appIdentityCheck(facts));
 
   return checks;
 }
@@ -279,6 +284,55 @@ function templateManagementCheck(facts: NumberFacts): Check {
     label: "Templates",
     tone: "unknown",
     detail: "This could not be checked — Meta did not answer.",
+  };
+}
+
+/**
+ * Which Meta app issued the token that runs this number.
+ *
+ * App Review approves a permission for one app, not for a business. A
+ * token minted by a different app carries that other app's approvals,
+ * so an approved whatsapp_business_management on the app you are looking
+ * at says nothing about the token actually being used — and nothing on
+ * the connection screen has ever shown which app that is.
+ *
+ * A mismatch is not automatically a fault: a deployment can legitimately
+ * hold connections made through another app. It is reported as something
+ * to check rather than something broken, because the alternative is
+ * asserting a cause again.
+ */
+function appIdentityCheck(facts: NumberFacts): Check {
+  const connection = facts.connectionAppId?.trim();
+  const deployment = facts.deploymentAppId?.trim();
+
+  if (!connection) {
+    return {
+      label: "Which Meta app",
+      tone: "unknown",
+      detail: "No Meta app is recorded against this connection.",
+    };
+  }
+
+  if (!deployment) {
+    return {
+      label: "Which Meta app",
+      tone: "unknown",
+      detail: `The token was issued by Meta app ${connection}. This deployment has no app configured, so there is nothing to compare it against.`,
+    };
+  }
+
+  if (connection === deployment) {
+    return {
+      label: "Which Meta app",
+      tone: "ok",
+      detail: `Meta app ${connection}, which is the one this deployment is configured as. App Review approvals on that app apply to this token.`,
+    };
+  }
+
+  return {
+    label: "Which Meta app",
+    tone: "warn",
+    detail: `The token was issued by Meta app ${connection}, but this deployment is configured as ${deployment}. App Review approves a permission for one app, not for a business — so approvals granted on ${deployment} do not apply to this token. Check which of the two actually holds whatsapp_business_management, and reconnect this number through the approved one if they differ.`,
   };
 }
 
