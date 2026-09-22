@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { describeMetaError, hasDetailHelp, isMetaAuthError, metaErrorDetail } from "../src/lib/meta-errors.ts";
+import { fbtraceId, describeMetaError, hasDetailHelp, isMetaAuthError, metaErrorDetail } from "../src/lib/meta-errors.ts";
 
 // Run with: npm test
 //
@@ -260,4 +260,37 @@ test("an ordinary permission refusal still gets the permission text", () => {
   });
   assert.match(said, /permission/i);
   assert.doesNotMatch(said, /WhatsApp Business app/);
+});
+
+// --- the id Meta support actually needs ------------------------------------
+
+test("fbtrace_id is read from inside the error object", () => {
+  assert.equal(
+    fbtraceId({ error: { code: 100, fbtrace_id: "AbC-123_xyz" } }),
+    "AbC-123_xyz"
+  );
+});
+
+test("fbtrace_id is also read from the response root", () => {
+  // Meta puts it in either place depending on the endpoint.
+  assert.equal(fbtraceId({ fbtrace_id: "root-trace" }), "root-trace");
+});
+
+test("the error object wins when both carry one", () => {
+  assert.equal(
+    fbtraceId({ fbtrace_id: "root", error: { fbtrace_id: "inner" } }),
+    "inner"
+  );
+});
+
+test("an envelope without one gives null rather than an empty string", () => {
+  assert.equal(fbtraceId({ error: { code: 100 } }), null);
+  assert.equal(fbtraceId({}), null);
+  assert.equal(fbtraceId(null), null);
+  assert.equal(fbtraceId("not an object"), null);
+});
+
+test("a blank or non-string trace id is treated as absent", () => {
+  assert.equal(fbtraceId({ error: { fbtrace_id: "   " } }), null);
+  assert.equal(fbtraceId({ error: { fbtrace_id: 12345 } }), null);
 });

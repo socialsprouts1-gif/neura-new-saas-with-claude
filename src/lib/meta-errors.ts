@@ -63,6 +63,33 @@ export function metaErrorDetail(body: unknown): MetaErrorDetail {
   };
 }
 
+/**
+ * Meta's own id for this exact request.
+ *
+ * The one value WhatsApp support can act on: it finds the request in
+ * Meta's logs, including the part of the refusal they never send back. A
+ * refusal this app has exhausted its own checks on is precisely when it
+ * matters, and the message has been telling people to quote it while
+ * nothing here ever pulled it out of the envelope.
+ *
+ * Read from the error object or the response root, because Meta puts it
+ * in either depending on the endpoint.
+ */
+export function fbtraceId(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+
+  const root = body as Record<string, unknown>;
+  const error = root.error;
+
+  const fromError =
+    error && typeof error === "object"
+      ? (error as Record<string, unknown>).fbtrace_id
+      : undefined;
+
+  const found = fromError ?? root.fbtrace_id;
+  return typeof found === "string" && found.trim() ? found.trim() : null;
+}
+
 // Codes that mean "the stored credentials are no longer usable" as opposed
 // to "this particular message was wrong". These are the ones worth recording
 // against the connection, because every subsequent send will fail the same

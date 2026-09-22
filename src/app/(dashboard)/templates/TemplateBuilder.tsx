@@ -80,6 +80,7 @@ export default function TemplateBuilder({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
+  const [trace, setTrace] = useState<string | null>(null);
   // Set when Meta refused the account rather than the template, which is
   // the one failure a person cannot fix by editing anything on this form.
   const [blockedWaba, setBlockedWaba] = useState<string | null>(null);
@@ -155,6 +156,7 @@ export default function TemplateBuilder({
       if (!result.ok) {
         setError(result.error ?? "Meta refused the template.");
         setDetail(result.detail ?? null);
+        setTrace(result.trace ?? null);
         setBlockedWaba(result.blockedByAccount ? (result.wabaId ?? null) : null);
         return;
       }
@@ -539,6 +541,33 @@ export default function TemplateBuilder({
                       </button>
                     </div>
                     {syncNote && <p className="text-[11px] text-white/50 mt-2.5">{syncNote}</p>}
+                  </div>
+                )}
+
+                {/* Out in the open, not inside the collapsed JSON below.
+                    Meta's own id for the request is the only thing their
+                    support can act on once every check here has come back
+                    clear, and asking someone to expand a faint toggle and
+                    find a field in an envelope is why it never got quoted. */}
+                {trace && (
+                  <div className="mt-3 p-2.5 rounded-lg border border-white/12 bg-black/30">
+                    <div className="text-[10px] uppercase tracking-widest text-white/35 mb-1">
+                      Meta&apos;s reference for this request
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="text-[11px] text-white/80 break-all flex-1">{trace}</code>
+                      <button
+                        type="button"
+                        onClick={() => void navigator.clipboard?.writeText(trace)}
+                        className="btn-secondary text-[10px] py-1 px-2 shrink-0"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-white/40 mt-1.5 leading-relaxed">
+                      Give this to WhatsApp support — it finds this exact request in Meta&apos;s
+                      logs, including the part of the refusal they do not send back.
+                    </p>
                   </div>
                 )}
 

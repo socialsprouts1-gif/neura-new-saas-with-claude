@@ -15,7 +15,7 @@ import {
   type MetaTemplateSummary,
   MetaApiError,
 } from "@/lib/meta-whatsapp";
-import { metaErrorDetail } from "@/lib/meta-errors";
+import { metaErrorDetail, fbtraceId } from "@/lib/meta-errors";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 import { diagnoseTemplateAccess, describeWabaKind } from "@/lib/template-diagnosis";
 import { templateSendable } from "@/lib/template-components";
@@ -228,7 +228,13 @@ async function diagnoseSilently(credentials: {
 export async function submitTemplate(
   formData: FormData
 ): Promise<
-  ActionResult & { id?: string; detail?: string; blockedByAccount?: boolean; wabaId?: string }
+  ActionResult & {
+    id?: string;
+    detail?: string;
+    blockedByAccount?: boolean;
+    wabaId?: string;
+    trace?: string;
+  }
 > {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
@@ -410,6 +416,11 @@ export async function submitTemplate(
       ok: false,
       error: reason,
       detail: error instanceof MetaApiError ? JSON.stringify(error.body, null, 2) : undefined,
+      // Pulled out of the envelope rather than left inside it. This is the
+      // one value WhatsApp support can act on, and the message has been
+      // telling people to quote it while it sat in collapsed JSON nobody
+      // opened.
+      trace: error instanceof MetaApiError ? (fbtraceId(error.body) ?? undefined) : undefined,
       // Lets the dialog offer the route that works instead of only saying
       // it in a paragraph nobody finishes reading.
       blockedByAccount: verdict !== null,
