@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
+import Link from "next/link";
 import { saveContactGroup, deleteContactGroup, fillGroupFromTag } from "../manage-actions";
+import { listConnections } from "@/lib/connections";
+import { optionLabel } from "@/lib/number-identity";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, EmptyState } from "@/components/ui/primitives";
 
@@ -8,11 +11,14 @@ export default async function GroupsPage() {
   const { orgId } = await requireOrg();
   const supabase = await createClient();
 
-  const [{ data: groups, error }, { data: members }, { data: contacts }] = await Promise.all([
+  const [{ data: groups, error }, { data: members }, { data: contacts }, connections] = await Promise.all([
     supabase.from("contact_groups").select("*").eq("org_id", orgId).order("name"),
     supabase.from("contact_group_members").select("group_id").eq("org_id", orgId),
     supabase.from("contacts").select("tags").eq("org_id", orgId).limit(500),
+    listConnections(supabase, orgId),
   ]);
+
+  const active = connections.filter((connection) => connection.status === "active");
 
   const all = groups ?? [];
   const counts = new Map<string, number>();
@@ -26,8 +32,22 @@ export default async function GroupsPage() {
     <div className="p-6 md:p-8">
       <PageHeader
         title="Groups"
-        subtitle="Named segments of contacts you can target with a campaign."
+        subtitle="Named segments of contacts. Each member gets their own message."
       />
+
+      {/* Said once, here, rather than in three tooltips. People reasonably
+          expect a "group" to become a WhatsApp group, and it cannot: Meta's
+          Cloud API has no group endpoints at all. */}
+      <Card className="mb-6 border-white/10">
+        <p className="text-sm text-white/55 leading-relaxed">
+          <span className="text-white/80">These are not WhatsApp groups.</span> Meta&apos;s Cloud
+          API has no way to create or post into one — groups exist only in the WhatsApp app
+          itself. A group here is a named list, and sending to it delivers a separate message to
+          each person. That is usually what you want: replies come back as private conversations,
+          nobody sees anybody else&apos;s number, and nothing can be muted by one member for
+          everyone.
+        </p>
+      </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <StatCard label="Groups" value={all.length} />
@@ -52,7 +72,12 @@ export default async function GroupsPage() {
                       style={{ background: group.colour }}
                     />
                     <div className="min-w-0">
-                      <div className="font-medium">{group.name}</div>
+                      <Link
+                        href={`/groups/${group.id}`}
+                        className="font-medium hover:text-accent-ink transition-colors"
+                      >
+                        {group.name}
+                      </Link>
                       {group.description && (
                         <p className="text-sm text-white/45 mt-0.5">{group.description}</p>
                       )}
@@ -93,6 +118,20 @@ export default async function GroupsPage() {
             <div className="space-y-4">
               <Field label="Name" name="name" required placeholder="Wholesale buyers" />
               <Field label="Description" name="description" placeholder="Bulk order customers" />
+              {active.length > 0 && (
+                <SelectField
+                  label="Usually messaged from"
+                  name="connection_id"
+                  defaultValue=""
+                  options={[
+                    { value: "", label: "No default" },
+                    ...active.map((connection) => ({
+                      value: connection.id,
+                      label: optionLabel(connection),
+                    })),
+                  ]}
+                />
+              )}
               <SelectField
                 label="Colour"
                 name="colour"

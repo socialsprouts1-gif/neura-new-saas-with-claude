@@ -701,6 +701,27 @@ export type ContactGroup = {
   name: string;
   description: string | null;
   colour: string;
+  /**
+   * The number this segment is usually messaged from.
+   *
+   * A default, not a constraint. And not a WhatsApp group: Meta's Cloud
+   * API has no group endpoints, so a group here is a named list of people
+   * who each receive their own message.
+   */
+  connection_id: string | null;
+  created_at: string;
+};
+
+export type GroupBroadcast = {
+  id: string;
+  org_id: string;
+  group_id: string;
+  connection_id: string | null;
+  body: string;
+  sent_count: number;
+  skipped_count: number;
+  failed_count: number;
+  created_by: string | null;
   created_at: string;
 };
 

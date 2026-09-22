@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import type { ActionResult } from "./actions";
 import type { ContactColumnType } from "@/types/portal";
+import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
+import { planBroadcast, describePlan, checkBody } from "@/lib/group-broadcast";
 
 // The Manage workspace: saved replies, groups, custom columns, consent.
 // Each action re-derives the org from the session rather than trusting the
@@ -65,9 +67,17 @@ export async function saveContactGroup(formData: FormData): Promise<ActionResult
   if (!name) return { ok: false, error: "Group name is required." };
 
   const supabase = await createClient();
+  const connectionId = String(formData.get("connection_id") ?? "").trim();
+
   const { error } = await supabase
     .from("contact_groups")
-    .insert({ org_id: orgId, name, description: description || null, colour });
+    .insert({
+      org_id: orgId,
+      name,
+      description: description || null,
+      colour,
+      connection_id: connectionId || null,
+    });
 
   if (error) {
     if (error.code === "23505") return { ok: false, error: "A group with that name already exists." };
@@ -90,6 +100,92 @@ export async function deleteContactGroup(formData: FormData): Promise<ActionResu
   if (error) return { ok: false, error: error.message };
   revalidatePath("/groups");
   return { ok: true, message: "Group deleted." };
+}
+
+/** Renames a group, or changes its colour and default number. */
+export async function updateContactGroup(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!id) return { ok: false, error: "No group given." };
+  if (!name) return { ok: false, error: "Group name is required." };
+
+  const connectionId = String(formData.get("connection_id") ?? "").trim();
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("contact_groups")
+    .update({
+      name,
+      description: String(formData.get("description") ?? "").trim() || null,
+      colour: String(formData.get("colour") ?? "#00FF87"),
+      connection_id: connectionId || null,
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) {
+    if (error.code === "23505") return { ok: false, error: "A group with that name already exists." };
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/groups");
+  revalidatePath(`/groups/${id}`);
+  return { ok: true, message: "Group updated." };
+}
+
+/** Puts named contacts into a group. */
+export async function addContactsToGroup(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const groupId = String(formData.get("group_id") ?? "").trim();
+  const contactIds = formData.getAll("contact_ids").map((value) => String(value)).filter(Boolean);
+
+  if (!groupId) return { ok: false, error: "No group given." };
+  if (contactIds.length === 0) return { ok: false, error: "Pick at least one contact." };
+
+  const supabase = await createClient();
+
+  // Upsert rather than insert: somebody already in the group is not an
+  // error, and refusing the whole batch because one of twenty was already
+  // there would be a strange way to fail.
+  const { error } = await supabase.from("contact_group_members").upsert(
+    contactIds.map((contactId) => ({ group_id: groupId, contact_id: contactId, org_id: orgId })),
+    { onConflict: "group_id,contact_id" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/groups");
+  revalidatePath(`/groups/${groupId}`);
+  return {
+    ok: true,
+    message: `Added ${contactIds.length} contact${contactIds.length === 1 ? "" : "s"}.`,
+  };
+}
+
+/** Takes one out again. The contact itself is untouched. */
+export async function removeContactFromGroup(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const groupId = String(formData.get("group_id") ?? "").trim();
+  const contactId = String(formData.get("contact_id") ?? "").trim();
+  if (!groupId || !contactId) return { ok: false, error: "No membership given." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("contact_group_members")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("contact_id", contactId)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/groups");
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true, message: "Removed from the group. The contact itself is untouched." };
 }
 
 /** Adds every contact carrying a tag to a group — the common bulk case. */
@@ -201,4 +297,123 @@ export async function setOptOut(formData: FormData): Promise<ActionResult> {
   revalidatePath("/opts");
   revalidatePath("/contacts");
   return { ok: true, message: optOut ? "Contact opted out." : "Contact opted back in." };
+}
+
+/**
+ * Sends one message to every member of a group.
+ *
+ * Not a post into a WhatsApp group — no such thing exists on Meta's Cloud
+ * API. Each person receives their own message, which is what a business
+ * wants anyway: a reply comes back as a private conversation rather than
+ * to an audience.
+ *
+ * Who can be reached is worked out before anything is sent, so the answer
+ * is "14 of 20, and here is why the other six were not" rather than
+ * fourteen sends followed by six errors.
+ */
+export async function broadcastToGroup(formData: FormData): Promise<ActionResult> {
+  const { orgId, user } = await requireOrg();
+
+  const groupId = String(formData.get("group_id") ?? "").trim();
+  if (!groupId) return { ok: false, error: "No group given." };
+
+  const checked = checkBody(String(formData.get("body") ?? ""));
+  if (!checked.ok) return { ok: false, error: checked.error };
+
+  const connectionId = String(formData.get("connection_id") ?? "").trim();
+  const supabase = await createClient();
+
+  const { data: rows, error: readError } = await supabase
+    .from("contact_group_members")
+    .select("contact_id, contacts(id, name, wa_id, opted_out)")
+    .eq("group_id", groupId)
+    .eq("org_id", orgId)
+    .limit(500);
+
+  if (readError) return { ok: false, error: readError.message };
+  if (!rows || rows.length === 0) return { ok: false, error: "This group has no contacts in it yet." };
+
+  const contactIds = rows.map((row) => row.contact_id);
+
+  // One query for the whole group rather than one per member: a group of
+  // two hundred would otherwise be two hundred round trips before a single
+  // message goes out.
+  const { data: conversations } = await supabase
+    .from("conversations")
+    .select("id, contact_id, last_inbound_at")
+    .eq("org_id", orgId)
+    .in("contact_id", contactIds);
+
+  const threadByContact = new Map(
+    (conversations ?? []).map((row) => [row.contact_id, row])
+  );
+
+  const members = rows.map((row) => {
+    const contact = row.contacts as
+      | { id: string; name: string | null; wa_id: string; opted_out: boolean | null }
+      | null;
+    const thread = threadByContact.get(row.contact_id);
+    return {
+      contactId: row.contact_id,
+      name: contact?.name ?? null,
+      waId: contact?.wa_id ?? "",
+      optedOut: Boolean(contact?.opted_out),
+      conversationId: thread?.id ?? null,
+      lastInboundAt: thread?.last_inbound_at ?? null,
+    };
+  });
+
+  const plan = planBroadcast(members);
+
+  if (plan.send.length === 0) {
+    return { ok: false, error: describePlan(plan) };
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const member of plan.send) {
+    const connection = await loadOrgConnection(supabase, orgId, {
+      connectionId: connectionId || null,
+      conversationId: member.conversationId,
+    });
+
+    if (!connection) {
+      failed += 1;
+      continue;
+    }
+
+    const outcome = await sendAndLogText({
+      supabase,
+      connection,
+      conversationId: member.conversationId!,
+      toWaId: member.waId,
+      body: checked.body,
+      lastInboundAt: member.lastInboundAt,
+    });
+
+    if (outcome.ok) sent += 1;
+    else failed += 1;
+  }
+
+  // Recorded so a second look answers "did I already send this" without
+  // counting rows in the message log.
+  await supabase.from("group_broadcasts").insert({
+    org_id: orgId,
+    group_id: groupId,
+    connection_id: connectionId || null,
+    body: checked.body,
+    sent_count: sent,
+    skipped_count: plan.skipped.length,
+    failed_count: failed,
+    created_by: user.id,
+  });
+
+  revalidatePath(`/groups/${groupId}`);
+
+  const parts = [`Sent to ${sent}.`];
+  if (plan.skipped.length > 0) parts.push(describePlan(plan));
+  if (failed > 0) parts.push(`${failed} failed — check the inbox for what WhatsApp said.`);
+
+  return { ok: true, message: parts.join(" ") };
 }

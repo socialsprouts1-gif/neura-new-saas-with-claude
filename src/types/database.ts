@@ -30,6 +30,7 @@ import type {
   FlowResponse,
   Meeting,
   ScheduledMessage,
+  GroupBroadcast,
   Invoice,
   InvoiceItem,
   InvoiceSettings,
@@ -134,6 +135,12 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      group_broadcasts: {
+        Row: GroupBroadcast;
+        Insert: Partial<GroupBroadcast> & { org_id: string; group_id: string; body: string };
+        Update: Partial<GroupBroadcast>;
+        Relationships: [];
       };
       scheduled_messages: {
         Row: ScheduledMessage;
