@@ -12,6 +12,21 @@ export type GeneratedFlow = RepairResult;
 // Enough for a twenty-node flow with full message copy.
 const MAX_TOKENS = 8000;
 
+/**
+ * Longer than a chat reply gets, because this is a different kind of work.
+ *
+ * Writing a whole bot — every message, every button, every branch — is
+ * thousands of tokens, and on a detailed brief it does not finish inside
+ * the thirty seconds a WhatsApp reply is allowed. It came back as "could
+ * not build that bot" however the brief was worded, which reads as the
+ * feature being broken rather than as a clock running out.
+ *
+ * Paired with `maxDuration` on the Chatbots page: the platform kills the
+ * function at its own limit regardless of what this says, so the two have
+ * to be raised together.
+ */
+const GENERATE_TIMEOUT_MS = 110_000;
+
 /** The default rig when the org has no assistant of its own configured. */
 export const PLATFORM_FLOW_MODEL: AiCallConfig = {
   provider: "anthropic",
@@ -83,9 +98,12 @@ export async function generateFlow(
     return { ok: false, error: "Describe the bot in a sentence or two so there is something to build from." };
   }
 
-  const result = await callProvider(config, buildSystemPrompt(), [
-    { role: "user", text: brief },
-  ]);
+  const result = await callProvider(
+    config,
+    buildSystemPrompt(),
+    [{ role: "user", text: brief }],
+    { timeoutMs: GENERATE_TIMEOUT_MS }
+  );
   if (!result.ok) return { ok: false, error: result.error };
 
   const parsed = parseJsonObject(result.text);

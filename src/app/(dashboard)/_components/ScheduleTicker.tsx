@@ -11,6 +11,9 @@ const IDLE_MS = 5 * 60_000;
 /**
  * The product's heartbeat, beating in the browser.
  *
+ * It pushes two queues: messages scheduled for a time, and chatbots parked
+ * on a Delay node waiting for one.
+ *
  * Vercel's Hobby plan runs a cron once a day. A message scheduled for a
  * quarter past three therefore sat until the small hours, which is not
  * what "delivered at the time you pick" means to anybody — and the person
@@ -22,7 +25,7 @@ const IDLE_MS = 5 * 60_000;
  * nobody is looking at. Anywhere in the app now pushes the queue along
  * every minute.
  *
- * Safe to fire as often as it likes. Dispatch only touches rows whose
+ * Safe to fire as often as it likes. Both queues only touch rows whose
  * time has already passed, each row is claimed before it is sent, and the
  * endpoint is scoped to the caller's own workspace.
  */
@@ -43,14 +46,20 @@ export default function ScheduleTicker() {
         if (document.visibilityState === "visible") {
           const response = await fetch("/api/scheduled/run", { method: "POST" });
           const body = (await response.json().catch(() => null)) as
-            | { sent?: number; failed?: number; stale?: number; pending?: number }
+            | {
+                sent?: number;
+                failed?: number;
+                stale?: number;
+                resumed?: number;
+                pending?: number;
+              }
             | null;
 
           if (body) {
             if (body.pending) next = BUSY_MS;
             // Something actually moved, so whatever page is open is now
             // showing a stale row. Let it redraw.
-            if (body.sent || body.failed || body.stale) router.refresh();
+            if (body.sent || body.failed || body.stale || body.resumed) router.refresh();
           }
         } else {
           next = BUSY_MS;

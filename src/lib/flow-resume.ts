@@ -24,17 +24,28 @@ export interface ResumeResult {
   error?: string;
 }
 
-export async function resumeParkedFlows(): Promise<ResumeResult> {
+/**
+ * Comes back for every flow whose delay has run out.
+ *
+ * `orgId` narrows it to one workspace, which is what the app's own sweep
+ * and the inbound webhook pass. Without it every parked flow in the
+ * product is considered, which is what the nightly cron wants.
+ */
+export async function resumeParkedFlows(orgId?: string): Promise<ResumeResult> {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
 
-  const { data: due, error } = await supabase
+  let pending = supabase
     .from("conversations")
     .select("id, org_id, contact_id, bot_flow_id, bot_resume_node_id, bot_variables, bot_enabled")
     .lte("bot_resume_at", now)
     .not("bot_resume_at", "is", null)
     .not("bot_resume_node_id", "is", null)
     .limit(BATCH);
+
+  if (orgId) pending = pending.eq("org_id", orgId);
+
+  const { data: due, error } = await pending;
 
   if (error) {
     console.error("Could not read conversations due to resume", error);

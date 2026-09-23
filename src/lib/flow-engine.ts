@@ -1,5 +1,7 @@
 import type { FlowEdge, FlowGraph, FlowNode, ListSection, ReplyButton } from "@/types/flow";
-import { normalise, containsKeyword } from "@/lib/reply-matcher";
+// Relative, with the extension: the test runner strips types but does not
+// resolve the "@/" alias, and this module has to be importable by a test.
+import { normalise, containsKeyword } from "./reply-matcher.ts";
 
 // The decision half of the flow runtime: given a graph, where we are in it,
 // and what the customer just said, work out which node runs next and what it
@@ -54,7 +56,7 @@ export function nextNode(
 // --- trigger matching ------------------------------------------------------
 
 // Pure, so it lives in its own module and can be tested directly.
-export { triggerListensOn } from "@/lib/trigger-scope";
+export { triggerListensOn } from "./trigger-scope.ts";
 
 export function triggerMatches(node: FlowNode, text: string): boolean {
   const keywords = asStringArray(node.data.keywords);
@@ -221,11 +223,33 @@ export function isWaitingNode(node: FlowNode): boolean {
   );
 }
 
+/** Milliseconds in each unit the Delay node offers. */
+const DELAY_UNITS: Record<string, number> = {
+  seconds: 1_000,
+  minutes: 60_000,
+  hours: 3_600_000,
+  days: 86_400_000,
+};
+
+/**
+ * A delay nobody meant. Thirty days is already far outside what a chat
+ * automation is for, and a typo in the number box should not park a
+ * conversation until next year.
+ */
+export const MAX_DELAY_MS = 30 * 86_400_000;
+
 export function delayMs(node: FlowNode): number {
   const value = Math.max(0, Number(node.data.value ?? 0));
+  if (!Number.isFinite(value)) return 0;
+
+  // Unknown unit falls back to seconds, but only because something has to
+  // happen. The reason this function exists in this shape is that it used
+  // to do that silently for "days" too — a one-day delay became a
+  // one-second one, and the flow carried on as if nothing was wrong.
   const unit = String(node.data.unit ?? "seconds");
-  const multiplier = unit === "hours" ? 3_600_000 : unit === "minutes" ? 60_000 : 1_000;
-  return value * multiplier;
+  const multiplier = DELAY_UNITS[unit] ?? DELAY_UNITS.seconds;
+
+  return Math.min(value * multiplier, MAX_DELAY_MS);
 }
 
 /** Longer than this and the flow parks instead of blocking the webhook. */

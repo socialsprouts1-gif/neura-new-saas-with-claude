@@ -41,6 +41,16 @@ export default async function FlowBuilderPage({
     .not("meta_flow_id", "is", null)
     .order("name");
 
+  // Every assistant in the workspace, not only the active ones: a node
+  // pointing at one that has been switched off should say so rather than
+  // show an empty box.
+  const { data: assistants } = await supabase
+    .from("ai_assistants")
+    .select("id, name, connection_id, is_active")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .order("created_at");
+
   const { data: flow } = await supabase
     .from("chatbot_flows")
     .select("*")
@@ -99,6 +109,11 @@ export default async function FlowBuilderPage({
             name: form.name,
             status: form.status,
             wabaId: form.waba_id,
+          }))}
+          assistants={(assistants ?? []).map((assistant) => ({
+            id: assistant.id,
+            name: assistant.name,
+            connectionId: assistant.connection_id,
           }))}
         />
       </div>

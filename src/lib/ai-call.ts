@@ -12,6 +12,18 @@ import { providerById, type ProviderId } from "@/lib/ai-providers";
 // delivery it doesn't get a 200 for, which would double-send the reply.
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/** Per-call overrides. Everything optional; the defaults are the chat case. */
+export interface AiCallOptions {
+  /**
+   * How long to wait for the provider. The default suits a chat reply,
+   * where the customer is watching. Building a whole chatbot from a
+   * paragraph is a different job: it writes thousands of tokens and
+   * thirty seconds is not enough, which is what "it is not building the
+   * chatbot" turned out to mean.
+   */
+  timeoutMs?: number;
+}
+
 /** The subset of an assistant row a provider call actually needs. */
 export interface AiCallConfig {
   provider: string;
@@ -57,8 +69,10 @@ export function resolveApiKey(config: AiCallConfig): string | null {
 export async function callProvider(
   config: AiCallConfig,
   system: string,
-  turns: AiTurn[]
+  turns: AiTurn[],
+  options: AiCallOptions = {}
 ): Promise<AiCallResult> {
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
   const provider = providerById(config.provider);
   if (!provider) {
     return {
@@ -84,6 +98,7 @@ export async function callProvider(
     turns,
     temperature: config.temperature,
     maxTokens: config.max_tokens,
+    timeoutMs,
   };
 
   try {
@@ -140,6 +155,7 @@ interface ProviderRequest {
   turns: AiTurn[];
   temperature: number;
   maxTokens: number;
+  timeoutMs: number;
 }
 
 async function callAnthropic({
@@ -149,10 +165,15 @@ async function callAnthropic({
   turns,
   temperature,
   maxTokens,
+  timeoutMs,
 }: ProviderRequest): Promise<string> {
-  const client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS });
+  const client = new Anthropic({ apiKey, timeout: timeoutMs });
 
-  const response = await client.messages.create({
+  // Streamed, then collected. The result is identical to a plain call, but
+  // a long generation — a whole chatbot written out node by node — no
+  // longer looks like a stalled connection to anything in between, and the
+  // SDK stops refusing large max_tokens requests outright.
+  const stream = client.messages.stream({
     model,
     max_tokens: maxTokens,
     // Deliberately no extended thinking. A support reply is not a
@@ -163,6 +184,8 @@ async function callAnthropic({
     system,
     messages: turns.map((turn) => ({ role: turn.role, content: turn.text })),
   });
+
+  const response = await stream.finalMessage();
 
   return response.content
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -184,6 +207,7 @@ async function callOpenAiCompatible({
   turns,
   temperature,
   maxTokens,
+  timeoutMs,
   baseUrl,
   tokenParam,
 }: ProviderRequest & { baseUrl: string; tokenParam: "max_tokens" | "max_completion_tokens" }) {
@@ -207,7 +231,7 @@ async function callOpenAiCompatible({
       authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   const payload = await readJson(response);
@@ -236,6 +260,7 @@ async function callGoogle({
   turns,
   temperature,
   maxTokens,
+  timeoutMs,
 }: ProviderRequest): Promise<string> {
   const url =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
@@ -257,7 +282,7 @@ async function callGoogle({
       })),
       generationConfig: { temperature, maxOutputTokens: maxTokens },
     }),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   const payload = await readJson(response);

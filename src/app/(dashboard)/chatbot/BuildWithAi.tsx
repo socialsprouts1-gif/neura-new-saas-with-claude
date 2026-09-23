@@ -24,7 +24,21 @@ export default function BuildWithAi() {
   const build = () => {
     setError(null);
     startTransition(async () => {
-      const result = await generateFlowFromPrompt(brief);
+      // Wrapped, because the action does not only fail by returning a
+      // reason — the request itself can die, and an unhandled rejection
+      // here left the button spinning "Building…" for ever with nothing
+      // said. A dead end that looks like it is still working is the worst
+      // version of this failing.
+      let result: Awaited<ReturnType<typeof generateFlowFromPrompt>>;
+      try {
+        result = await generateFlowFromPrompt(brief);
+      } catch {
+        setError(
+          "The build did not come back. A long brief can take a minute — try again, or shorten it to the trigger, the branches and where each one ends."
+        );
+        return;
+      }
+
       if (!result.ok || !result.id) {
         setError(result.error ?? "Could not build that bot.");
         return;
@@ -127,7 +141,9 @@ export default function BuildWithAi() {
 
             <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t border-white/8">
               <span className="text-[11px] text-white/35 mr-auto">
-                Runs on your own AI key if you have one saved, otherwise the platform&apos;s.
+                {pending
+                  ? "Writing every message and wiring the branches. A detailed brief takes up to a minute — leave this open."
+                  : "Runs on your own AI key if you have one saved, otherwise the platform's."}
               </span>
               <button
                 type="button"

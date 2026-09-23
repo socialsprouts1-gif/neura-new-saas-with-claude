@@ -410,8 +410,10 @@ async function executeNode(
         await new Promise((resolve) => setTimeout(resolve, ms));
         return { variables };
       }
-      // Park rather than hold the webhook open for minutes. Nothing resumes
-      // this yet; the run stops here and the log says why.
+      // Park rather than hold the webhook open for minutes. resumeParkedFlows
+      // comes back for it: on the app's own sweep while somebody has the
+      // dashboard open, on the next inbound message for this workspace, and
+      // on the daily cron as the backstop.
       return {
         variables,
         stop: true,
@@ -492,16 +494,36 @@ async function executeNode(
     }
 
     case "ai_agent": {
-      const { data: assistant } = await context.supabase
+      // The one the author picked, when they picked one. Before this field
+      // existed the node took whichever assistant happened to be oldest in
+      // the workspace — so a business with a sales assistant and a support
+      // assistant got whichever it had created first, on every number.
+      const chosen = text("assistant_id").trim();
+
+      let query = context.supabase
         .from("ai_assistants")
         .select("*")
         .eq("org_id", context.orgId)
-        .eq("is_active", true)
-        .order("created_at")
-        .limit(1)
-        .maybeSingle();
+        .eq("is_active", true);
 
-      if (!assistant) throw new Error("No active AI assistant to hand this node to.");
+      query = chosen
+        ? query.eq("id", chosen)
+        // No choice saved: fall back to one that runs on the number this
+        // conversation is actually on, rather than any one at all.
+        : query
+            .or(`connection_id.is.null,connection_id.eq.${context.connection.id}`)
+            .order("created_at")
+            .limit(1);
+
+      const { data: assistant } = await query.maybeSingle();
+
+      if (!assistant) {
+        throw new Error(
+          chosen
+            ? "The AI assistant this node points at is switched off or has been deleted. Open the bot and pick another."
+            : "No active AI assistant to hand this node to."
+        );
+      }
 
       // Org-wide knowledge plus this assistant's own, matching what the
       // inbound-message path feeds it.

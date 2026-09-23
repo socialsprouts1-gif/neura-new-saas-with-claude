@@ -94,3 +94,32 @@ export function formsOnNumbers<T extends FormOnAccount>(
   const accounts = new Set(chosen.map((number) => number.wabaId));
   return forms.filter((form) => form.wabaId === null || accounts.has(form.wabaId));
 }
+
+export interface AssistantOnNumber {
+  id: string;
+  /** Null means "runs on every number", which is how most are set up. */
+  connectionId: string | null;
+}
+
+/**
+ * The assistants an AI Agent node on this bot can actually hand a reply to.
+ *
+ * An assistant pinned to one number must not answer on another — that is
+ * the whole point of pinning it, and a flow that quietly used a different
+ * one would answer in the wrong voice with the wrong knowledge. This is
+ * narrower than the form rule above because an assistant is tied to a
+ * single number, not to a whole WhatsApp account.
+ *
+ * `listeningOn` empty means the bot listens on every number, so every
+ * assistant is reachable.
+ */
+export function assistantsOnNumbers<T extends AssistantOnNumber>(
+  assistants: readonly T[],
+  listeningOn: readonly string[]
+): T[] {
+  if (listeningOn.length === 0) return [...assistants];
+  return assistants.filter(
+    (assistant) =>
+      assistant.connectionId === null || listeningOn.includes(assistant.connectionId)
+  );
+}

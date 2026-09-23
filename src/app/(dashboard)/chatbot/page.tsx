@@ -6,6 +6,13 @@ import ChatbotTable, { type BotRow } from "./ChatbotTable";
 import { HeroHeader, EmptyState } from "@/components/ui/primitives";
 import type { FlowNode } from "@/types/flow";
 
+// Build with AI is a Server Action invoked from this page, and a Server
+// Action inherits its time limit from the page it is called on. The default
+// is ten seconds, which is not long enough to write a whole bot — the
+// function was being killed mid-generation, which is why pressing the
+// button two or three times in a row produced nothing each time.
+export const maxDuration = 120;
+
 export default async function ChatbotPage() {
   const { orgId } = await requireFeature("chatbot");
   const supabase = await createClient();

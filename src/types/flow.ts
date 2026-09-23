@@ -91,7 +91,9 @@ export type FieldKind =
   | "variable"
   | "numbers"
   /** A form from this workspace, picked from a list rather than typed. */
-  | "form";
+  | "form"
+  /** An AI assistant from this workspace, filtered to the bot's numbers. */
+  | "assistant";
 
 export interface NodeField {
   name: string;
@@ -367,7 +369,7 @@ export const NODE_DEFS: NodeDef[] = [
     description: "Waits before continuing.",
     runtime: "ready",
     runtimeNote:
-      "Up to 10 seconds runs inline. Anything longer parks the conversation and a scheduled job resumes it, so the wait is accurate to about a minute rather than to the second.",
+      "Up to 10 seconds is waited out there and then. Anything longer parks the conversation and picks it up again on the next sweep — while somebody has the dashboard open, or the next time any message arrives on this workspace's numbers. Accurate to about a minute, not to the second. Longest wait is 30 days.",
     fields: [
       { name: "value", label: "Wait for", kind: "number" },
       {
@@ -378,6 +380,7 @@ export const NODE_DEFS: NodeDef[] = [
           { value: "seconds", label: "Seconds" },
           { value: "minutes", label: "Minutes" },
           { value: "hours", label: "Hours" },
+          { value: "days", label: "Days" },
         ],
       },
     ],
@@ -470,10 +473,16 @@ export const NODE_DEFS: NodeDef[] = [
     description: "Hands the reply to your AI assistant for this turn.",
     runtime: "ready",
     fields: [
+      {
+        name: "assistant_id",
+        label: "Assistant",
+        kind: "assistant",
+        hint: "Which assistant answers. Only the ones that run on the numbers this bot listens on are offered.",
+      },
       { name: "instructions", label: "Extra instructions (optional)", kind: "textarea", hint: "Added on top of the assistant's own system prompt." },
     ],
     accent: "#A855F7",
-    defaults: { instructions: "" },
+    defaults: { assistant_id: "", instructions: "" },
   },
   {
     kind: "handoff",

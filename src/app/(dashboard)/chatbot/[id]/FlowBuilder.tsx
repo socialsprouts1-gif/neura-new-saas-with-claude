@@ -70,7 +70,7 @@ import {
 } from "@/types/flow";
 import { saveFlowGraph } from "../../portal-actions";
 import { useTheme } from "@/components/ThemeToggle";
-import { formsOnNumbers } from "@/lib/flow-routing";
+import { assistantsOnNumbers, formsOnNumbers } from "@/lib/flow-routing";
 
 // The visual builder. Nodes carry their own configuration form rather than
 // opening a side panel: a flow is read by scanning left to right, and having
@@ -137,6 +137,14 @@ export interface BuilderForm {
   wabaId: string | null;
 }
 
+/** An assistant the AI Agent node can hand the turn to. */
+export interface BuilderAssistant {
+  id: string;
+  name: string;
+  /** Null means it answers on every number in the workspace. */
+  connectionId: string | null;
+}
+
 /**
  * The workspace's numbers, for the trigger's Phone Numbers field.
  *
@@ -147,6 +155,9 @@ const NumbersContext = createContext<BuilderNumber[]>([]);
 
 /** The workspace's sendable forms, for the Send Form node. Same reason. */
 const FormsContext = createContext<BuilderForm[]>([]);
+
+/** The workspace's AI assistants, for the AI Agent node. Same reason. */
+const AssistantsContext = createContext<BuilderAssistant[]>([]);
 
 /**
  * The numbers this bot's trigger listens on, as ids.
@@ -207,6 +218,9 @@ function FieldEditor({
 
     case "form":
       return <FormPicker value={value} onChange={onChange} />;
+
+    case "assistant":
+      return <AssistantPicker value={value} onChange={onChange} />;
 
     case "toggle":
       return (
@@ -709,6 +723,8 @@ interface BuilderProps {
   numbers: BuilderNumber[];
   /** Forms that exist at Meta, for the Send Form node. */
   forms: BuilderForm[];
+  /** Assistants in this workspace, for the AI Agent node. */
+  assistants: BuilderAssistant[];
 }
 
 // `numbers` is deliberately not destructured: the field editor reads it
@@ -1019,9 +1035,11 @@ export default function FlowBuilder(props: BuilderProps) {
   return (
     <NumbersContext.Provider value={props.numbers}>
       <FormsContext.Provider value={props.forms}>
-        <ReactFlowProvider>
-          <Builder {...props} />
-        </ReactFlowProvider>
+        <AssistantsContext.Provider value={props.assistants}>
+          <ReactFlowProvider>
+            <Builder {...props} />
+          </ReactFlowProvider>
+        </AssistantsContext.Provider>
       </FormsContext.Provider>
     </NumbersContext.Provider>
   );
@@ -1197,5 +1215,101 @@ function NumbersEditor({
           : `Listening on ${selected.length} of ${numbers.length}.`}
       </p>
     </div>
+  );
+}
+
+/**
+ * Which assistant an AI Agent node hands the turn to.
+ *
+ * Filtered to the numbers this bot listens on, because an assistant pinned
+ * to one number cannot answer on another. Without this the node took
+ * whichever assistant was oldest in the workspace, so a business with a
+ * sales assistant and a support assistant got the same one on every bot and
+ * every number — with no way to say otherwise.
+ */
+function AssistantPicker({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (next: unknown) => void;
+}) {
+  const all = useContext(AssistantsContext);
+  const numbers = useContext(NumbersContext);
+  const listening = useContext(ListeningContext);
+  const current = String(value ?? "");
+
+  const available = assistantsOnNumbers(all, listening);
+
+  const listeningLabel = listening
+    .map((id) => numbers.find((number) => number.id === id)?.label)
+    .filter(Boolean)
+    .join(", ");
+
+  const nameOfNumber = (id: string | null) =>
+    id ? (numbers.find((number) => number.id === id)?.label ?? "another number") : null;
+
+  if (available.length === 0) {
+    return (
+      <p className="text-[11px] text-white/45 leading-relaxed">
+        {all.length > 0 && listeningLabel ? (
+          <>
+            No assistant runs on {listeningLabel}. An assistant answers on the number it is set to
+            — open AI Assistant, set one to this number or to all numbers, then reopen this bot.
+          </>
+        ) : (
+          <>
+            No assistant exists yet. Build one under AI Assistant and reopen this bot — this node
+            has nothing to hand the reply to until then.
+          </>
+        )}
+      </p>
+    );
+  }
+
+  // A saved value that matches nothing is shown rather than silently
+  // dropped: it may be an assistant switched off, deleted, or pinned to a
+  // number this bot no longer listens on, and the author should see which.
+  const known = available.some((assistant) => assistant.id === current);
+  const onAnotherNumber = !known && all.some((assistant) => assistant.id === current);
+
+  return (
+    <>
+      <select
+        className={inputClass}
+        value={known ? current : ""}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="" className="bg-[var(--surface-1)]">
+          First one that fits the number
+        </option>
+        {available.map((assistant) => (
+          <option key={assistant.id} value={assistant.id} className="bg-[var(--surface-1)]">
+            {assistant.name}
+            {assistant.connectionId
+              ? ` · ${nameOfNumber(assistant.connectionId)}`
+              : " · all numbers"}
+          </option>
+        ))}
+      </select>
+      {listeningLabel && (
+        <p className="text-[11px] text-white/30 mt-1.5">Assistants on {listeningLabel}.</p>
+      )}
+      {current && !known && (
+        <p className="text-[11px] text-[#FACC15] mt-1.5 leading-relaxed">
+          {onAnotherNumber ? (
+            <>
+              This node points at an assistant that answers on a number this bot does not listen
+              on. Pick one above, or tick that number on the trigger.
+            </>
+          ) : (
+            <>
+              This node points at an assistant that no longer exists in this workspace. Pick one
+              above to replace it.
+            </>
+          )}
+        </p>
+      )}
+    </>
   );
 }

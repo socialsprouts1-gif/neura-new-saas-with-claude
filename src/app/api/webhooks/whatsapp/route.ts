@@ -20,6 +20,7 @@ import {
 } from "@/lib/template-status";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { readFlowReply } from "@/lib/flow-reply";
+import { resumeParkedFlows } from "@/lib/flow-resume";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
 
@@ -588,20 +589,29 @@ async function handleInboundMessages(
       continue;
     }
 
-    if (!existingContact) {
-      await dispatchWebhookEvent(supabase, orgId, "contact.created", {
-        id: contact.id,
-        wa_id: waId,
-        name: contact.name,
-      });
+    // Started, not awaited. Both of these talk to somebody else's server —
+    // an n8n hook, a CRM — and the customer is sitting in WhatsApp waiting
+    // for an answer. Awaiting them here put a webhook that takes its time
+    // (up to eight seconds before it is abandoned) directly in front of the
+    // bot, which is why a reply that should be instant arrived ten seconds
+    // later. They are awaited at the end of the loop instead, so the work
+    // still finishes inside this invocation but runs alongside the reply
+    // rather than ahead of it.
+    const sideEffects: Promise<unknown>[] = [];
 
-      // Into the CRM as soon as they exist here, so a lead that arrives at
-      // 2am is in the sales team's pipeline before anyone reads the message.
-      // Only on the first message: pushing on every inbound would be three
-      // HTTP calls per message for a record that has not changed. syncContact
-      // never throws and never blocks on a slow CRM for more than a few
-      // seconds.
-      await syncContact(supabase, orgId, contact.id);
+    if (!existingContact) {
+      sideEffects.push(
+        dispatchWebhookEvent(supabase, orgId, "contact.created", {
+          id: contact.id,
+          wa_id: waId,
+          name: contact.name,
+        }),
+        // Into the CRM as soon as they exist here, so a lead that arrives at
+        // 2am is in the sales team's pipeline before anyone reads the message.
+        // Only on the first message: pushing on every inbound would be three
+        // HTTP calls per message for a record that has not changed.
+        syncContact(supabase, orgId, contact.id)
+      );
     }
 
     // A cart. The customer picked items out of the catalogue in WhatsApp and
@@ -630,18 +640,21 @@ async function handleInboundMessages(
       });
     }
 
-    await notifyInboundMessage(supabase, orgId, {
-      conversationId: conversation.id,
-      contactId: contact.id,
-      contactWaId: waId,
-      contactName: contact.name,
-      waMessageId: message.id,
-      messageType: message.type,
-      content,
-    });
+    sideEffects.push(
+      notifyInboundMessage(supabase, orgId, {
+        conversationId: conversation.id,
+        contactId: contact.id,
+        contactWaId: waId,
+        contactName: contact.name,
+        waMessageId: message.id,
+        messageType: message.type,
+        content,
+      })
+    );
 
-    // Last, so a bot failure cannot cost the customer their message or
-    // the org their webhook event.
+    // The reply. Nothing that is not needed to produce it runs before this
+    // line — the customer is watching a chat window, and every round trip
+    // ahead of it is a second of silence they read as "it is broken".
     await runInboundMessage({
       supabase,
       orgId,
@@ -653,7 +666,20 @@ async function handleInboundMessages(
       messageType: message.type,
       content,
     });
+
+    // Now collect the integrations, which have been running all along.
+    // allSettled, not all: neither of them throws today, and a change that
+    // made one throw must not cost the next message in the batch.
+    await Promise.allSettled(sideEffects);
   }
+
+  // Any conversation in this workspace whose Delay has run out. Free to do
+  // here — the reply has already gone — and it means a parked flow moves
+  // whenever the business has traffic, rather than waiting for somebody to
+  // open the dashboard or for the nightly cron.
+  await resumeParkedFlows(orgId).catch((error) => {
+    console.error("Sweeping parked flows after an inbound message failed", error);
+  });
 }
 
 async function handleStatusUpdates(

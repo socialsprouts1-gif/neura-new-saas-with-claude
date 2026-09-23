@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   routeFlow,
   accountsToSync,
+  assistantsOnNumbers,
   formsOnNumbers,
   type NumberOnAccount,
 } from "../src/lib/flow-routing.ts";
@@ -93,4 +94,32 @@ test("a disabled number contributes no account", () => {
 test("two numbers on one account offer that account's forms once", () => {
   const result = formsOnNumbers([formOnB], [onB, alsoOnB], ["n2", "n3"]);
   assert.deepEqual(result.map((form) => form.id), ["f2"]);
+});
+
+// --- which assistant an AI Agent node may hand a reply to ------------------
+
+const salesOnN1 = { id: "a1", name: "Sales", connectionId: "n1" };
+const supportOnN2 = { id: "a2", name: "Support", connectionId: "n2" };
+const everywhere = { id: "a3", name: "General", connectionId: null };
+
+test("a bot listening on one number is only offered assistants that answer there", () => {
+  assert.deepEqual(
+    assistantsOnNumbers([salesOnN1, supportOnN2, everywhere], ["n1"]),
+    [salesOnN1, everywhere]
+  );
+});
+
+test("an assistant on every number is offered whichever number the bot listens on", () => {
+  assert.deepEqual(assistantsOnNumbers([supportOnN2, everywhere], ["n1"]), [everywhere]);
+});
+
+test("a bot with no numbers ticked listens everywhere, so every assistant is offered", () => {
+  const all = [salesOnN1, supportOnN2, everywhere];
+  assert.deepEqual(assistantsOnNumbers(all, []), all);
+});
+
+test("a workspace with no assistant on the chosen number gets an empty list, not a wrong one", () => {
+  // The point of the picker: silently falling back to the sales assistant
+  // on the support number is what it exists to stop.
+  assert.deepEqual(assistantsOnNumbers([salesOnN1], ["n2"]), []);
 });

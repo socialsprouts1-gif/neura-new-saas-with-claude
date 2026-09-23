@@ -98,7 +98,15 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
   };
 
   try {
-    const conversation = await loadConversation(supabase, event.conversationId);
+    // Both at once. The connection does not depend on the conversation row
+    // — it is resolved from the conversation's id — and these were two
+    // round trips in a row on the path between a customer's message and
+    // their answer.
+    const [conversation, connectionForFlow] = await Promise.all([
+      loadConversation(supabase, event.conversationId),
+      loadOrgConnection(supabase, orgId, { conversationId: event.conversationId }),
+    ]);
+
     if (!conversation) {
       await finish({ outcome: "failed", error: "Conversation disappeared mid-run" });
       return;
@@ -118,8 +126,7 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
     // from where it stopped rather than being re-matched from scratch, and a
     // flow with a trigger node owns its own matching — planReply knows
     // nothing about either.
-    const connectionForFlow = await loadOrgConnection(supabase, orgId, { conversationId: event.conversationId });
-
+    //
     // Booking comes first, ahead of the flows. A customer halfway through
     // choosing a time who taps one must get that time — a flow matching on
     // the same message would answer something unrelated and leave the
@@ -185,7 +192,8 @@ export async function runInboundMessage(event: InboundEvent): Promise<void> {
       return;
     }
 
-    const connection = await loadOrgConnection(supabase, orgId, { conversationId: event.conversationId });
+    // Already resolved above, so the reply path does not pay for it twice.
+    const connection = connectionForFlow;
     if (!connection) {
       await finish({
         matched_kind: plan.kind,
