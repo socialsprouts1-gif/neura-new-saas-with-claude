@@ -17,6 +17,7 @@ import {
   HelpCircle,
   Plug,
   ShoppingBag,
+  Truck,
   Image as ImageIcon,
   Building2,
   Code2,
@@ -48,6 +49,15 @@ interface NavItem {
   label: string;
   href: string;
   soon?: boolean;
+  /**
+   * Hidden until a courier account is connected.
+   *
+   * Separate from the feature flags: those say what a plan includes,
+   * this says whether the thing has anything to talk to. A shipping
+   * screen with no courier behind it is a screen where every button
+   * fails, which reads as broken rather than unconfigured.
+   */
+  needsCourier?: boolean;
   children?: NavChild[];
 }
 
@@ -102,6 +112,9 @@ const MAIN: NavItem[] = [
   },
   { icon: Plug, label: "Integrations", href: "/integrations" },
   { icon: ShoppingBag, label: "Commerce", href: "/commerce" },
+  // Only once a courier account is connected. A shipping screen with
+  // no courier behind it is a screen where every button fails.
+  { icon: Truck, label: "Shipments", href: "/shipments", needsCourier: true },
   { icon: Wallet, label: "WA Pay", href: "/wa-pay" },
   { icon: ImageIcon, label: "Gallery", href: "/gallery" },
   { icon: HelpCircle, label: "FAQ Bot", href: "/faq-bot" },
@@ -121,11 +134,14 @@ const MAIN: NavItem[] = [
 export function SidebarNav({
   isPlatformAdmin = false,
   features = {},
+  courierConnected = false,
   onNavigate,
 }: {
   isPlatformAdmin?: boolean;
   /** Feature key → allowed. A key that is absent counts as allowed. */
   features?: Record<string, boolean>;
+  /** Whether a courier account is connected, for the entries that need one. */
+  courierConnected?: boolean;
   /** Called when a link is followed, so the drawer can shut behind it. */
   onNavigate?: () => void;
 }) {
@@ -136,6 +152,7 @@ export function SidebarNav({
   const visible = (items: NavItem[]): NavItem[] =>
     items
       .filter((item) => pathAllowed(item.href, features))
+      .filter((item) => !item.needsCourier || courierConnected)
       .map((item) =>
         item.children
           ? { ...item, children: item.children.filter((child) => pathAllowed(child.href, features)) }
@@ -222,16 +239,22 @@ export function SidebarBrand({ brand }: { brand?: AppBrand }) {
 export default function Sidebar({
   isPlatformAdmin = false,
   features = {},
+  courierConnected = false,
   brand,
 }: {
   isPlatformAdmin?: boolean;
   features?: Record<string, boolean>;
+  courierConnected?: boolean;
   brand?: AppBrand;
 }) {
   return (
     <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
       <SidebarBrand brand={brand} />
-      <SidebarNav isPlatformAdmin={isPlatformAdmin} features={features} />
+      <SidebarNav
+        isPlatformAdmin={isPlatformAdmin}
+        features={features}
+        courierConnected={courierConnected}
+      />
     </aside>
   );
 }

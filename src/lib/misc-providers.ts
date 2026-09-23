@@ -370,3 +370,130 @@ export async function listShiprocketOrders(
     }),
   };
 }
+
+// -------------------------------------- Shiprocket: courier, label, invoice
+
+/**
+ * Asks Shiprocket to assign a courier and an AWB to a shipment.
+ *
+ * Their cheapest recommended courier unless one is named. This is the
+ * step that turns an order into a trackable parcel, and until it runs
+ * there is no AWB to send anybody.
+ */
+export async function assignAwb(
+  credentials: ShiprocketCredentials,
+  shipmentId: string,
+  courierId?: string | null
+): Promise<
+  { ok: true; awb: string; courier: string | null } | { ok: false; error: string }
+> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(`${SHIPROCKET_BASE}/courier/assign/awb`, {
+    method: "POST",
+    headers: jsonHeaders(`Bearer ${auth.token}`),
+    body: JSON.stringify({
+      shipment_id: Number(shipmentId),
+      ...(courierId ? { courier_id: Number(courierId) } : {}),
+    }),
+  });
+
+  if (!result.ok) return { ok: false, error: describeShiprocketRejection(result) };
+
+  // Shiprocket answers this one in two shapes depending on whether the
+  // courier was picked by them or by us.
+  const body = result.body as {
+    awb_assign_status?: number;
+    response?: { data?: { awb_code?: string; courier_name?: string } };
+  } | null;
+
+  const data = body?.response?.data;
+  const awb = data?.awb_code?.trim();
+
+  if (!awb) {
+    return {
+      ok: false,
+      error:
+        "Shiprocket did not return an AWB. Usually it means no courier serves that pincode at this weight, or the account has no balance — check the order in Shiprocket.",
+    };
+  }
+
+  return { ok: true, awb, courier: data?.courier_name?.trim() || null };
+}
+
+/**
+ * The shipping label, as a URL to a PDF Shiprocket hosts.
+ *
+ * Generated on their side rather than drawn here: a label carries the
+ * courier's own barcode and routing code, and anything we drew would be
+ * a picture of a label rather than one a courier will scan.
+ */
+export async function generateLabel(
+  credentials: ShiprocketCredentials,
+  shipmentId: string
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(`${SHIPROCKET_BASE}/courier/generate/label`, {
+    method: "POST",
+    headers: jsonHeaders(`Bearer ${auth.token}`),
+    body: JSON.stringify({ shipment_id: [Number(shipmentId)] }),
+  });
+
+  if (!result.ok) return { ok: false, error: describeShiprocketRejection(result) };
+
+  const url = (result.body as { label_url?: string } | null)?.label_url?.trim();
+  if (!url) {
+    return {
+      ok: false,
+      error: "Shiprocket returned no label. A label can only be made once an AWB has been assigned.",
+    };
+  }
+  return { ok: true, url };
+}
+
+/** The tax invoice for an order, as a URL to a PDF Shiprocket hosts. */
+export async function generateInvoice(
+  credentials: ShiprocketCredentials,
+  shiprocketOrderId: string
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(`${SHIPROCKET_BASE}/orders/print/invoice`, {
+    method: "POST",
+    headers: jsonHeaders(`Bearer ${auth.token}`),
+    body: JSON.stringify({ ids: [Number(shiprocketOrderId)] }),
+  });
+
+  if (!result.ok) return { ok: false, error: describeShiprocketRejection(result) };
+
+  const url = (result.body as { invoice_url?: string } | null)?.invoice_url?.trim();
+  if (!url) return { ok: false, error: "Shiprocket returned no invoice for that order." };
+  return { ok: true, url };
+}
+
+/** Books the courier to come and collect. */
+export async function requestPickup(
+  credentials: ShiprocketCredentials,
+  shipmentId: string
+): Promise<{ ok: true; scheduledFor: string | null } | { ok: false; error: string }> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(`${SHIPROCKET_BASE}/courier/generate/pickup`, {
+    method: "POST",
+    headers: jsonHeaders(`Bearer ${auth.token}`),
+    body: JSON.stringify({ shipment_id: [Number(shipmentId)] }),
+  });
+
+  if (!result.ok) return { ok: false, error: describeShiprocketRejection(result) };
+
+  const body = result.body as {
+    response?: { pickup_scheduled_date?: string; pickup_token_number?: string };
+  } | null;
+
+  return { ok: true, scheduledFor: body?.response?.pickup_scheduled_date?.trim() || null };
+}

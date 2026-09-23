@@ -33,8 +33,9 @@
 --                                         is created on
 --  10. Shiprocket orders               — structured shipping address and
 --                                         what Shiprocket sends back
+--  11. Shipment documents              — label, invoice and pickup
 --
--- Sections 7 to 10 are today's. The six before them are included because
+-- Sections 7 to 11 are today's. The six before them are included because
 -- they are harmless to re-run, and this way it does not matter whether you
 -- got to them.
 
@@ -664,5 +665,28 @@ comment on column public.store_orders.shipped_notified_at is
 create index if not exists store_orders_shiprocket_idx
   on public.store_orders (org_id, shiprocket_order_id)
   where shiprocket_order_id is not null;
+
+notify pgrst, 'reload schema';
+
+
+
+-- =====================================================================
+-- 20261002090000_shipment_documents.sql
+-- =====================================================================
+
+-- The documents a parcel needs, and when it was collected.
+--
+-- Label and invoice URLs are stored rather than regenerated on every
+-- view: Shiprocket bills nothing for the call but it is slow, and a
+-- label reprinted on each page load is a different file each time, which
+-- makes "the one I already stuck on the box" unanswerable.
+
+alter table public.store_orders
+  add column if not exists label_url text,
+  add column if not exists invoice_url text,
+  add column if not exists pickup_scheduled_at timestamptz;
+
+comment on column public.store_orders.label_url is
+  'Shiprocket-hosted shipping label PDF. Kept so the same label is reprinted rather than a new one generated.';
 
 notify pgrst, 'reload schema';

@@ -145,6 +145,13 @@ export const FEATURES: readonly FeatureDef[] = [
     paths: ["/commerce"],
   },
   {
+    key: "shipping",
+    label: "Shipments",
+    group: "Money",
+    description: "Courier orders, labels, invoices and pickups through Shiprocket.",
+    paths: ["/shipments"],
+  },
+  {
     key: "wa_pay",
     label: "WA Pay",
     group: "Money",

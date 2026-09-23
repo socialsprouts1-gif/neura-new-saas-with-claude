@@ -1,4 +1,5 @@
 import { requireOrg } from "@/lib/org";
+import { createClient } from "@/lib/supabase/server";
 import { loadSiteContent } from "@/lib/site-content-server";
 import { appBrand } from "@/lib/app-brand";
 import Sidebar from "./_components/Sidebar";
@@ -19,15 +20,32 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // one of them would otherwise be a separate query on every navigation.
   const brand = appBrand((await loadSiteContent()).brand);
 
+  // Whether a courier account is connected, for the nav entries that
+  // need one. A shipping screen with nothing behind it is a screen where
+  // every button fails, which reads as broken rather than unconfigured.
+  const { data: courier } = await (await createClient())
+    .from("org_integrations")
+    .select("provider")
+    .eq("org_id", orgId)
+    .eq("provider", "shiprocket")
+    .maybeSingle();
+  const courierConnected = Boolean(courier);
+
   return (
     <div className="flex h-screen bg-[var(--app-bg)] overflow-hidden">
-      <Sidebar isPlatformAdmin={isPlatformAdmin} features={features} brand={brand} />
+      <Sidebar
+        isPlatformAdmin={isPlatformAdmin}
+        features={features}
+        courierConnected={courierConnected}
+        brand={brand}
+      />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar
           orgName={orgName}
           userEmail={user.email ?? ""}
           isPlatformAdmin={isPlatformAdmin}
           features={features}
+          courierConnected={courierConnected}
           brand={brand}
         />
         <BillingBanner orgId={orgId} isPlatformAdmin={isPlatformAdmin} />

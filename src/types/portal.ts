@@ -652,6 +652,10 @@ export type StoreOrder = {
   courier_name: string | null;
   tracking_url: string | null;
   shipped_at: string | null;
+  /** Shiprocket-hosted PDFs, kept so the same file is reprinted. */
+  label_url: string | null;
+  invoice_url: string | null;
+  pickup_scheduled_at: string | null;
   /** When the customer was told it shipped, so they are not told twice. */
   shipped_notified_at: string | null;
 

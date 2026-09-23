@@ -3522,6 +3522,11 @@ comment on column public.store_orders.shiprocket_order_id is
 comment on column public.store_orders.shipped_notified_at is
   'When the customer was told it shipped. Stops a repeat push re-announcing it.';
 
+alter table public.store_orders
+  add column if not exists label_url text,
+  add column if not exists invoice_url text,
+  add column if not exists pickup_scheduled_at timestamptz;
+
 create index if not exists store_orders_shiprocket_idx
   on public.store_orders (org_id, shiprocket_order_id)
   where shiprocket_order_id is not null;

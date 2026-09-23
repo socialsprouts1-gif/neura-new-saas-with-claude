@@ -30,6 +30,10 @@ import {
   createShiprocketOrder,
   listPickupLocations,
   listShiprocketOrders,
+  assignAwb,
+  generateLabel,
+  generateInvoice,
+  requestPickup,
 } from "@/lib/misc-providers";
 import { customerMessage, staffSummary } from "@/lib/shipment-message";
 import { buildShiprocketOrder } from "@/lib/shiprocket-order";
@@ -732,4 +736,149 @@ export async function importShiprocketOrders(): Promise<ActionResult> {
   }
 
   return { ok: true, message: parts.join(" ") };
+}
+
+/** Shared loader for the actions that need Shiprocket plus one order. */
+async function shipmentContext(orgId: string, orderId: string) {
+  const supabase = await createClient();
+
+  const stored = await loadIntegration(supabase, orgId, "shiprocket");
+  if (!stored) return { error: notConnected("Shiprocket").error! } as const;
+
+  const { data: order } = await supabase
+    .from("store_orders")
+    .select(
+      "id, reference, status, awb, contact_id, connection_id, shiprocket_order_id, shiprocket_shipment_id, label_url, invoice_url, pickup_scheduled_at, courier_name, tracking_url"
+    )
+    .eq("org_id", orgId)
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!order) return { error: "That order is not in this workspace." } as const;
+
+  return {
+    supabase,
+    order,
+    credentials: {
+      email: stored.values.email ?? "",
+      password: stored.values.password ?? "",
+    },
+  } as const;
+}
+
+/** Asks Shiprocket for a courier, which is what produces an AWB. */
+export async function assignCourier(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireOrg();
+  const found = await shipmentContext(ctx.orgId, String(formData.get("order_id") ?? "").trim());
+  if ("error" in found) return { ok: false, error: found.error };
+
+  const { supabase, order, credentials } = found;
+  if (!order.shiprocket_shipment_id) {
+    return { ok: false, error: "Send this order to Shiprocket first — there is no shipment yet." };
+  }
+
+  const result = await assignAwb(credentials, order.shiprocket_shipment_id);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await supabase
+    .from("store_orders")
+    .update({
+      awb: result.awb,
+      courier_name: result.courier,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.id);
+
+  revalidatePath("/shipments");
+  revalidatePath("/commerce");
+  return {
+    ok: true,
+    message: `${result.courier ?? "A courier"} assigned. AWB ${result.awb}.`,
+  };
+}
+
+/**
+ * The shipping label, and the invoice, as PDFs Shiprocket hosts.
+ *
+ * Kept once made. Regenerating on each press gives a different file
+ * every time, which makes "the one already stuck on the box" an
+ * unanswerable question.
+ */
+export async function makeShipmentDocument(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireOrg();
+  const kind = String(formData.get("kind") ?? "") === "invoice" ? "invoice" : "label";
+  const found = await shipmentContext(ctx.orgId, String(formData.get("order_id") ?? "").trim());
+  if ("error" in found) return { ok: false, error: found.error };
+
+  const { supabase, order, credentials } = found;
+
+  const existing = kind === "label" ? order.label_url : order.invoice_url;
+  if (existing) return { ok: true, message: existing };
+
+  if (kind === "label") {
+    if (!order.shiprocket_shipment_id || !order.awb) {
+      return {
+        ok: false,
+        error: "A label needs a courier first — Shiprocket will not print one without an AWB.",
+      };
+    }
+    const made = await generateLabel(credentials, order.shiprocket_shipment_id);
+    if (!made.ok) return { ok: false, error: made.error };
+
+    await supabase
+      .from("store_orders")
+      .update({ label_url: made.url, updated_at: new Date().toISOString() })
+      .eq("id", order.id);
+
+    revalidatePath("/shipments");
+    return { ok: true, message: made.url };
+  }
+
+  if (!order.shiprocket_order_id) {
+    return { ok: false, error: "Send this order to Shiprocket first." };
+  }
+
+  const made = await generateInvoice(credentials, order.shiprocket_order_id);
+  if (!made.ok) return { ok: false, error: made.error };
+
+  await supabase
+    .from("store_orders")
+    .update({ invoice_url: made.url, updated_at: new Date().toISOString() })
+    .eq("id", order.id);
+
+  revalidatePath("/shipments");
+  return { ok: true, message: made.url };
+}
+
+/** Books the courier to collect. */
+export async function bookPickup(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireOrg();
+  const found = await shipmentContext(ctx.orgId, String(formData.get("order_id") ?? "").trim());
+  if ("error" in found) return { ok: false, error: found.error };
+
+  const { supabase, order, credentials } = found;
+  if (!order.shiprocket_shipment_id || !order.awb) {
+    return { ok: false, error: "Assign a courier before booking a pickup." };
+  }
+
+  const result = await requestPickup(credentials, order.shiprocket_shipment_id);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await supabase
+    .from("store_orders")
+    .update({
+      pickup_scheduled_at: new Date().toISOString(),
+      status: "shipped",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.id);
+
+  revalidatePath("/shipments");
+  revalidatePath("/commerce");
+  return {
+    ok: true,
+    message: result.scheduledFor
+      ? `Pickup booked for ${result.scheduledFor}.`
+      : "Pickup booked. Shiprocket did not name a date — check the order there for the slot.",
+  };
 }

@@ -21,10 +21,12 @@ import type { AppBrand } from "@/lib/app-brand";
 export default function MobileNav({
   isPlatformAdmin = false,
   features = {},
+  courierConnected = false,
   brand,
 }: {
   isPlatformAdmin?: boolean;
   features?: Record<string, boolean>;
+  courierConnected?: boolean;
   brand?: AppBrand;
 }) {
   // The drawer remembers the path it was opened on, and is open only while
@@ -103,6 +105,7 @@ export default function MobileNav({
             <SidebarNav
               isPlatformAdmin={isPlatformAdmin}
               features={features}
+              courierConnected={courierConnected}
               onNavigate={() => setOpenedAt(null)}
             />
           </aside>
