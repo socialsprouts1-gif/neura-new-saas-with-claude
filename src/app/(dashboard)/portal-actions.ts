@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { availableStarters } from "@/lib/faq-starters";
 import { checkScheduled } from "@/lib/scheduled-message";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1646,4 +1647,46 @@ export async function cancelScheduledMessage(formData: FormData): Promise<Action
   if (error) return { ok: false, error: error.message };
   revalidatePath("/scheduled");
   return { ok: true, message: "Cancelled. It will not be sent." };
+}
+
+/**
+ * Adds the starter questions a workspace has not got yet.
+ *
+ * An FAQ bot with nothing in it answers nothing, and the blank form does
+ * not show what a good entry looks like — least of all the keywords,
+ * which are the whole mechanism and the field people leave empty. Six
+ * real ones make the feature work in a click and double as worked
+ * examples to edit.
+ */
+export async function addFaqStarters(): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("faq_entries")
+    .select("question")
+    .eq("org_id", orgId);
+
+  const toAdd = availableStarters((existing ?? []).map((row) => row.question));
+  if (toAdd.length === 0) {
+    return { ok: false, error: "All the starter questions are already in this workspace." };
+  }
+
+  const { error } = await supabase.from("faq_entries").insert(
+    toAdd.map((starter) => ({
+      org_id: orgId,
+      question: starter.question,
+      answer: starter.answer,
+      keywords: starter.keywords,
+      category: starter.category,
+    }))
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/faq-bot");
+  return {
+    ok: true,
+    message: `Added ${toAdd.length} question${toAdd.length === 1 ? "" : "s"}. Edit the answers to match your business — the keywords decide when each one is used.`,
+  };
 }

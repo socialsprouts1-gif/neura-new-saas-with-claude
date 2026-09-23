@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
-import { saveFaqEntry, deleteFaqEntry } from "../portal-actions";
+import { saveFaqEntry, deleteFaqEntry, addFaqStarters } from "../portal-actions";
 import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
 import { PageHeader, Card, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
 
@@ -24,6 +24,27 @@ export default async function FaqBotPage() {
         title="FAQ Bot"
         subtitle="Answer the questions you get asked over and over, without typing them again."
       />
+
+      {/* How it fires, said once. Keywords are the entire mechanism and
+          the field people leave empty, and a bot that never answers reads
+          as broken rather than unconfigured. */}
+      <Card className="mb-6 border-white/10">
+        <h2 className="font-semibold mb-1">How the FAQ bot works</h2>
+        <p className="text-sm text-white/55 leading-relaxed">
+          When a customer writes to you, their message is checked against the{" "}
+          <span className="text-white/80">keywords</span> on every active question here. The
+          best match is sent back automatically, in that chat, within seconds — no template
+          needed, because they wrote first. If nothing matches, the message goes to your inbox
+          as normal and nobody is sent a wrong answer.
+        </p>
+        <p className="text-sm text-white/45 leading-relaxed mt-2.5">
+          So the keywords matter more than the question does: write the words customers
+          actually type — <span className="text-white/65">&ldquo;kitna time&rdquo;</span>,{" "}
+          <span className="text-white/65">&ldquo;how long&rdquo;</span>,{" "}
+          <span className="text-white/65">&ldquo;delivery&rdquo;</span> — not the polite
+          version.
+        </p>
+      </Card>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Questions" value={all.length} />
@@ -70,10 +91,21 @@ export default async function FaqBotPage() {
               </Card>
             ))
           ) : (
-            <EmptyState
-              title="No FAQs yet"
-              description="Add the questions customers ask most — delivery times, refunds, opening hours."
-            />
+            <Card>
+              <h3 className="font-semibold mb-1">Nothing here yet, so the bot answers nothing</h3>
+              <p className="text-sm text-white/50 leading-relaxed mb-4">
+                Add the six questions almost every business is asked. They come with the
+                keywords already filled in, so the bot works immediately — then edit the
+                answers to match your business.
+              </p>
+              <ActionForm action={addFaqStarters} submitLabel="Add 6 starter questions" compact>
+                <input type="hidden" name="_" value="" />
+              </ActionForm>
+              <p className="text-[11px] text-white/35 mt-3 leading-relaxed">
+                Or write your own on the right. Nothing is sent to a customer until a question
+                is active and its keywords match what they typed.
+              </p>
+            </Card>
           )}
         </div>
 

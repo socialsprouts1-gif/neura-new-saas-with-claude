@@ -2556,6 +2556,11 @@ create table if not exists public.whatsapp_flows (
   updated_at timestamptz not null default now()
 );
 
+-- Which number the form is created on. Only consulted before Meta has
+-- created the flow; after that waba_id decides and cannot change.
+alter table public.whatsapp_flows
+  add column if not exists connection_id uuid references public.waba_connections(id) on delete set null;
+
 create index if not exists whatsapp_flows_org_idx
   on public.whatsapp_flows(org_id, created_at desc);
 create unique index if not exists whatsapp_flows_meta_idx

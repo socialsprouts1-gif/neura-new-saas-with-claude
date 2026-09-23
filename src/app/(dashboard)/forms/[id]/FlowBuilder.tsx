@@ -70,6 +70,9 @@ export default function FlowBuilder({
   status,
   previewUrl,
   metaFlowId,
+  numbers = [],
+  initialConnectionId,
+  wabaId,
 }: {
   id: string;
   initialName: string;
@@ -84,6 +87,12 @@ export default function FlowBuilder({
   status: string;
   previewUrl: string | null;
   metaFlowId: string | null;
+  /** The numbers this form could be created on. */
+  numbers?: Array<{ id: string; label: string; wabaId: string; isDefault: boolean }>;
+  /** The number already chosen, when one has been. */
+  initialConnectionId?: string | null;
+  /** The account Meta has the flow on, once it has one. */
+  wabaId?: string | null;
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialName);
@@ -98,6 +107,14 @@ export default function FlowBuilder({
   const [note, setNote] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
   const [saving, startSaving] = useTransition();
   const [publishing, startPublishing] = useTransition();
+  const [connectionId, setConnectionId] = useState(
+    initialConnectionId ?? numbers.find((number) => number.isDefault)?.id ?? ""
+  );
+
+  // Once Meta has the flow it belongs to that account for good, so the
+  // choice stops being a choice and becomes a fact worth stating.
+  const locked = Boolean(metaFlowId);
+  const liveOn = wabaId ? numbers.find((number) => number.wabaId === wabaId) : null;
   const [sendOpen, setSendOpen] = useState(false);
 
   const active = screens.find((screen) => screen.key === activeKey) ?? screens[0];
@@ -147,7 +164,7 @@ export default function FlowBuilder({
 
   const save = () =>
     startSaving(async () => {
-      const result = await saveForm({ id, name, categories: [category], screens });
+      const result = await saveForm({ id, name, categories: [category], screens, connectionId });
       setNote({
         tone: result.ok ? "ok" : "bad",
         text: result.ok ? (result.message ?? "Saved.") : (result.error ?? "Could not save."),
@@ -159,7 +176,7 @@ export default function FlowBuilder({
     startPublishing(async () => {
       // Save first: publishing sends whatever Meta last received, so an
       // unsaved edit would go live as the previous version.
-      const saved = await saveForm({ id, name, categories: [category], screens });
+      const saved = await saveForm({ id, name, categories: [category], screens, connectionId });
       if (!saved.ok) {
         setNote({ tone: "bad", text: saved.error ?? "Could not save." });
         return;
@@ -194,6 +211,37 @@ export default function FlowBuilder({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Which account this form is created on. A Flow lives on a
+              WhatsApp Business Account, not on a workspace, so this is
+              the single most consequential choice on the screen — and it
+              used to be made silently by whichever number was default. */}
+          {numbers.length > 0 && (
+            locked ? (
+              <span
+                className="text-[11px] text-white/40 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/3"
+                title="A Flow cannot move between accounts once Meta has created it."
+              >
+                on {liveOn?.label ?? `account ${wabaId}`}
+              </span>
+            ) : (
+              <select
+                value={connectionId}
+                onChange={(event) => setConnectionId(event.target.value)}
+                title="The WhatsApp account this form will be created on"
+                className="bg-white/5 border border-white/12 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#A855F7]/50"
+              >
+                <option value="" className="bg-[var(--surface-3)]">
+                  Default number
+                </option>
+                {numbers.map((number) => (
+                  <option key={number.id} value={number.id} className="bg-[var(--surface-3)]">
+                    Create on {number.label}
+                  </option>
+                ))}
+              </select>
+            )
+          )}
+
           <button
             type="button"
             onClick={() => setSendOpen(true)}

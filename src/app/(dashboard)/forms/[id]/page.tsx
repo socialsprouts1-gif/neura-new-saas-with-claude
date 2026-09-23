@@ -4,6 +4,7 @@ import { requireFeature } from "@/lib/org";
 import { EmptyState } from "@/components/ui/primitives";
 import FlowBuilder from "./FlowBuilder";
 import { repairScreens, type FormScreen } from "@/lib/flow-json";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
 
 export default async function FormBuilderPage({
   params,
@@ -22,6 +23,15 @@ export default async function FormBuilderPage({
     .maybeSingle();
 
   if (!flow) notFound();
+
+  // A Flow belongs to a WhatsApp Business Account, so which number it is
+  // built on decides which customers can ever open it.
+  const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+    wabaId: connection.wabaId,
+    isDefault: Boolean(connection.isDefault),
+  }));
 
   // Forms saved before screen ids were known to reject digits carry ids
   // Meta refuses on every upload. Repairing on the way in fixes them the
@@ -54,6 +64,9 @@ export default async function FormBuilderPage({
       status={flow.status}
       previewUrl={flow.preview_url}
       metaFlowId={flow.meta_flow_id}
+      numbers={numbers}
+      initialConnectionId={flow.connection_id}
+      wabaId={flow.waba_id}
     />
   );
 }

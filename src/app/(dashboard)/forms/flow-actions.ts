@@ -87,9 +87,21 @@ async function wabaCredentials(
 async function flowCredentials(
   supabase: Client,
   orgId: string,
-  wabaId: string | null | undefined
+  wabaId: string | null | undefined,
+  // The number chosen on the form, honoured only until Meta has the flow.
+  // After that waba_id decides: a Flow cannot move between accounts, and
+  // pretending otherwise would send an update to the wrong one.
+  preferredConnectionId?: string | null
 ): Promise<FlowCredentials | { error: string }> {
   const connections = await listActiveConnections(supabase, orgId);
+
+  if (!wabaId && preferredConnectionId) {
+    const chosen = connections.find(
+      (connection) => connection.id === preferredConnectionId && connection.status === "active"
+    );
+    if (chosen) return wabaCredentials(supabase, orgId, { connectionId: chosen.id });
+  }
+
   const route = routeFlow(connections, wabaId);
 
   if (!route.ok) {
@@ -249,6 +261,15 @@ export async function saveForm(input: {
   name: string;
   categories: string[];
   screens: FormScreen[];
+  /**
+   * The number to create this form on.
+   *
+   * Only meaningful before Meta has it. Once a Flow exists on an account
+   * it cannot move, so the stored waba_id takes over from then on and
+   * this is ignored — which is why the picker disappears after the first
+   * successful upload rather than offering a change that cannot happen.
+   */
+  connectionId?: string | null;
 }): Promise<ActionResult & { validationErrors?: MetaFlowValidationError[] }> {
   const { orgId } = await requireFeature("forms");
   const supabase = await createClient();
@@ -263,6 +284,9 @@ export async function saveForm(input: {
       name: input.name.trim() || "Untitled form",
       categories: input.categories,
       screens: screens as unknown as Record<string, unknown>,
+      ...(input.connectionId !== undefined
+        ? { connection_id: input.connectionId || null }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.id)
@@ -280,14 +304,14 @@ export async function saveForm(input: {
   // account the form is already on, not by whichever number is default.
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, status, waba_id")
+    .select("meta_flow_id, status, waba_id, connection_id")
     .eq("id", input.id)
     .eq("org_id", orgId)
     .maybeSingle();
 
   if (!flow) return { ok: false, error: "That form is not in this workspace." };
 
-  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id, flow.connection_id);
   if ("error" in credentials) {
     return { ok: true, message: `Saved. ${credentials.error}` };
   }
@@ -365,7 +389,7 @@ export async function publishForm(id: string): Promise<ActionResult> {
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, screens, name, categories, waba_id")
+    .select("meta_flow_id, screens, name, categories, waba_id, connection_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -379,7 +403,7 @@ export async function publishForm(id: string): Promise<ActionResult> {
   const check = validateFlow(screens);
   if (!check.ok) return { ok: false, error: check.errors.slice(0, 3).join(" ") };
 
-  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id, flow.connection_id);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
   try {
@@ -418,7 +442,7 @@ export async function syncForm(id: string): Promise<ActionResult & { previewUrl?
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, waba_id")
+    .select("meta_flow_id, waba_id, connection_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -427,7 +451,7 @@ export async function syncForm(id: string): Promise<ActionResult & { previewUrl?
     return { ok: false, error: "This form hasn't reached WhatsApp yet." };
   }
 
-  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id, flow.connection_id);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
   try {
@@ -542,7 +566,7 @@ export async function deleteForm(formData: FormData): Promise<ActionResult> {
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("meta_flow_id, status, waba_id")
+    .select("meta_flow_id, status, waba_id, connection_id")
     .eq("id", id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -550,7 +574,7 @@ export async function deleteForm(formData: FormData): Promise<ActionResult> {
   if (!flow) return { ok: false, error: "That form is not in this workspace." };
 
   if (flow.meta_flow_id) {
-    const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
+    const credentials = await flowCredentials(supabase, orgId, flow.waba_id, flow.connection_id);
     if (!("error" in credentials)) {
       try {
         // A published flow cannot be deleted, only retired — customers may
@@ -595,7 +619,7 @@ export async function sendForm(input: {
 
   const { data: flow } = await supabase
     .from("whatsapp_flows")
-    .select("id, meta_flow_id, status, screens, waba_id")
+    .select("id, meta_flow_id, status, screens, waba_id, connection_id")
     .eq("id", input.id)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -614,7 +638,7 @@ export async function sendForm(input: {
   // number is what Meta rejects with 131009, and the message it returns
   // names the flow_id rather than the number, which sent everyone looking
   // at the form.
-  const credentials = await flowCredentials(supabase, orgId, flow.waba_id);
+  const credentials = await flowCredentials(supabase, orgId, flow.waba_id, flow.connection_id);
   if ("error" in credentials) return { ok: false, error: credentials.error };
 
   await stampWaba(supabase, flow.id, flow.waba_id, credentials.wabaId);

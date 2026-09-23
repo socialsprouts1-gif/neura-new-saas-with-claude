@@ -792,6 +792,13 @@ export type WhatsappFlow = {
   meta_flow_id: string | null;
   /** The WhatsApp Business Account the flow was created on. */
   waba_id: string | null;
+  /**
+   * The number it is created on.
+   *
+   * Only consulted before Meta has the flow. Afterwards waba_id decides,
+   * because a Flow cannot move between accounts.
+   */
+  connection_id: string | null;
   categories: string[];
   status: FlowStatus;
   screens: unknown;
