@@ -698,12 +698,34 @@ export async function importShiprocketOrders(): Promise<ActionResult> {
   const byReference = new Map((ours ?? []).map((row) => [row.reference, row]));
 
   let updated = 0;
+  let imported = 0;
   let unmatched = 0;
 
   for (const entry of remote.orders) {
     const mine = byReference.get(entry.reference);
+
+    // Not in this workspace: bring it in rather than counting it as a
+    // miss. An order raised in Shiprocket is still an order, and a
+    // shipping screen that hides half of them is a screen you cannot
+    // trust to be the whole picture.
     if (!mine) {
-      unmatched += 1;
+      const { error: insertError } = await supabase.from("store_orders").insert({
+        org_id: ctx.orgId,
+        reference: entry.reference,
+        status: entry.awb ? "shipped" : "confirmed",
+        currency: "INR",
+        total_cents: entry.totalRupees ? Math.round(entry.totalRupees * 100) : 0,
+        subtotal_cents: entry.totalRupees ? Math.round(entry.totalRupees * 100) : 0,
+        ship_name: entry.customerName,
+        ship_phone: entry.customerPhone,
+        awb: entry.awb,
+        courier_name: entry.courier,
+        shiprocket_order_id: entry.shiprocketOrderId,
+        notes: "Imported from Shiprocket.",
+      });
+
+      if (insertError) unmatched += 1;
+      else imported += 1;
       continue;
     }
 
@@ -727,13 +749,13 @@ export async function importShiprocketOrders(): Promise<ActionResult> {
 
   revalidatePath("/commerce");
 
+  revalidatePath("/shipments");
+
   const parts = [`Read ${remote.orders.length} order${remote.orders.length === 1 ? "" : "s"} from Shiprocket.`];
-  if (updated > 0) parts.push(`${updated} updated here with a tracking number or courier.`);
-  if (unmatched > 0) {
-    parts.push(
-      `${unmatched} had no matching order here — Shiprocket keys on the reference, so an order raised only in Shiprocket will not match until one exists here with the same reference.`
-    );
-  }
+  if (imported > 0) parts.push(`${imported} brought in for the first time.`);
+  if (updated > 0) parts.push(`${updated} updated with a tracking number or courier.`);
+  if (unmatched > 0) parts.push(`${unmatched} could not be saved.`);
+  if (imported === 0 && updated === 0) parts.push("Everything here already matches Shiprocket.");
 
   return { ok: true, message: parts.join(" ") };
 }
@@ -881,4 +903,180 @@ export async function bookPickup(formData: FormData): Promise<ActionResult> {
       ? `Pickup booked for ${result.scheduledFor}.`
       : "Pickup booked. Shiprocket did not name a date — check the order there for the slot.",
   };
+}
+
+/**
+ * Raises an order here and, optionally, on Shiprocket in the same breath.
+ *
+ * The two-step version — create in Commerce, then find it in Shipments
+ * and push it — is the same work split across two screens, and the
+ * second half is the half people forget. Everything Shiprocket needs is
+ * asked for once, here.
+ */
+export async function createShipmentOrder(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireOrg();
+  const supabase = await createClient();
+
+  const text = (name: string): string | null =>
+    String(formData.get(name) ?? "").trim() || null;
+  const money = (name: string): number => {
+    const value = Number(String(formData.get(name) ?? "").trim());
+    return Number.isFinite(value) && value > 0 ? Math.round(value * 100) : 0;
+  };
+  const digits = (name: string): number | null => {
+    const value = Number(String(formData.get(name) ?? "").trim());
+    return Number.isFinite(value) && value > 0 ? value : null;
+  };
+
+  const reference =
+    text("reference") ?? `SR-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+  const itemName = text("item_name");
+  const phone = text("ship_phone");
+
+  if (!itemName) return { ok: false, error: "Name what is being shipped." };
+  if (!phone) return { ok: false, error: "The customer's phone number is required." };
+
+  const unitCents = money("item_price");
+  const quantity = Math.max(1, Math.round(Number(formData.get("item_quantity") ?? 1) || 1));
+  const shippingCents = money("shipping_charges");
+  const subtotal = unitCents * quantity;
+
+  // Matched to an existing contact by number so the order lands in the
+  // conversation they are already in, rather than beside it.
+  const waId = phone.replace(/\D/g, "");
+  const { data: contact } = await supabase
+    .from("contacts")
+    .select("id")
+    .eq("org_id", ctx.orgId)
+    .eq("wa_id", waId)
+    .maybeSingle();
+
+  const paid = formData.get("paid") !== null;
+
+  const { data: created, error } = await supabase
+    .from("store_orders")
+    .insert({
+      org_id: ctx.orgId,
+      contact_id: contact?.id ?? null,
+      reference,
+      status: paid ? "paid" : "confirmed",
+      currency: "INR",
+      subtotal_cents: subtotal,
+      shipping_cents: shippingCents,
+      total_cents: subtotal + shippingCents,
+      paid_at: paid ? new Date().toISOString() : null,
+      ship_name: text("ship_name"),
+      ship_phone: phone,
+      ship_address: text("ship_address"),
+      ship_city: text("ship_city"),
+      ship_state: text("ship_state"),
+      ship_pincode: text("ship_pincode"),
+      ship_email: text("ship_email"),
+      ship_country: "India",
+      weight_grams: digits("weight_grams"),
+      length_cm: digits("length_cm"),
+      breadth_cm: digits("breadth_cm"),
+      height_cm: digits("height_cm"),
+      connection_id: text("connection_id"),
+      notes: text("notes"),
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return {
+      ok: false,
+      error:
+        error.code === "23505"
+          ? `An order with the reference ${reference} already exists. Use a different one.`
+          : error.message,
+    };
+  }
+
+  await supabase.from("store_order_items").insert({
+    order_id: created.id,
+    name: itemName,
+    quantity,
+    unit_price_cents: unitCents,
+    currency: "INR",
+    retailer_id: text("item_sku"),
+  });
+
+  revalidatePath("/shipments");
+  revalidatePath("/commerce");
+
+  const notes: string[] = [`Order ${reference} created.`];
+
+  // Told at the moment it is placed, which is the update customers
+  // actually want and the one nobody remembers to send by hand.
+  if (formData.get("tell_customer") !== null && contact?.id) {
+    const told = await tellCustomerOrderPlaced(supabase, ctx.orgId, created.id);
+    notes.push(told);
+  }
+
+  if (formData.get("push_now") !== null) {
+    const push = new FormData();
+    push.set("order_id", created.id);
+    const pushed = await pushOrderToShiprocket(push);
+    notes.push(pushed.ok ? (pushed.message ?? "Sent to Shiprocket.") : `Not sent: ${pushed.error}`);
+  }
+
+  return { ok: true, message: notes.join(" ") };
+}
+
+/** The "we have your order" message, sent from the order's own number. */
+async function tellCustomerOrderPlaced(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  orderId: string
+): Promise<string> {
+  const { data: order } = await supabase
+    .from("store_orders")
+    .select("reference, total_cents, currency, contact_id, connection_id")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!order?.contact_id) return "No contact on the order, so nothing was sent.";
+
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, last_inbound_at, contacts(wa_id)")
+    .eq("org_id", orgId)
+    .eq("contact_id", order.contact_id)
+    .order("last_message_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const waId = (conversation?.contacts as { wa_id?: string } | null)?.wa_id;
+  if (!conversation || !waId) {
+    return "No WhatsApp conversation with this customer yet, so nothing was sent — they have to write first.";
+  }
+
+  const connection = await loadOrgConnection(supabase, orgId, {
+    connectionId: order.connection_id,
+    conversationId: conversation.id,
+  });
+  if (!connection) return "No active WhatsApp number to send from.";
+
+  const amount = (Number(order.total_cents ?? 0) / 100).toLocaleString("en-IN", {
+    style: "currency",
+    currency: order.currency || "INR",
+    maximumFractionDigits: 0,
+  });
+
+  const sent = await sendAndLogText({
+    supabase,
+    connection,
+    conversationId: conversation.id,
+    toWaId: waId,
+    body: `We have your order ${order.reference} for ${amount}. We will send you the tracking details as soon as it ships.`,
+    lastInboundAt: conversation.last_inbound_at,
+  });
+
+  if (!sent.ok) {
+    return sent.outsideWindow
+      ? "The customer last wrote more than 24 hours ago, so WhatsApp would not take the confirmation."
+      : `The confirmation did not send: ${sent.error}`;
+  }
+  return "Customer told on WhatsApp.";
 }

@@ -36,7 +36,19 @@ export interface OrderForShipping {
   lengthCm: number | null;
   breadthCm: number | null;
   heightCm: number | null;
-  items: Array<{ name: string; quantity: number; unitPriceCents: number; sku?: string | null }>;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitPriceCents: number;
+    sku?: string | null;
+    /** HSN code, for a GST invoice. */
+    hsn?: string | null;
+    taxPercent?: number | null;
+  }>;
+  /** Paperwork rather than goods. Different customs treatment. */
+  isDocument?: boolean;
+  notes?: string | null;
+  customerGstin?: string | null;
 }
 
 export interface ShiprocketOrderPayload {
@@ -52,12 +64,27 @@ export interface ShiprocketOrderPayload {
   billing_country: string;
   billing_email: string;
   billing_phone: string;
-  shipping_is_billing: true;
+  shipping_is_billing: boolean;
+
+  /** Only sent when the parcel goes somewhere other than the billing address. */
+  shipping_customer_name?: string;
+  shipping_last_name?: string;
+  shipping_address?: string;
+  shipping_city?: string;
+  shipping_pincode?: string;
+  shipping_state?: string;
+  shipping_country?: string;
+  shipping_email?: string;
+  shipping_phone?: string;
+
   order_items: Array<{
     name: string;
     sku: string;
     units: number;
     selling_price: number;
+    discount?: number;
+    tax?: number;
+    hsn?: string;
   }>;
   payment_method: "Prepaid" | "COD";
   shipping_charges: number;
@@ -67,6 +94,16 @@ export interface ShiprocketOrderPayload {
   breadth: number;
   height: number;
   weight: number;
+  /**
+   * 0 for goods, 1 for paperwork.
+   *
+   * Required, and easy to miss because the name reads like a flag rather
+   * than a field — leaving it out is refused outright.
+   */
+  is_document: 0 | 1;
+  comment?: string;
+  company_name?: string;
+  customer_gstin?: string;
 }
 
 /** Paise to rupees, to two places. Shiprocket rejects more. */
@@ -168,6 +205,8 @@ export function buildShiprocketOrder(
         sku: item.sku?.trim() || item.name.slice(0, 40),
         units: Math.max(1, Math.round(item.quantity)),
         selling_price: toRupees(item.unitPriceCents),
+        ...(item.hsn?.trim() ? { hsn: item.hsn.trim() } : {}),
+        ...(item.taxPercent ? { tax: item.taxPercent } : {}),
       })),
       payment_method: order.paid ? "Prepaid" : "COD",
       shipping_charges: toRupees(order.shippingCents),
@@ -177,6 +216,11 @@ export function buildShiprocketOrder(
       breadth: Math.max(order.breadthCm ?? DEFAULT_CM, 0.5),
       height: Math.max(order.heightCm ?? DEFAULT_CM, 0.5),
       weight: weightKg,
+      is_document: order.isDocument ? 1 : 0,
+      ...(order.notes?.trim() ? { comment: order.notes.trim() } : {}),
+      ...(order.customerGstin?.trim()
+        ? { customer_gstin: order.customerGstin.trim().toUpperCase() }
+        : {}),
     },
   };
 }

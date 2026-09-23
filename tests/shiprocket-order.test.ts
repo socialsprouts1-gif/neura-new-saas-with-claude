@@ -204,3 +204,48 @@ test("the shipped message survives a missing courier and link", () => {
   assert.match(text, /^Your order NX-1 has been shipped\./);
   assert.doesNotMatch(text, /Track it here/);
 });
+
+// --- fields Shiprocket requires that are easy to miss ----------------------
+
+test("is_document is always sent, because leaving it out is refused", () => {
+  // The name reads like a flag rather than a required field, which is
+  // exactly why it goes missing.
+  const result = buildShiprocketOrder(good, "Primary");
+  assert.equal(result.ok && result.payload.is_document, 0);
+
+  const docs = buildShiprocketOrder({ ...good, isDocument: true }, "Primary");
+  assert.equal(docs.ok && docs.payload.is_document, 1);
+});
+
+test("HSN and tax ride along on an item when they are known", () => {
+  const result = buildShiprocketOrder(
+    {
+      ...good,
+      items: [{ name: "Kurta", quantity: 1, unitPriceCents: 100, hsn: "6211", taxPercent: 5 }],
+    },
+    "Primary"
+  );
+  assert.equal(result.ok && result.payload.order_items[0].hsn, "6211");
+  assert.equal(result.ok && result.payload.order_items[0].tax, 5);
+});
+
+test("absent HSN and tax are left out rather than sent as empty", () => {
+  const result = buildShiprocketOrder(good, "Primary");
+  if (!result.ok) throw new Error("expected ok");
+  assert.equal("hsn" in result.payload.order_items[0], false);
+  assert.equal("tax" in result.payload.order_items[0], false);
+});
+
+test("a GSTIN is upper-cased, which is the only form Shiprocket takes", () => {
+  const result = buildShiprocketOrder({ ...good, customerGstin: "29abcde1234f1z5" }, "Primary");
+  assert.equal(result.ok && result.payload.customer_gstin, "29ABCDE1234F1Z5");
+});
+
+test("notes become the order comment, and blank notes send no comment", () => {
+  const withNote = buildShiprocketOrder({ ...good, notes: "Leave with neighbour" }, "Primary");
+  assert.equal(withNote.ok && withNote.payload.comment, "Leave with neighbour");
+
+  const without = buildShiprocketOrder({ ...good, notes: "   " }, "Primary");
+  if (!without.ok) throw new Error("expected ok");
+  assert.equal("comment" in without.payload, false);
+});

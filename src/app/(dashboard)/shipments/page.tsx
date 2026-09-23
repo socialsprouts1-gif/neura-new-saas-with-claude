@@ -5,6 +5,8 @@ import { listActiveConnections, optionLabel } from "@/lib/connections";
 import { PageHeader, Card, StatCard, EmptyState } from "@/components/ui/primitives";
 import { shipmentStage, describeQueue, type ShipmentRow } from "@/lib/shipment-stage";
 import ShipmentList, { type ShipmentOrder } from "./ShipmentList";
+import NewShipmentOrder from "./NewShipmentOrder";
+import FetchFromShiprocket from "./FetchFromShiprocket";
 
 /**
  * Everything between "they paid" and "it is with the courier".
@@ -85,6 +87,7 @@ export default async function ShipmentsPage() {
     orderStatus: order.status,
   }));
 
+  const numberOptions = numbers.map((c) => ({ id: c.id, label: optionLabel(c) }));
   const stages = asRows.map(shipmentStage);
   const queue = describeQueue(asRows);
 
@@ -93,6 +96,12 @@ export default async function ShipmentsPage() {
       <PageHeader
         title="Shipments"
         subtitle="From a paid order to a parcel with the courier — label, invoice, pickup and tracking."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <FetchFromShiprocket />
+            <NewShipmentOrder numbers={numberOptions} />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -119,7 +128,7 @@ export default async function ShipmentsPage() {
           description="Orders appear here once they are marked paid or confirmed under Commerce."
         />
       ) : (
-        <ShipmentList orders={orders} numbers={numbers.map((c) => ({ id: c.id, label: optionLabel(c) }))} />
+        <ShipmentList orders={orders} numbers={numberOptions} />
       )}
     </div>
   );

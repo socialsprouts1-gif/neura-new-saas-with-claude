@@ -1,6 +1,8 @@
 "use client";
 
-import { AlertTriangle, Check, Download, RefreshCw, Search, Users } from "lucide-react";
+import Link from "next/link";
+
+import { AlertTriangle, Check, Download, RefreshCw, Search, Truck, Users } from "lucide-react";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge } from "@/components/ui/primitives";
 import { CAPABILITY_HELP, CAPABILITY_LABEL, type IntegrationDef } from "@/lib/integrations";
@@ -15,7 +17,6 @@ import {
   listCalendlyLinks,
   testIntegration,
   trackParcel,
-  importShiprocketOrders,
 } from "../integration-actions";
 
 /**
@@ -129,27 +130,25 @@ export default function ProviderPanel({
               manual shipment, or one checked before the order exists. */}
           {def.slug === "shiprocket" && (
             <>
-            {/* Shiprocket's side of the ledger, brought in. Matched on
-                our reference rather than imported blindly: an order
-                raised there against one of our references is the same
-                order, and a second copy is how two systems stop agreeing
-                about anything. */}
-            <ActionForm
-              action={importShiprocketOrders}
-              submitLabel="Import from Shiprocket"
-              compact
-            >
-              <p className="text-xs text-white/45 leading-relaxed mb-1">
-                Reads the orders on your Shiprocket account and fills in the tracking number and
-                courier for any that match an order here by reference.
+            {/* This panel is for the connection. The work happens on its
+                own screen, and sending people to a settings dialog to do
+                it daily is how a settings dialog becomes the product. */}
+            <div className="rounded-xl border border-accent/25 bg-accent/8 p-3.5 mb-4">
+              <p className="text-sm text-white/75 leading-relaxed mb-2.5">
+                Everything to do with parcels lives in{" "}
+                <span className="text-white/95 font-medium">Shipments</span> — create orders, pull
+                Shiprocket&apos;s in, assign a courier, print labels and invoices, book pickups and
+                tell customers where their parcel is.
               </p>
-            </ActionForm>
+              <Link href="/shipments" className="btn-primary text-xs inline-flex">
+                <Truck className="w-3.5 h-3.5" />
+                Open Shipments
+              </Link>
+            </div>
 
-            <p className="text-xs text-white/45 leading-relaxed mb-3 mt-4">
-              Day to day you will not need this box: every order with an AWB has a{" "}
-              <span className="text-white/70">Where is it?</span> button under Commerce, next to
-              one that sends the customer the update on WhatsApp. Use this to check a number that
-              has no order behind it yet.
+            <p className="text-xs text-white/45 leading-relaxed mb-3">
+              The box below checks one AWB that has no order behind it yet. Everything else is on
+              the Shipments screen.
             </p>
             <ActionForm action={trackParcel} submitLabel="Track" compact>
               <Field
