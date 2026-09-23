@@ -6,6 +6,7 @@ import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, EmptyState, type Tone } from "@/components/ui/primitives";
 import { formatAmount } from "@/lib/orders";
 import { askForPayment, saveOrderShipping, setOrderStatus } from "../commerce-actions";
+import { trackOrderShipment } from "../integration-actions";
 
 export interface OrderRow {
   id: string;
@@ -124,6 +125,25 @@ function OrderCard({ order }: { order: OrderRow }) {
               </span>
             )}
           </div>
+
+          {/* The AWB is on the order and the conversation is on the
+              contact, so "where is my order?" is answerable from here
+              rather than by typing the number into a settings dialog and
+              reading a toast. */}
+          {order.awb && (
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <ActionForm action={trackOrderShipment} submitLabel="Where is it?" compact>
+                <input type="hidden" name="order_id" value={order.id} />
+              </ActionForm>
+
+              {order.hasConversation && (
+                <ActionForm action={trackOrderShipment} submitLabel="Tell the customer" compact>
+                  <input type="hidden" name="order_id" value={order.id} />
+                  <input type="hidden" name="send" value="1" />
+                </ActionForm>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="text-right flex-shrink-0">

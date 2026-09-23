@@ -304,7 +304,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
     name: "Shiprocket",
     category: "E-commerce",
     description:
-      "Look up where a parcel is by AWB number, so you can answer “where is my order?” without leaving the inbox.",
+      "Live parcel tracking. Every order carrying an AWB gets a “Where is it?” button under Commerce, and a second one that sends the customer the update on WhatsApp in plain words.",
     capability: "lookup",
     prerequisite: "Shiprocket → Settings → API → Configure → create an API user.",
     fields: [

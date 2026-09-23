@@ -24,6 +24,8 @@ import {
   isStoreProvider,
 } from "@/lib/provider-meta";
 import { fetchCalendlyEventTypes, testShiprocket, trackShipment } from "@/lib/misc-providers";
+import { customerMessage, staffSummary } from "@/lib/shipment-message";
+import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { loadGoogleCalendar, testGoogleCalendar } from "@/lib/google-calendar";
 import type { ActionResult } from "./actions";
 
@@ -423,4 +425,107 @@ export async function listCalendlyLinks(): Promise<ActionResult> {
       .map((type) => `${type.name} (${type.durationMinutes} min) — ${type.schedulingUrl}`)
       .join("\n"),
   };
+}
+
+/**
+ * Where an order's parcel is, and optionally telling the customer.
+ *
+ * trackParcel above answers for an AWB typed into a settings dialog,
+ * which is not what "answer 'where is my order?' without leaving the
+ * inbox" means. The AWB is already on the order and the conversation is
+ * already there; this joins them up.
+ *
+ * Sending is opt-in per call rather than automatic: a courier scan is
+ * not always news, and a customer messaged every time a parcel moves
+ * between hubs stops reading any of them.
+ */
+export async function trackOrderShipment(
+  formData: FormData
+): Promise<ActionResult> {
+  const ctx = await requireOrg();
+
+  const orderId = String(formData.get("order_id") ?? "").trim();
+  if (!orderId) return { ok: false, error: "No order selected." };
+  const alsoSend = formData.get("send") !== null;
+
+  const supabase = await createClient();
+
+  const { data: order } = await supabase
+    .from("store_orders")
+    .select("id, reference, awb, contact_id")
+    .eq("org_id", ctx.orgId)
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!order) return { ok: false, error: "That order is not in this workspace." };
+  if (!order.awb?.trim()) {
+    return {
+      ok: false,
+      error: "This order has no AWB number yet. Add it under Shipping once Shiprocket has created the shipment.",
+    };
+  }
+
+  const stored = await loadIntegration(supabase, ctx.orgId, "shiprocket");
+  if (!stored) return notConnected("Shiprocket");
+
+  const result = await trackShipment(
+    { email: stored.values.email ?? "", password: stored.values.password ?? "" },
+    order.awb.trim()
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const summary = staffSummary(result.shipment);
+  if (!alsoSend) return { ok: true, message: summary };
+
+  if (!order.contact_id) {
+    return { ok: true, message: `${summary} — no contact on this order, so nothing was sent.` };
+  }
+
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, last_inbound_at, contacts(wa_id)")
+    .eq("org_id", ctx.orgId)
+    .eq("contact_id", order.contact_id)
+    .order("last_message_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const waId = (conversation?.contacts as { wa_id?: string } | null)?.wa_id;
+  if (!conversation || !waId) {
+    return {
+      ok: true,
+      message: `${summary} — but there is no WhatsApp conversation with this customer, so nothing was sent. They have to write first.`,
+    };
+  }
+
+  const connection = await loadOrgConnection(supabase, ctx.orgId, {
+    conversationId: conversation.id,
+  });
+  if (!connection) {
+    return { ok: true, message: `${summary} — no active WhatsApp number to send from.` };
+  }
+
+  const sent = await sendAndLogText({
+    supabase,
+    connection,
+    conversationId: conversation.id,
+    toWaId: waId,
+    body: customerMessage(result.shipment, { orderNumber: order.reference }),
+    lastInboundAt: conversation.last_inbound_at,
+  });
+
+  revalidatePath("/commerce");
+  revalidatePath("/inbox");
+
+  if (!sent.ok) {
+    return {
+      ok: false,
+      error: sent.outsideWindow
+        ? `${summary} — but the customer last wrote more than 24 hours ago, so WhatsApp will not take a plain message. Wait for them to write, or send a template from Campaigns.`
+        : (sent.error ?? "The update did not send."),
+    };
+  }
+
+  return { ok: true, message: `Sent to the customer. ${summary}` };
 }

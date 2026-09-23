@@ -123,7 +123,17 @@ export default function ProviderPanel({
             </ActionForm>
           )}
 
+          {/* The everyday path is on the order, where the AWB already is.
+              This stays for an AWB that has no order behind it yet — a
+              manual shipment, or one checked before the order exists. */}
           {def.slug === "shiprocket" && (
+            <>
+            <p className="text-xs text-white/45 leading-relaxed mb-3">
+              Day to day you will not need this box: every order with an AWB has a{" "}
+              <span className="text-white/70">Where is it?</span> button under Commerce, next to
+              one that sends the customer the update on WhatsApp. Use this to check a number that
+              has no order behind it yet.
+            </p>
             <ActionForm action={trackParcel} submitLabel="Track" compact>
               <Field
                 label="AWB number"
@@ -132,6 +142,7 @@ export default function ProviderPanel({
                 hint="From the shipment in Shiprocket. A freshly created one can take a few hours to appear."
               />
             </ActionForm>
+            </>
           )}
 
           {def.slug === "calendly" && (
