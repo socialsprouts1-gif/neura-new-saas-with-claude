@@ -6,7 +6,7 @@ import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, EmptyState, type Tone } from "@/components/ui/primitives";
 import { formatAmount } from "@/lib/orders";
 import { askForPayment, saveOrderShipping, setOrderStatus } from "../commerce-actions";
-import { trackOrderShipment } from "../integration-actions";
+import { trackOrderShipment, pushOrderToShiprocket } from "../integration-actions";
 
 export interface OrderRow {
   id: string;
@@ -22,6 +22,16 @@ export interface OrderRow {
   paidAt: string | null;
   awb: string | null;
   address: string | null;
+  shipName: string | null;
+  shipPhone: string | null;
+  shipAddress: string | null;
+  shipCity: string | null;
+  shipState: string | null;
+  shipPincode: string | null;
+  weightGrams: number | null;
+  connectionId: string | null;
+  shiprocketOrderId: string | null;
+  courierName: string | null;
   notes: string | null;
   createdAt: string;
   contactName: string | null;
@@ -63,7 +73,13 @@ const NEXT_STATUSES: Record<string, Array<{ status: string; label: string }>> = 
   delivered: [{ status: "refunded", label: "Refund" }],
 };
 
-export default function OrderList({ orders }: { orders: OrderRow[] }) {
+export default function OrderList({
+  orders,
+  numbers = [],
+}: {
+  orders: OrderRow[];
+  numbers?: Array<{ id: string; label: string; isDefault?: boolean }>;
+}) {
   if (orders.length === 0) {
     return (
       <EmptyState
@@ -76,13 +92,19 @@ export default function OrderList({ orders }: { orders: OrderRow[] }) {
   return (
     <div className="space-y-2.5">
       {orders.map((order) => (
-        <OrderCard key={order.id} order={order} />
+        <OrderCard key={order.id} order={order} numbers={numbers} />
       ))}
     </div>
   );
 }
 
-function OrderCard({ order }: { order: OrderRow }) {
+function OrderCard({
+  order,
+  numbers,
+}: {
+  order: OrderRow;
+  numbers: Array<{ id: string; label: string; isDefault?: boolean }>;
+}) {
   const [open, setOpen] = useState(false);
   const unpaid = !order.paidAt && order.status !== "cancelled" && order.status !== "refunded";
 
@@ -230,18 +252,87 @@ function OrderCard({ order }: { order: OrderRow }) {
 
           {/* Only worth showing once there is something to ship. */}
           {["paid", "confirmed", "shipped"].includes(order.status) && (
+            <>
             <ActionForm action={saveOrderShipping} submitLabel="Save shipping" compact>
               <input type="hidden" name="order_id" value={order.id} />
+
+              {/* Separate fields, not one address box. A courier API
+                  refuses a free-text address, and parsing one into city,
+                  state and pincode is a guess that is wrong often enough
+                  to send parcels to the wrong place. */}
               <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="Name" name="ship_name" defaultValue={order.shipName ?? order.contactName ?? ""} />
+                <Field
+                  label="Phone"
+                  name="ship_phone"
+                  defaultValue={order.shipPhone ?? ""}
+                  hint="With or without 91 — the country code is stripped before sending."
+                />
+                <Field label="Street address" name="ship_address" defaultValue={order.shipAddress ?? ""} />
+                <Field label="City" name="ship_city" defaultValue={order.shipCity ?? ""} />
+                <Field label="State" name="ship_state" defaultValue={order.shipState ?? ""} />
+                <Field
+                  label="Pincode"
+                  name="ship_pincode"
+                  defaultValue={order.shipPincode ?? ""}
+                  hint="Six digits."
+                />
+                <Field
+                  label="Weight (grams)"
+                  name="weight_grams"
+                  defaultValue={order.weightGrams ? String(order.weightGrams) : ""}
+                  hint="Left blank ships as 500g."
+                />
                 <Field
                   label="AWB number"
                   name="awb"
                   defaultValue={order.awb ?? ""}
-                  hint="From Shiprocket. Lets you look up where the parcel is."
+                  hint="Filled in for you once Shiprocket assigns a courier."
                 />
-                <Field label="Address" name="address" defaultValue={order.address ?? ""} />
               </div>
+
+              {numbers.length > 0 && (
+                <label className="block mt-3">
+                  <span className="block text-xs font-medium text-white/70 mb-1.5">
+                    Send shipping updates from
+                  </span>
+                  <select
+                    name="connection_id"
+                    defaultValue={order.connectionId ?? ""}
+                    className="w-full bg-white/5 border border-white/12 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+                  >
+                    <option value="" className="bg-[var(--surface-3)]">
+                      Whichever number the conversation is on
+                    </option>
+                    {numbers.map((number) => (
+                      <option key={number.id} value={number.id} className="bg-[var(--surface-3)]">
+                        {number.label}
+                        {number.isDefault ? " · default" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </ActionForm>
+
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              {order.shiprocketOrderId ? (
+                <span className="text-[11px] text-white/45 inline-flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5" />
+                  On Shiprocket as {order.shiprocketOrderId}
+                  {order.courierName ? ` · ${order.courierName}` : ""}
+                </span>
+              ) : (
+                <ActionForm
+                  action={pushOrderToShiprocket}
+                  submitLabel="Send to Shiprocket"
+                  compact
+                >
+                  <input type="hidden" name="order_id" value={order.id} />
+                </ActionForm>
+              )}
+            </div>
+            </>
           )}
 
           {!order.hasConversation && unpaid && (

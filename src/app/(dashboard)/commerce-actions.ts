@@ -731,12 +731,43 @@ export async function saveOrderShipping(formData: FormData): Promise<ActionResul
   const orderId = String(formData.get("order_id") ?? "").trim();
   if (!orderId) return { ok: false, error: "No order selected." };
 
+  const text = (name: string): string | null =>
+    String(formData.get(name) ?? "").trim() || null;
+  // Left null rather than zero when blank: Shiprocket reads a zero as a
+  // declared measurement and refuses it, where a null lets the push
+  // substitute a stated default.
+  const digits = (name: string): number | null => {
+    const raw = String(formData.get(name) ?? "").trim();
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  };
+
   const supabase = await createClient();
   const { error } = await supabase
     .from("store_orders")
     .update({
       awb: String(formData.get("awb") ?? "").trim() || null,
       address: String(formData.get("address") ?? "").trim() || null,
+
+      // The structured half. A courier API refuses a free-text address,
+      // and parsing one into city, state and pincode is a guess that is
+      // wrong often enough to send parcels to the wrong place.
+      ship_name: text("ship_name"),
+      ship_phone: text("ship_phone"),
+      ship_address: text("ship_address"),
+      ship_city: text("ship_city"),
+      ship_state: text("ship_state"),
+      ship_pincode: text("ship_pincode"),
+      ship_email: text("ship_email"),
+
+      weight_grams: digits("weight_grams"),
+      length_cm: digits("length_cm"),
+      breadth_cm: digits("breadth_cm"),
+      height_cm: digits("height_cm"),
+
+      connection_id: text("connection_id"),
+
       updated_at: new Date().toISOString(),
     })
     .eq("org_id", ctx.orgId)

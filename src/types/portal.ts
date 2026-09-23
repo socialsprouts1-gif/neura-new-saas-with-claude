@@ -623,6 +623,41 @@ export type StoreOrder = {
   address: string | null;
   notes: string | null;
   awb: string | null;
+
+  /**
+   * Where it ships to, as separate fields.
+   *
+   * Shiprocket refuses an order without a city, a state and a six-digit
+   * pincode of its own, and no amount of parsing a free-text address
+   * makes those reliable.
+   */
+  ship_name: string | null;
+  ship_phone: string | null;
+  ship_address: string | null;
+  ship_city: string | null;
+  ship_state: string | null;
+  ship_pincode: string | null;
+  ship_country: string | null;
+  ship_email: string | null;
+
+  /** The parcel. Shiprocket refuses a zero on any of these. */
+  weight_grams: number | null;
+  length_cm: number | null;
+  breadth_cm: number | null;
+  height_cm: number | null;
+
+  /** What Shiprocket gave back. */
+  shiprocket_order_id: string | null;
+  shiprocket_shipment_id: string | null;
+  courier_name: string | null;
+  tracking_url: string | null;
+  shipped_at: string | null;
+  /** When the customer was told it shipped, so they are not told twice. */
+  shipped_notified_at: string | null;
+
+  /** The number shipping updates go out from. */
+  connection_id: string | null;
+
   created_at: string;
   updated_at: string;
 };

@@ -23,8 +23,16 @@ import {
   isPaymentProvider,
   isStoreProvider,
 } from "@/lib/provider-meta";
-import { fetchCalendlyEventTypes, testShiprocket, trackShipment } from "@/lib/misc-providers";
+import {
+  fetchCalendlyEventTypes,
+  testShiprocket,
+  trackShipment,
+  createShiprocketOrder,
+  listPickupLocations,
+  listShiprocketOrders,
+} from "@/lib/misc-providers";
 import { customerMessage, staffSummary } from "@/lib/shipment-message";
+import { buildShiprocketOrder } from "@/lib/shiprocket-order";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { loadGoogleCalendar, testGoogleCalendar } from "@/lib/google-calendar";
 import type { ActionResult } from "./actions";
@@ -452,7 +460,7 @@ export async function trackOrderShipment(
 
   const { data: order } = await supabase
     .from("store_orders")
-    .select("id, reference, awb, contact_id")
+    .select("id, reference, awb, contact_id, connection_id")
     .eq("org_id", ctx.orgId)
     .eq("id", orderId)
     .maybeSingle();
@@ -499,7 +507,11 @@ export async function trackOrderShipment(
     };
   }
 
+  // The number chosen on the order wins, then the conversation's own.
+  // With several numbers connected, "whichever thread this is in" is a
+  // sender the operator cannot see or correct.
   const connection = await loadOrgConnection(supabase, ctx.orgId, {
+    connectionId: order.connection_id,
     conversationId: conversation.id,
   });
   if (!connection) {
@@ -528,4 +540,196 @@ export async function trackOrderShipment(
   }
 
   return { ok: true, message: `Sent to the customer. ${summary}` };
+}
+
+// ------------------------------------------------ Shiprocket: two-way
+
+/**
+ * Pushes one of our orders to Shiprocket, and tells the customer.
+ *
+ * Pushed once: the returned shiprocket_order_id is stored, and a second
+ * press updates our copy from theirs rather than creating a duplicate
+ * order that would ship the same parcel twice.
+ */
+export async function pushOrderToShiprocket(formData: FormData): Promise<ActionResult> {
+  const ctx = await requireOrg();
+
+  const orderId = String(formData.get("order_id") ?? "").trim();
+  if (!orderId) return { ok: false, error: "No order selected." };
+
+  const supabase = await createClient();
+  const stored = await loadIntegration(supabase, ctx.orgId, "shiprocket");
+  if (!stored) return notConnected("Shiprocket");
+
+  const credentials = {
+    email: stored.values.email ?? "",
+    password: stored.values.password ?? "",
+  };
+
+  const { data: order } = await supabase
+    .from("store_orders")
+    .select("*")
+    .eq("org_id", ctx.orgId)
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!order) return { ok: false, error: "That order is not in this workspace." };
+  if (order.shiprocket_order_id) {
+    return {
+      ok: false,
+      error: `This order is already on Shiprocket as ${order.shiprocket_order_id}. Use "Where is it?" to read its status.`,
+    };
+  }
+
+  const { data: items } = await supabase
+    .from("store_order_items")
+    .select("name, quantity, unit_price_cents, retailer_id")
+    .eq("order_id", orderId);
+
+  // The pickup location is named on every order and Shiprocket keys on
+  // its exact name, so it is read from the account rather than typed.
+  const pickupName = String(formData.get("pickup_location") ?? "").trim();
+  let pickup = pickupName;
+  if (!pickup) {
+    const locations = await listPickupLocations(credentials);
+    if (!locations.ok) return { ok: false, error: locations.error };
+    if (locations.locations.length === 0) {
+      return {
+        ok: false,
+        error:
+          "Shiprocket has no pickup location on this account. Add one in Shiprocket → Settings → Pickup Addresses, then try again.",
+      };
+    }
+    pickup = locations.locations[0];
+  }
+
+  const built = buildShiprocketOrder(
+    {
+      reference: order.reference,
+      createdAt: order.created_at,
+      currency: order.currency,
+      subtotalCents: Number(order.subtotal_cents ?? 0),
+      totalCents: Number(order.total_cents ?? 0),
+      shippingCents: Number(order.shipping_cents ?? 0),
+      discountCents: Number(order.discount_cents ?? 0),
+      paid: Boolean(order.paid_at),
+      shipName: order.ship_name,
+      shipPhone: order.ship_phone,
+      shipAddress: order.ship_address,
+      shipCity: order.ship_city,
+      shipState: order.ship_state,
+      shipPincode: order.ship_pincode,
+      shipCountry: order.ship_country,
+      shipEmail: order.ship_email,
+      weightGrams: order.weight_grams,
+      lengthCm: order.length_cm === null ? null : Number(order.length_cm),
+      breadthCm: order.breadth_cm === null ? null : Number(order.breadth_cm),
+      heightCm: order.height_cm === null ? null : Number(order.height_cm),
+      items: (items ?? []).map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unitPriceCents: Number(item.unit_price_cents ?? 0),
+        sku: item.retailer_id,
+      })),
+    },
+    pickup
+  );
+
+  if (!built.ok) return { ok: false, error: built.error };
+
+  const created = await createShiprocketOrder(credentials, built.payload as unknown as Record<string, unknown>);
+  if (!created.ok) return { ok: false, error: created.error };
+
+  await supabase
+    .from("store_orders")
+    .update({
+      shiprocket_order_id: created.created.shiprocketOrderId,
+      shiprocket_shipment_id: created.created.shipmentId,
+      awb: created.created.awb ?? order.awb,
+      courier_name: created.created.courier ?? order.courier_name,
+      shipped_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId);
+
+  revalidatePath("/commerce");
+
+  return {
+    ok: true,
+    message: created.created.awb
+      ? `Sent to Shiprocket, AWB ${created.created.awb}. Press "Tell the customer" to let them know.`
+      : `Sent to Shiprocket as order ${created.created.shiprocketOrderId}. A courier and AWB are assigned in Shiprocket — press Import once that is done and the number lands here.`,
+  };
+}
+
+/**
+ * Brings Shiprocket's own orders in, matching on our reference.
+ *
+ * Matching rather than importing blindly: an order raised in Shiprocket
+ * against one of our references is the same order, and creating a second
+ * copy of it here is how two systems stop agreeing about anything.
+ */
+export async function importShiprocketOrders(): Promise<ActionResult> {
+  const ctx = await requireOrg();
+
+  const supabase = await createClient();
+  const stored = await loadIntegration(supabase, ctx.orgId, "shiprocket");
+  if (!stored) return notConnected("Shiprocket");
+
+  const remote = await listShiprocketOrders({
+    email: stored.values.email ?? "",
+    password: stored.values.password ?? "",
+  });
+  if (!remote.ok) return { ok: false, error: remote.error };
+  if (remote.orders.length === 0) {
+    return { ok: true, message: "Shiprocket has no orders on this account yet." };
+  }
+
+  const { data: ours } = await supabase
+    .from("store_orders")
+    .select("id, reference, awb, shiprocket_order_id")
+    .eq("org_id", ctx.orgId)
+    .limit(500);
+
+  const byReference = new Map((ours ?? []).map((row) => [row.reference, row]));
+
+  let updated = 0;
+  let unmatched = 0;
+
+  for (const entry of remote.orders) {
+    const mine = byReference.get(entry.reference);
+    if (!mine) {
+      unmatched += 1;
+      continue;
+    }
+
+    // Only what Shiprocket is authoritative about. Our own totals and
+    // status are not overwritten by theirs.
+    const patch: {
+      updated_at: string;
+      awb?: string;
+      courier_name?: string;
+      shiprocket_order_id?: string;
+    } = { updated_at: new Date().toISOString() };
+    if (entry.awb && entry.awb !== mine.awb) patch.awb = entry.awb;
+    if (entry.courier) patch.courier_name = entry.courier;
+    if (!mine.shiprocket_order_id) patch.shiprocket_order_id = entry.shiprocketOrderId;
+
+    if (Object.keys(patch).length > 1) {
+      await supabase.from("store_orders").update(patch).eq("id", mine.id);
+      updated += 1;
+    }
+  }
+
+  revalidatePath("/commerce");
+
+  const parts = [`Read ${remote.orders.length} order${remote.orders.length === 1 ? "" : "s"} from Shiprocket.`];
+  if (updated > 0) parts.push(`${updated} updated here with a tracking number or courier.`);
+  if (unmatched > 0) {
+    parts.push(
+      `${unmatched} had no matching order here — Shiprocket keys on the reference, so an order raised only in Shiprocket will not match until one exists here with the same reference.`
+    );
+  }
+
+  return { ok: true, message: parts.join(" ") };
 }

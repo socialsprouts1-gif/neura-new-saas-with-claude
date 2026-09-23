@@ -138,7 +138,7 @@ export default function CommerceBrowser({
         ))}
       </div>
 
-      {tab === "Orders" && <OrderList orders={orders} />}
+      {tab === "Orders" && <OrderList orders={orders} numbers={connections} />}
 
       {tab === "Products" && (
         <ProductsTab

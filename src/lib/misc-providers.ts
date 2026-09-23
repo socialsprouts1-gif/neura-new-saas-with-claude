@@ -194,3 +194,179 @@ export async function testCalendly(token: string): Promise<string | null> {
   const result = await fetchCalendlyEventTypes(token);
   return result.ok ? null : result.error;
 }
+
+// ------------------------------------------------ Shiprocket: pushing out
+
+export interface CreatedShipment {
+  shiprocketOrderId: string;
+  shipmentId: string | null;
+  /** Present only when a courier was assigned at creation. Usually not. */
+  awb: string | null;
+  courier: string | null;
+}
+
+/**
+ * Creates the order on Shiprocket.
+ *
+ * "adhoc" is their word for an order that did not come from a connected
+ * storefront, which is exactly what ours are.
+ *
+ * A created order has no AWB yet: Shiprocket assigns one when a courier
+ * is picked, which is a separate call and sometimes a manual choice in
+ * their dashboard. So this returns what exists now and the caller stores
+ * it; the AWB arrives later.
+ */
+export async function createShiprocketOrder(
+  credentials: ShiprocketCredentials,
+  payload: Record<string, unknown>
+): Promise<{ ok: true; created: CreatedShipment } | { ok: false; error: string }> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(`${SHIPROCKET_BASE}/orders/create/adhoc`, {
+    method: "POST",
+    headers: jsonHeaders(`Bearer ${auth.token}`),
+    body: JSON.stringify(payload),
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: describeShiprocketRejection(result) };
+  }
+
+  const body = result.body as {
+    order_id?: number | string;
+    shipment_id?: number | string;
+    awb_code?: string | null;
+    courier_name?: string | null;
+    status?: string;
+  } | null;
+
+  if (!body?.order_id) {
+    return {
+      ok: false,
+      error: "Shiprocket accepted the request but returned no order id, so nothing was created.",
+    };
+  }
+
+  return {
+    ok: true,
+    created: {
+      shiprocketOrderId: String(body.order_id),
+      shipmentId: body.shipment_id ? String(body.shipment_id) : null,
+      awb: body.awb_code?.trim() || null,
+      courier: body.courier_name?.trim() || null,
+    },
+  };
+}
+
+/**
+ * Shiprocket's validation errors, in one readable line.
+ *
+ * They answer a bad order with a 422 and an object keyed by field name,
+ * each holding an array of sentences. Printing "Request failed" throws
+ * away the one thing that says what to fix.
+ */
+function describeShiprocketRejection(result: {
+  status?: number;
+  error?: string | null;
+  body?: unknown;
+}): string {
+  const body = result.body as { message?: string; errors?: Record<string, unknown> } | null;
+
+  const fields = body?.errors;
+  if (fields && typeof fields === "object") {
+    const lines = Object.entries(fields)
+      .map(([field, detail]) => {
+        const text = Array.isArray(detail) ? detail.join(" ") : String(detail);
+        return `${field}: ${text}`;
+      })
+      .slice(0, 4);
+    if (lines.length > 0) return `Shiprocket refused the order — ${lines.join("; ")}`;
+  }
+
+  if (body?.message) return `Shiprocket refused the order — ${body.message}`;
+  return result.error || "Shiprocket refused the order.";
+}
+
+/** The pickup locations on the account, since an order must name one. */
+export async function listPickupLocations(
+  credentials: ShiprocketCredentials
+): Promise<{ ok: true; locations: string[] } | { ok: false; error: string }> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(`${SHIPROCKET_BASE}/settings/company/pickup`, {
+    headers: jsonHeaders(`Bearer ${auth.token}`),
+  });
+
+  if (!result.ok) return { ok: false, error: result.error ?? "Shiprocket refused the request." };
+
+  const data = (result.body as {
+    data?: { shipping_address?: Array<{ pickup_location?: string }> };
+  } | null)?.data;
+
+  const locations = (data?.shipping_address ?? [])
+    .map((entry) => entry.pickup_location?.trim())
+    .filter((name): name is string => Boolean(name));
+
+  return { ok: true, locations };
+}
+
+export interface RemoteOrder {
+  shiprocketOrderId: string;
+  reference: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  status: string | null;
+  totalRupees: number | null;
+  awb: string | null;
+  courier: string | null;
+  createdAt: string | null;
+}
+
+/** Orders that already exist on Shiprocket, newest first. */
+export async function listShiprocketOrders(
+  credentials: ShiprocketCredentials,
+  limit = 25
+): Promise<{ ok: true; orders: RemoteOrder[] } | { ok: false; error: string }> {
+  const auth = await shiprocketToken(credentials);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await providerFetch(
+    `${SHIPROCKET_BASE}/orders?per_page=${Math.min(Math.max(limit, 1), 100)}`,
+    { headers: jsonHeaders(`Bearer ${auth.token}`) }
+  );
+
+  if (!result.ok) return { ok: false, error: result.error ?? "Shiprocket refused the request." };
+
+  const rows = (result.body as {
+    data?: Array<{
+      id?: number | string;
+      channel_order_id?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      status?: string;
+      total?: number | string;
+      created_at?: string;
+      shipments?: Array<{ awb?: string; courier?: string }>;
+    }>;
+  } | null)?.data;
+
+  return {
+    ok: true,
+    orders: (rows ?? []).map((row) => {
+      const shipment = row.shipments?.[0];
+      return {
+        shiprocketOrderId: String(row.id ?? ""),
+        reference: row.channel_order_id?.trim() || String(row.id ?? ""),
+        customerName: row.customer_name?.trim() || null,
+        customerPhone: row.customer_phone?.trim() || null,
+        status: row.status?.trim() || null,
+        totalRupees: row.total === undefined ? null : Number(row.total),
+        awb: shipment?.awb?.trim() || null,
+        courier: shipment?.courier?.trim() || null,
+        createdAt: row.created_at ?? null,
+      };
+    }),
+  };
+}
