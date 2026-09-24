@@ -201,7 +201,7 @@ const META_DETAIL_HELP: Array<{ match: RegExp; help: string }> = [
     // the screen they were on.
     match: /Unsupported Interactive Message type/i,
     help:
-      "This number is not set up to take payments inside WhatsApp. The name saved under Commerce → Payments has to match a payment configuration that actually exists at Meta: open WhatsApp Manager → Payment configurations → India, add one linking your gateway account (Razorpay, PayU, BillDesk or Zaakpay), and save that exact name here. Until it exists at Meta, switch the method to Payment link — the customer pays on the gateway's own page and the order is marked paid the same way.",
+      "This number is not set up to take payments inside WhatsApp. The name saved under Commerce → Payments has to match a payment configuration that actually exists at Meta: open WhatsApp Manager → Payment configurations → India, add one linking your Razorpay or PayU account, and save that exact name here. Until it exists at Meta, switch the method to Payment link — the customer pays on the gateway's own page and the order is marked paid the same way.",
   },
   {
     // Coexistence. The WhatsApp Business account Meta creates for a number

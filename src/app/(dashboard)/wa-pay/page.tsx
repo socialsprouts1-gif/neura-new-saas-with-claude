@@ -179,7 +179,7 @@ export default async function WaPayPage() {
                           <span className="text-white/75">
                             WhatsApp Manager → Payment configurations → India
                           </span>
-                          , linked to your Razorpay, PayU, BillDesk or Zaakpay account. Meta
+                          , linked to your Razorpay or PayU account. Meta
                           refuses the message outright without one.
                         </span>
                       </li>
