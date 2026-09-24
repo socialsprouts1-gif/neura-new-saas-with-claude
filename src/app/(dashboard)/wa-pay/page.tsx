@@ -5,7 +5,7 @@ import { loadPaymentSettings } from "@/lib/commerce";
 import { HeroHeader, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
 import { formatAmount } from "@/lib/orders";
 import { PAYMENT_LABEL, type PaymentProvider } from "@/lib/provider-meta";
-import { AlertTriangle, ArrowRight, Check, CreditCard, Link2, Smartphone } from "lucide-react";
+import { AlertTriangle, ArrowRight, CreditCard, Link2, Smartphone } from "lucide-react";
 import ChargeForm from "./ChargeForm";
 
 // Getting paid, on its own screen.
@@ -154,31 +154,85 @@ export default async function WaPayPage() {
                 />
               )}
 
+              {/* Not a checklist, whatever it used to look like.
+                  ---------------------------------------------------------
+                  These were three green ticks, which reads as three things
+                  already confirmed — and nothing here is confirmed, they
+                  are instructions. Worse, they were the Payment link
+                  instructions shown to everybody, so a workspace set to
+                  charge inside WhatsApp was told to go and configure a
+                  gateway webhook, and found out what was actually missing
+                  only when Meta refused the send. */}
               <div className="glass-card p-5">
                 <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
-                  Before the first charge
+                  {settings.method === "whatsapp"
+                    ? "To charge inside WhatsApp"
+                    : "Before the first charge"}
                 </div>
                 <ul className="space-y-2.5 text-xs text-white/55 leading-relaxed">
-                  <li className="flex gap-2">
-                    <Check className="w-3.5 h-3.5 text-accent-ink flex-shrink-0 mt-0.5" />
-                    Set the gateway&rsquo;s webhook to{" "}
-                    <code className="text-accent-ink break-all">
-                      /api/webhooks/payments/&lt;gateway&gt;
-                    </code>
-                  </li>
-                  <li className="flex gap-2">
-                    <Check className="w-3.5 h-3.5 text-accent-ink flex-shrink-0 mt-0.5" />
-                    Paste its signing secret on the integration, or a cleared payment never marks
-                    the order paid.
-                  </li>
-                  <li className="flex gap-2">
-                    <Check className="w-3.5 h-3.5 text-accent-ink flex-shrink-0 mt-0.5" />
-                    Tax, shipping and the wording live under{" "}
-                    <Link href="/commerce" className="text-accent-ink hover:underline">
-                      Commerce → Payments
-                    </Link>
-                    .
-                  </li>
+                  {settings.method === "whatsapp" ? (
+                    <>
+                      <li className="flex gap-2">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Add a payment configuration in{" "}
+                          <span className="text-white/75">
+                            WhatsApp Manager → Payment configurations → India
+                          </span>
+                          , linked to your Razorpay, PayU, BillDesk or Zaakpay account. Meta
+                          refuses the message outright without one.
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Save that configuration&rsquo;s{" "}
+                          <span className="text-white/75">exact name</span> under{" "}
+                          <Link href="/commerce" className="text-accent-ink hover:underline">
+                            Commerce → Payments
+                          </Link>
+                          . A name that does not exist at Meta fails the same way as none at all.
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Not set up yet? Switch the method to{" "}
+                          <span className="text-white/75">Payment link</span> — the customer pays
+                          on the gateway&rsquo;s page and the order is marked paid just the same.
+                        </span>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex gap-2">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Set the gateway&rsquo;s webhook to{" "}
+                          <code className="text-accent-ink break-all">
+                            /api/webhooks/payments/&lt;gateway&gt;
+                          </code>
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Paste its signing secret on the integration, or a cleared payment never
+                          marks the order paid.
+                        </span>
+                      </li>
+                      <li className="flex gap-2">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/30 flex-shrink-0 mt-0.5" />
+                        <span>
+                          Tax, shipping and the wording live under{" "}
+                          <Link href="/commerce" className="text-accent-ink hover:underline">
+                            Commerce → Payments
+                          </Link>
+                          .
+                        </span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
             </div>

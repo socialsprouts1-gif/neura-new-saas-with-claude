@@ -192,6 +192,18 @@ const META_SUBCODE_HELP: Record<string, string> = {
 // on; ordered, so the first rule that fits wins.
 const META_DETAIL_HELP: Array<{ match: RegExp; help: string }> = [
   {
+    // WhatsApp Pay. `order_details` is the interactive type the customer
+    // pays inside, and Meta refuses it outright on an account that has no
+    // payment configuration — with error 131009, the same code a broken
+    // Flow returns. The per-code text is written for Flows, so this
+    // failure used to tell the operator to go and re-sync a form, which
+    // has nothing to do with what they were doing and does not exist on
+    // the screen they were on.
+    match: /Unsupported Interactive Message type/i,
+    help:
+      "This number is not set up to take payments inside WhatsApp. The name saved under Commerce → Payments has to match a payment configuration that actually exists at Meta: open WhatsApp Manager → Payment configurations → India, add one linking your gateway account (Razorpay, PayU, BillDesk or Zaakpay), and save that exact name here. Until it exists at Meta, switch the method to Payment link — the customer pays on the gateway's own page and the order is marked paid the same way.",
+  },
+  {
     // Coexistence. The WhatsApp Business account Meta creates for a number
     // kept on the Business app is of type SMB, and the catalogue endpoints
     // refuse it outright — no permission, no App Review and no token
@@ -212,6 +224,22 @@ function detailHelp(detail: string | null): string | null {
 /** Whether Meta's own wording explains this better than any code lookup. */
 export function hasDetailHelp(body: unknown): boolean {
   return detailHelp(metaErrorDetail(body).detail) !== null;
+}
+
+/**
+ * Sticks two sentences together without running them into one.
+ *
+ * Meta's descriptions end with a bracketed reference — "(Meta error
+ * 131009)" — and appending straight onto that produced "…(Meta error
+ * 131009) The order NC-260924-C8N3C was saved", which reads as one
+ * sentence that lost its punctuation.
+ */
+export function andThen(first: string, second: string): string {
+  const left = first.trim();
+  const right = second.trim();
+  if (!left) return right;
+  if (!right) return left;
+  return /[.!?]$/.test(left) ? `${left} ${right}` : `${left}. ${right}`;
 }
 
 /**

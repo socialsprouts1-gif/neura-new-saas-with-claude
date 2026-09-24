@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { fbtraceId, describeMetaError, hasDetailHelp, isMetaAuthError, metaErrorDetail } from "../src/lib/meta-errors.ts";
+import { andThen, fbtraceId, describeMetaError, hasDetailHelp, isMetaAuthError, metaErrorDetail } from "../src/lib/meta-errors.ts";
 
 // Run with: npm test
 //
@@ -293,4 +293,59 @@ test("an envelope without one gives null rather than an empty string", () => {
 test("a blank or non-string trace id is treated as absent", () => {
   assert.equal(fbtraceId({ error: { fbtrace_id: "   " } }), null);
   assert.equal(fbtraceId({ error: { fbtrace_id: 12345 } }), null);
+});
+
+// --- WhatsApp Pay, which fails on the same code a Flow does ----------------
+
+const unsupportedInteractive = {
+  error: {
+    message: "Unsupported Interactive Message type",
+    code: 131009,
+    type: "OAuthException",
+  },
+};
+
+test("a payment message refused by Meta is explained as a payment problem", () => {
+  // 131009 is shared with Flows, and the per-code text is written for
+  // Flows — so this used to tell someone sending a payment request to go
+  // and re-sync a form, on a screen that has no forms on it.
+  const text = describeMetaError(400, unsupportedInteractive);
+  assert.match(text, /not set up to take payments inside WhatsApp/);
+  assert.match(text, /Payment configurations/);
+  assert.doesNotMatch(text, /re-sync/i);
+  assert.doesNotMatch(text, /first screen/i);
+});
+
+test("the payment explanation still quotes Meta and the code to look up", () => {
+  const text = describeMetaError(400, unsupportedInteractive);
+  assert.match(text, /Unsupported Interactive Message type/);
+  assert.match(text, /Meta error 131009/);
+});
+
+test("a Flow failure on the same code keeps its own advice", () => {
+  const text = describeMetaError(400, {
+    error: { message: "Invalid parameter", code: 131009, type: "OAuthException" },
+  });
+  assert.match(text, /form/i);
+  assert.doesNotMatch(text, /take payments inside WhatsApp/);
+});
+
+// --- joining two sentences -------------------------------------------------
+
+test("a sentence ending in a bracket gains the full stop it needs", () => {
+  assert.equal(
+    andThen("Something went wrong (Meta error 131009)", "The order was saved."),
+    "Something went wrong (Meta error 131009). The order was saved."
+  );
+});
+
+test("a sentence that already ends properly is not given a second stop", () => {
+  assert.equal(andThen("It failed.", "Try again."), "It failed. Try again.");
+  assert.equal(andThen("Did it?", "Try again."), "Did it? Try again.");
+});
+
+test("an empty half is dropped rather than leaving stray punctuation", () => {
+  assert.equal(andThen("", "The order was saved."), "The order was saved.");
+  assert.equal(andThen("It failed.", ""), "It failed.");
+  assert.equal(andThen("  ", "  "), "");
 });

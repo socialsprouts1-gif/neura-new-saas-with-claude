@@ -15,7 +15,7 @@ import {
   sendProductMessage,
   setCommerceSettings,
 } from "@/lib/meta-whatsapp";
-import { hasDetailHelp, metaErrorDetail } from "@/lib/meta-errors";
+import { andThen, hasDetailHelp, metaErrorDetail } from "@/lib/meta-errors";
 import { loadOrgConnection } from "@/lib/whatsapp-send";
 import { findContactConversation } from "@/lib/contact-conversation";
 import { loadPaymentSettings, requestPayment, updateOrderStatus } from "@/lib/commerce";
@@ -973,7 +973,10 @@ export async function chargeCustomer(formData: FormData): Promise<ActionResult> 
     // failure is about the request, not the charge.
     return {
       ok: false,
-      error: `${result.error} The order ${reference} was saved, so you can retry it from Commerce.`,
+      error: andThen(
+        result.error ?? "",
+        `The order ${reference} was saved, so you can retry it from Commerce.`
+      ),
     };
   }
 
