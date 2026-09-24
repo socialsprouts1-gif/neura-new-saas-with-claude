@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts are loaded by next/font in app/layout.tsx, which self-hosts them
+   and sets --font-sans and --font-mono. Loading them here instead blocked
+   the first paint on a round trip to Google. */
 
 /* Tailwind v4 entrypoint. The v3 directives (@tailwind base/components/
    utilities) still emit utilities under v4 but silently skip preflight and
@@ -118,7 +120,7 @@ html {
 body {
   background-color: var(--app-bg);
   color: var(--color-white);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;

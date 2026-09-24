@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { loadSiteContent } from "@/lib/site-content-server";
 import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
@@ -11,6 +12,34 @@ import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 // Overridable so a different deployment can carry its own token without a
 // code change, and so a mis-transcribed character can be corrected from
 // Vercel rather than a redeploy of this file.
+/**
+ * The product's typeface.
+ *
+ * Space Grotesk rather than a neutral UI sans: the squared-off curves and
+ * the distinctive a and g give the interface a voice, which a tool sold on
+ * looking like a real product needs. It is a variable font, so one file
+ * covers every weight from 300 to 700 instead of five.
+ *
+ * Loaded through next/font rather than the @import it replaces. That import
+ * sat at the top of globals.css and blocked the first paint on a round trip
+ * to Google, then swapped the text once the font landed — a visible flash
+ * on every cold load. next/font serves the file from this domain, inlines
+ * the @font-face, and hands back fallback metrics so nothing shifts when it
+ * arrives.
+ */
+const sans = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+/** Kept for anything monospaced — API keys, ids, webhook payloads. */
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
 const FACEBOOK_DOMAIN_VERIFICATION =
   process.env.FACEBOOK_DOMAIN_VERIFICATION ?? "txlrl2b6tbksilyz5jhz1un9410ga4";
 
@@ -84,7 +113,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         {/* Applies the stored theme before first paint. Without it the dark
             default renders and then snaps to light on hydration. */}
