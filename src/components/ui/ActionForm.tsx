@@ -4,6 +4,15 @@ import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
+/** How much attention the button asks for. */
+export type ActionVariant = "primary" | "quiet" | "danger";
+
+const VARIANT_CLASS: Record<ActionVariant, string> = {
+  primary: "btn-primary",
+  quiet: "btn-quiet",
+  danger: "btn-danger",
+};
+
 // Wraps a server action so every form in the app reports success and failure
 // the same way, instead of each screen re-implementing pending state.
 export default function ActionForm({
@@ -13,6 +22,8 @@ export default function ActionForm({
   className = "",
   resetOnSuccess = false,
   compact = false,
+  variant = "primary",
+  onResult,
 }: {
   action: (formData: FormData) => Promise<ActionResult>;
   children: ReactNode;
@@ -20,6 +31,21 @@ export default function ActionForm({
   className?: string;
   resetOnSuccess?: boolean;
   compact?: boolean;
+  /**
+   * "quiet" for the buttons beside the one that matters. Defaults to
+   * primary so every existing form keeps the look it had.
+   */
+  variant?: ActionVariant;
+  /**
+   * Hands the outcome to the caller instead of printing it here.
+   *
+   * A row of these each printed its own message, and since a form is as
+   * wide as its widest child, one long sentence stretched that form
+   * across the card and shoved the next button half a screen away. A
+   * caller that takes the result can show it once, in one place, and the
+   * buttons stay in a row.
+   */
+  onResult?: (result: ActionResult) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -32,7 +58,8 @@ export default function ActionForm({
 
     startTransition(async () => {
       const res = await action(data);
-      setResult(res);
+      if (onResult) onResult(res);
+      else setResult(res);
       if (res.ok && resetOnSuccess) form.reset();
     });
   };
@@ -55,10 +82,12 @@ export default function ActionForm({
       <button
         type="submit"
         disabled={pending}
-        className={`btn-primary justify-center disabled:opacity-60 ${compact ? "text-xs py-2 px-3.5" : "mt-4"}`}
+        className={`${VARIANT_CLASS[variant]} justify-center disabled:opacity-60 ${
+          compact ? "btn-compact" : "mt-4"
+        }`}
       >
-        {pending && <Loader2 className="w-4 h-4 animate-spin" />}
-        {pending ? "Saving…" : submitLabel}
+        {pending && <Loader2 className={compact ? "w-3.5 h-3.5 animate-spin" : "w-4 h-4 animate-spin"} />}
+        {pending ? "Working…" : submitLabel}
       </button>
     </form>
   );

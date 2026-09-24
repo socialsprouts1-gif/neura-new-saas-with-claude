@@ -4,6 +4,7 @@ import {
   deliveryState,
   customerMessage,
   staffSummary,
+  courierDate,
   worthNotifying,
   type Shipment,
 } from "../src/lib/shipment-message.ts";
@@ -126,4 +127,44 @@ test("only the states a customer would want unprompted", () => {
   assert.equal(worthNotifying("in_transit"), false);
   assert.equal(worthNotifying("awaiting_pickup"), false);
   assert.equal(worthNotifying("unknown"), false);
+});
+
+// --- how a courier's timestamp is written down -----------------------------
+
+test("a midnight timestamp is a date, not a time", () => {
+  // Shiprocket sends "2026-09-29 00:00:00" for "expected on the 29th".
+  // Printing the zeros makes the panel look like a database dump.
+  assert.equal(courierDate("2026-09-29 00:00:00"), "29 Sep");
+});
+
+test("one second to midnight is also just the day", () => {
+  assert.equal(courierDate("2026-09-25 23:59:59"), "25 Sep");
+});
+
+test("a real time of day is kept, because that one is news", () => {
+  assert.equal(courierDate("2026-09-25 14:30:00"), "25 Sep, 2:30pm");
+  assert.equal(courierDate("2026-09-25 09:05:00"), "25 Sep, 9:05am");
+});
+
+test("noon and midday read correctly rather than as zero", () => {
+  assert.equal(courierDate("2026-09-25 12:00:00"), "25 Sep, 12:00pm");
+});
+
+test("a bare date needs no time appended", () => {
+  assert.equal(courierDate("2026-09-29"), "29 Sep");
+});
+
+test("an ISO timestamp is understood too", () => {
+  assert.equal(courierDate("2026-09-29T16:45:00"), "29 Sep, 4:45pm");
+});
+
+test("nothing in, nothing out", () => {
+  assert.equal(courierDate(null), "");
+  assert.equal(courierDate(undefined), "");
+  assert.equal(courierDate("   "), "");
+});
+
+test("something unrecognisable is shown rather than swallowed", () => {
+  // Better an odd string on screen than a blank where a date should be.
+  assert.equal(courierDate("tomorrow-ish"), "tomorrow-ish");
 });

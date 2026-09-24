@@ -245,6 +245,7 @@ export default function InvoiceRow({
               <ActionForm
                 action={sendInvoiceAction}
                 submitLabel={invoice.sentAt ? "Send again" : "Issue & send"}
+                variant={overdue ? "quiet" : "primary"}
                 compact
               >
                 <input type="hidden" name="id" value={invoice.id} />
@@ -252,14 +253,14 @@ export default function InvoiceRow({
             )}
 
             {overdue && (
-              <ActionForm action={sendInvoiceAction} submitLabel="Chase it" compact>
+              <ActionForm action={sendInvoiceAction} submitLabel="Chase it" variant="primary" compact>
                 <input type="hidden" name="id" value={invoice.id} />
                 <input type="hidden" name="reminder" value="1" />
               </ActionForm>
             )}
 
             {invoice.status === "draft" && (
-              <ActionForm action={issueInvoiceAction} submitLabel="Issue only" compact>
+              <ActionForm action={issueInvoiceAction} submitLabel="Issue only" variant="quiet" compact>
                 <input type="hidden" name="id" value={invoice.id} />
               </ActionForm>
             )}
@@ -267,27 +268,27 @@ export default function InvoiceRow({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="px-3 py-2 rounded-lg text-xs text-white/60 hover:text-white hover:bg-white/8 transition-colors"
+              className="btn-quiet btn-compact"
             >
               Edit
             </button>
 
-            <ActionForm action={duplicateInvoice} submitLabel="Copy" compact>
+            <ActionForm action={duplicateInvoice} submitLabel="Copy" variant="quiet" compact>
               <input type="hidden" name="id" value={invoice.id} />
             </ActionForm>
 
-            <ActionForm action={invoiceLink} submitLabel="Get link" compact>
+            <ActionForm action={invoiceLink} submitLabel="Get link" variant="quiet" compact>
               <input type="hidden" name="id" value={invoice.id} />
               <p className="sr-only">Shows the customer link, for pasting elsewhere</p>
             </ActionForm>
 
             {invoice.status === "draft" ? (
-              <ActionForm action={deleteInvoice} submitLabel="Delete draft" compact>
+              <ActionForm action={deleteInvoice} submitLabel="Delete draft" variant="danger" compact>
                 <input type="hidden" name="id" value={invoice.id} />
               </ActionForm>
             ) : (
               invoice.status !== "cancelled" && (
-                <ActionForm action={setInvoiceStatus} submitLabel="Cancel" compact>
+                <ActionForm action={setInvoiceStatus} submitLabel="Cancel" variant="danger" compact>
                   <input type="hidden" name="id" value={invoice.id} />
                   <input type="hidden" name="status" value="cancelled" />
                 </ActionForm>

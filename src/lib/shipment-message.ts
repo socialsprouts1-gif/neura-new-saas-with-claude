@@ -103,6 +103,51 @@ export function customerMessage(
 }
 
 /**
+ * A courier's date, written the way a person would say it.
+ *
+ * Shiprocket hands these back as "2026-09-29 00:00:00" — a SQL datetime
+ * with a time that is not a time. Midnight means "that day" and 23:59:59
+ * means "by the end of that day"; printing either verbatim puts six
+ * meaningless digits in front of the reader and makes the panel look like
+ * a database dump. A real time of day is kept, because that one is news.
+ *
+ * Anything it cannot parse is handed back untouched: an unrecognised
+ * format is still better shown than swallowed.
+ */
+export function courierDate(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(value);
+  if (!match) return value;
+
+  const [, year, month, day, hour, minute, second] = match;
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour ?? 0),
+    Number(minute ?? 0),
+    Number(second ?? 0)
+  );
+  if (Number.isNaN(date.getTime())) return value;
+
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const written = `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+
+  // No time at all, midnight, or one second to midnight: all three mean a
+  // day rather than a moment.
+  const endOfDay = hour === "23" && minute === "59";
+  const startOfDay = !hour || (hour === "00" && minute === "00");
+  if (startOfDay || endOfDay) return written;
+
+  const h = date.getHours();
+  const suffix = h < 12 ? "am" : "pm";
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${written}, ${twelve}:${String(date.getMinutes()).padStart(2, "0")}${suffix}`;
+}
+
+/**
  * The same parcel for whoever is looking at the dashboard.
  *
  * Keeps the courier's own words, which the customer message deliberately
@@ -112,7 +157,7 @@ export function staffSummary(shipment: Shipment): string {
   return [
     `${shipment.awb}: ${shipment.status}`,
     shipment.courier ? `via ${shipment.courier}` : null,
-    shipment.expectedDelivery ? `due ${shipment.expectedDelivery}` : null,
+    shipment.expectedDelivery ? `due ${courierDate(shipment.expectedDelivery)}` : null,
     shipment.lastUpdate,
   ]
     .filter(Boolean)

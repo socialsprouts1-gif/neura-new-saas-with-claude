@@ -52,6 +52,15 @@ const STATUS_TONE: Record<string, Tone> = {
 };
 
 /** What can sensibly follow each state, so the buttons are never nonsense. */
+/**
+ * The status moves that lose the sale.
+ *
+ * Cancelling and refunding used to render in the same solid neon green as
+ * confirming, which made the row read as four equally good ideas. These
+ * stay findable and stop inviting.
+ */
+const DESTRUCTIVE_STATUSES = new Set(["cancelled", "refunded"]);
+
 const NEXT_STATUSES: Record<string, Array<{ status: string; label: string }>> = {
   pending: [
     { status: "confirmed", label: "Confirm" },
@@ -154,12 +163,12 @@ function OrderCard({
               reading a toast. */}
           {order.awb && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
-              <ActionForm action={trackOrderShipment} submitLabel="Where is it?" compact>
+              <ActionForm action={trackOrderShipment} submitLabel="Where is it?" variant="quiet" compact>
                 <input type="hidden" name="order_id" value={order.id} />
               </ActionForm>
 
               {order.hasConversation && (
-                <ActionForm action={trackOrderShipment} submitLabel="Tell the customer" compact>
+                <ActionForm action={trackOrderShipment} submitLabel="Tell the customer" variant="quiet" compact>
                   <input type="hidden" name="order_id" value={order.id} />
                   <input type="hidden" name="send" value="1" />
                 </ActionForm>
@@ -233,15 +242,25 @@ function OrderCard({
 
           <div className="flex flex-wrap gap-2">
             {unpaid && order.hasConversation && (
-              <ActionForm action={askForPayment} submitLabel="Ask to pay" compact>
+              <ActionForm action={askForPayment} submitLabel="Ask to pay" variant="primary" compact>
                 <input type="hidden" name="order_id" value={order.id} />
               </ActionForm>
             )}
-            {(NEXT_STATUSES[order.status] ?? []).map((next) => (
+            {(NEXT_STATUSES[order.status] ?? []).map((next, index) => (
               <ActionForm
                 key={next.status}
                 action={setOrderStatus}
                 submitLabel={next.label}
+                // One green button per row. Asking for the money outranks
+                // a manual status change, so it takes the green when it is
+                // showing and the first status move takes it otherwise.
+                variant={
+                  DESTRUCTIVE_STATUSES.has(next.status)
+                    ? "danger"
+                    : index === 0 && !(unpaid && order.hasConversation)
+                      ? "primary"
+                      : "quiet"
+                }
                 compact
               >
                 <input type="hidden" name="order_id" value={order.id} />

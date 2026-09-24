@@ -1,7 +1,9 @@
 "use client";
 
-import { ExternalLink, MapPin, Truck, User } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, CheckCircle2, ExternalLink, MapPin, Truck, User } from "lucide-react";
 import ActionForm from "@/components/ui/ActionForm";
+import type { ActionResult } from "@/app/(dashboard)/actions";
 import { Badge, type Tone } from "@/components/ui/primitives";
 import { formatAmount } from "@/lib/orders";
 import {
@@ -86,9 +88,15 @@ function ShipmentCard({
   const actions = availableActions(row);
 
   // The step that moves the parcel on is the primary button; the rest are
-  // secondary. A row of five identical buttons makes the reader work out
-  // the order, which is exactly what the stage already knows.
+  // quiet. A row of five identical buttons makes the reader work out the
+  // order, which is exactly what the stage already knows.
   const [first, ...rest] = actions;
+
+  // One outcome line for the whole card. Each button used to print its
+  // own, and because a form is as wide as its widest child, a single long
+  // sentence stretched that form across the card and pushed the next
+  // button half a screen sideways.
+  const [result, setResult] = useState<ActionResult | null>(null);
 
   return (
     <div className="glass-card p-4">
@@ -165,21 +173,41 @@ function ShipmentCard({
       )}
 
       {actions.length > 0 && (
-        <div className="flex flex-wrap items-end gap-2 mt-3.5 pt-3.5 border-t border-white/6">
-          <ActionButton action={first} order={order} primary />
-          {rest.map((entry) => (
-            <ActionButton key={entry} action={entry} order={order} />
-          ))}
+        <div className="mt-4 pt-3.5 border-t border-white/6">
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionButton action={first} order={order} onResult={setResult} primary />
+            {rest.map((entry) => (
+              <ActionButton key={entry} action={entry} order={order} onResult={setResult} />
+            ))}
+          </div>
+
+          {result && (
+            <p
+              className={`flex items-start gap-2 mt-3 text-[11.5px] leading-relaxed ${
+                result.ok ? "text-white/60" : "text-red-300/90"
+              }`}
+              role={result.ok ? "status" : "alert"}
+            >
+              {result.ok ? (
+                <CheckCircle2 className="w-3.5 h-3.5 mt-px flex-shrink-0 text-accent-ink" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 mt-px flex-shrink-0" />
+              )}
+              <span>{result.ok ? result.message : result.error}</span>
+            </p>
+          )}
 
           {/* Which number the customer hears from. Saved with the order so
               a later update goes out from the same one. */}
           {numbers.length > 1 && actions.includes("notify") && (
-            <span className="text-[11px] text-white/35 ml-auto">
+            <p className="text-[11px] text-white/30 mt-3">
               Updates go out from{" "}
-              {numbers.find((n) => n.id === order.connectionId)?.label ??
-                "the conversation's number"}{" "}
-              · change it under Commerce → Shipping
-            </span>
+              <span className="text-white/45">
+                {numbers.find((n) => n.id === order.connectionId)?.label ??
+                  "the conversation's number"}
+              </span>
+              {" · change it under Commerce → Shipping"}
+            </p>
           )}
         </div>
       )}
@@ -200,18 +228,27 @@ const LABELS: Record<Action, string> = {
 function ActionButton({
   action,
   order,
+  onResult,
   primary = false,
 }: {
   action: Action;
   order: ShipmentOrder;
+  onResult: (result: ActionResult) => void;
   primary?: boolean;
 }) {
+  // Only the step that moves the parcel on gets the green. It used to be
+  // worked out here and then never reach the button, so all five arrived
+  // solid green and the hierarchy existed only in the code.
+  const variant = primary ? "primary" : "quiet";
+
   if (action === "label" || action === "invoice") {
     const existing = action === "label" ? order.labelUrl : order.invoiceUrl;
     return (
       <ActionForm
         action={makeShipmentDocument}
         submitLabel={documentLabel(action, existing)}
+        variant={variant}
+        onResult={onResult}
         compact
       >
         <input type="hidden" name="order_id" value={order.id} />
@@ -230,10 +267,15 @@ function ActionButton({
           : trackOrderShipment;
 
   return (
-    <ActionForm action={serverAction} submitLabel={LABELS[action]} compact>
+    <ActionForm
+      action={serverAction}
+      submitLabel={LABELS[action]}
+      variant={variant}
+      onResult={onResult}
+      compact
+    >
       <input type="hidden" name="order_id" value={order.id} />
       {action === "notify" && <input type="hidden" name="send" value="1" />}
-      {primary && <input type="hidden" name="_primary" value="1" />}
     </ActionForm>
   );
 }

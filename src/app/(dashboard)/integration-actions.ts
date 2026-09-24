@@ -35,7 +35,7 @@ import {
   generateInvoice,
   requestPickup,
 } from "@/lib/misc-providers";
-import { customerMessage, staffSummary } from "@/lib/shipment-message";
+import { courierDate, customerMessage, staffSummary } from "@/lib/shipment-message";
 import { buildShiprocketOrder } from "@/lib/shiprocket-order";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { loadGoogleCalendar, testGoogleCalendar } from "@/lib/google-calendar";
@@ -401,18 +401,9 @@ export async function trackParcel(formData: FormData): Promise<ActionResult> {
 
   if (!result.ok) return { ok: false, error: result.error };
 
-  const { shipment } = result;
-  return {
-    ok: true,
-    message: [
-      `${shipment.awb}: ${shipment.status}`,
-      shipment.courier ? `via ${shipment.courier}` : null,
-      shipment.expectedDelivery ? `due ${shipment.expectedDelivery}` : null,
-      shipment.lastUpdate,
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  };
+  // The same sentence the notify path builds, rather than a second copy
+  // of it that drifts — this one already forgot to tidy the date.
+  return { ok: true, message: staffSummary(result.shipment) };
 }
 
 /** The Calendly links, so the right one can be pasted into a conversation. */
@@ -900,7 +891,7 @@ export async function bookPickup(formData: FormData): Promise<ActionResult> {
   return {
     ok: true,
     message: result.scheduledFor
-      ? `Pickup booked for ${result.scheduledFor}.`
+      ? `Pickup booked for ${courierDate(result.scheduledFor)}.`
       : "Pickup booked. Shiprocket did not name a date — check the order there for the slot.",
   };
 }
