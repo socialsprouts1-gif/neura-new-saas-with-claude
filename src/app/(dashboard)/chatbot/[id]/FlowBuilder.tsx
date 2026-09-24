@@ -19,11 +19,15 @@ import {
   Handle,
   Position,
   addEdge,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
   useEdgesState,
   useNodesState,
   useReactFlow,
   type Connection,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
@@ -711,6 +715,75 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
 
 const nodeTypes = { flowNode: FlowNodeCard };
 
+/**
+ * A connection with a cross on it.
+ *
+ * React Flow's own way to remove a link is to click it and press Delete,
+ * which is not something anybody discovers — and on a touchpad, aiming at
+ * a two-pixel curve to select it is its own small ordeal. So the cross is
+ * drawn on every connection, sitting at its midpoint: visible enough to
+ * find, faint enough not to turn a ten-node flow into a field of buttons,
+ * and red under the pointer so there is no doubt what it does.
+ */
+function DisconnectEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style,
+  markerEnd,
+}: EdgeProps) {
+  const { setEdges } = useReactFlow();
+
+  const [path, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  return (
+    <>
+      <BaseEdge id={id} path={path} style={style} markerEnd={markerEnd} />
+      <EdgeLabelRenderer>
+        <button
+          type="button"
+          title="Disconnect these two steps"
+          aria-label="Disconnect these two steps"
+          // nodrag/nopan or the canvas pans out from under the click, and
+          // pointerEvents because the label layer ignores them by default.
+          className="nodrag nopan absolute flex items-center justify-center w-5 h-5 rounded-full border border-white/25 bg-[var(--surface-1)] text-white/60 shadow-sm transition-all hover:w-6 hover:h-6 hover:border-red-400 hover:bg-red-500/20 hover:text-red-300 focus:outline-none focus-visible:border-red-400 focus-visible:text-red-300"
+          style={{
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            pointerEvents: "all",
+          }}
+          onClick={(event) => {
+            // The click belongs to the button, not to the canvas behind it.
+            event.stopPropagation();
+            setEdges((current) => current.filter((edge) => edge.id !== id));
+          }}
+        >
+          <X className="w-3 h-3" strokeWidth={2.5} />
+        </button>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+const edgeTypes = { disconnect: DisconnectEdge };
+
+/** Every connection looks and behaves the same, however it came to exist. */
+const EDGE_STYLE = {
+  type: "disconnect" as const,
+  animated: true,
+  style: { stroke: "#00D4FF66" },
+};
+
 // --- the builder -----------------------------------------------------------
 
 interface BuilderProps {
@@ -750,8 +823,7 @@ function Builder({
       source: e.source,
       target: e.target,
       sourceHandle: e.sourceHandle ?? null,
-      animated: true,
-      style: { stroke: "#00D4FF66" },
+      ...EDGE_STYLE,
     }))
   );
 
@@ -766,9 +838,7 @@ function Builder({
 
   const onConnect = useCallback(
     (connection: Connection) =>
-      setEdges((current) =>
-        addEdge({ ...connection, animated: true, style: { stroke: "#00D4FF66" } }, current)
-      ),
+      setEdges((current) => addEdge({ ...connection, ...EDGE_STYLE }, current)),
     [setEdges]
   );
 
@@ -1009,9 +1079,10 @@ function Builder({
               e.dataTransfer.dropEffect = "move";
             }}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             fitView
             proOptions={{ hideAttribution: false }}
-            defaultEdgeOptions={{ animated: true }}
+            defaultEdgeOptions={EDGE_STYLE}
             colorMode={theme}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="color-mix(in oklab, var(--color-white) 16%, transparent)" />
