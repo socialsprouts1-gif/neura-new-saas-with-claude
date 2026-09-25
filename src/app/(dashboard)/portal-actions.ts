@@ -611,9 +611,18 @@ export async function deleteChatbotFlow(formData: FormData): Promise<ActionResul
 
 // ---------------------------------------------------------------- FAQ
 
+/**
+ * Writes an FAQ — a new one, or an edit to one that exists.
+ *
+ * It only ever inserted. An answer with a typo in it, or a price that
+ * changed, could be deleted and retyped and nothing else, which for the
+ * screen people are most likely to maintain weekly is the wrong way
+ * round: the keywords are the hard part and deleting threw them away.
+ */
 export async function saveFaqEntry(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
 
+  const id = String(formData.get("id") ?? "").trim();
   const question = String(formData.get("question") ?? "").trim();
   const answer = String(formData.get("answer") ?? "").trim();
   const keywords = String(formData.get("keywords") ?? "")
@@ -621,17 +630,63 @@ export async function saveFaqEntry(formData: FormData): Promise<ActionResult> {
     .map((k) => k.trim().toLowerCase())
     .filter(Boolean);
   const category = String(formData.get("category") ?? "").trim() || null;
+  // Empty means every number, which is what a one-number workspace wants.
+  const connectionId = String(formData.get("connection_id") ?? "").trim() || null;
 
   if (!question || !answer) return { ok: false, error: "Question and answer are both required." };
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("faq_entries")
-    .insert({ org_id: orgId, question, answer, keywords, category });
+  const fields = { question, answer, keywords, category, connection_id: connectionId };
+
+  if (id) {
+    // .select() on the update, because Postgres does not error on an
+    // UPDATE whose rows RLS filtered out — it reports zero rows changed
+    // and PostgREST returns that as success.
+    const { data, error } = await supabase
+      .from("faq_entries")
+      .update(fields)
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .select("id");
+
+    if (error) return { ok: false, error: error.message };
+    if (!data || data.length === 0) {
+      return { ok: false, error: "That question no longer exists in this workspace." };
+    }
+
+    revalidatePath("/faq-bot");
+    return { ok: true, message: "Saved." };
+  }
+
+  const { error } = await supabase.from("faq_entries").insert({ org_id: orgId, ...fields });
 
   if (error) return { ok: false, error: error.message };
   revalidatePath("/faq-bot");
   return { ok: true, message: "FAQ added." };
+}
+
+/** Switches one answer on or off without losing its keywords. */
+export async function toggleFaqEntry(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const supabase = await createClient();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const active = String(formData.get("is_active") ?? "") === "1";
+
+  const { data, error } = await supabase
+    .from("faq_entries")
+    .update({ is_active: active })
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .select("id");
+
+  if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: "That question no longer exists in this workspace." };
+  }
+
+  revalidatePath("/faq-bot");
+  return { ok: true, message: active ? "Answering again." : "Paused — it will not answer." };
 }
 
 export async function deleteFaqEntry(formData: FormData): Promise<ActionResult> {

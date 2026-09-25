@@ -480,6 +480,13 @@ export type FaqEntry = {
   hit_count: number;
   is_active: boolean;
   created_at: string;
+  /**
+   * The number this answers on. Null means every number, which is what a
+   * one-number workspace wants and what every row predating the column
+   * means. Optional because a database that has not run update 14 yet
+   * returns rows without it.
+   */
+  connection_id?: string | null;
 };
 
 export type ReminderStatus = "pending" | "sent" | "cancelled" | "failed";

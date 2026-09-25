@@ -531,7 +531,15 @@ async function loadResources(
         .eq("org_id", event.orgId)
         .eq("is_active", true)
         .or(scopedToNumber(conversation.connectionId)),
-      supabase.from("faq_entries").select("*").eq("org_id", event.orgId).eq("is_active", true),
+      // Scoped to the number, like every other kind of automation here.
+      // Without this an FAQ answered on all of a workspace's numbers, so
+      // two businesses under one account answered each other's customers.
+      supabase
+        .from("faq_entries")
+        .select("*")
+        .eq("org_id", event.orgId)
+        .eq("is_active", true)
+        .or(scopedToNumber(conversation.connectionId)),
       supabase
         .from("automation_flows")
         .select("*")

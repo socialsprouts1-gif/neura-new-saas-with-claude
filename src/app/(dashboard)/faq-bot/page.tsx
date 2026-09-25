@@ -1,20 +1,31 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
-import { saveFaqEntry, deleteFaqEntry, addFaqStarters } from "../portal-actions";
-import ActionForm, { Field, TextareaField } from "@/components/ui/ActionForm";
-import { PageHeader, Card, StatCard, Badge, EmptyState } from "@/components/ui/primitives";
+import { listActiveConnections, optionLabel } from "@/lib/connections";
+import { saveFaqEntry, addFaqStarters } from "../portal-actions";
+import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
+import { PageHeader, Card, StatCard, EmptyState } from "@/components/ui/primitives";
+import FaqCard from "./FaqCard";
+import type { FaqEntry } from "@/types/portal";
 
 export default async function FaqBotPage() {
   const { orgId } = await requireFeature("faq_bot");
   const supabase = await createClient();
 
-  const { data: entries, error } = await supabase
-    .from("faq_entries")
-    .select("*")
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false });
+  const [{ data: entries, error }, connections] = await Promise.all([
+    supabase
+      .from("faq_entries")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false }),
+    listActiveConnections(supabase, orgId),
+  ]);
 
-  const all = entries ?? [];
+  const numbers = connections.map((connection) => ({
+    id: connection.id,
+    label: optionLabel(connection),
+  }));
+
+  const all = (entries ?? []) as Array<FaqEntry & { connection_id?: string | null }>;
   const categories = new Set(all.map((e) => e.category).filter(Boolean));
   const totalHits = all.reduce((s, e) => s + e.hit_count, 0);
 
@@ -49,7 +60,7 @@ export default async function FaqBotPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Questions" value={all.length} />
         <StatCard label="Categories" value={categories.size} />
-        <StatCard label="Active" value={all.filter((e) => e.is_active).length} />
+        <StatCard label="Answering" value={all.filter((e) => e.is_active).length} />
         <StatCard label="Times answered" value={totalHits} />
       </div>
 
@@ -61,34 +72,8 @@ export default async function FaqBotPage() {
               description={`${error.message}. If this mentions a missing relation, the portal migration hasn't been applied yet.`}
             />
           ) : all.length > 0 ? (
-            all.map((e) => (
-              <Card key={e.id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <h3 className="font-semibold text-sm">{e.question}</h3>
-                      {e.category && <Badge tone="blue">{e.category}</Badge>}
-                      {e.hit_count > 0 && <Badge tone="green">{e.hit_count} answered</Badge>}
-                    </div>
-                    <p className="text-sm text-white/55 whitespace-pre-wrap">{e.answer}</p>
-                    {e.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-3">
-                        {e.keywords.map((k) => (
-                          <span
-                            key={k}
-                            className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/45"
-                          >
-                            {k}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <ActionForm action={deleteFaqEntry} submitLabel="Delete" compact>
-                    <input type="hidden" name="id" value={e.id} />
-                  </ActionForm>
-                </div>
-              </Card>
+            all.map((entry) => (
+              <FaqCard key={entry.id} entry={entry} numbers={numbers} />
             ))
           ) : (
             <Card>
@@ -137,6 +122,16 @@ export default async function FaqBotPage() {
                 hint="Comma separated"
               />
               <Field label="Category" name="category" placeholder="Shipping" />
+              {numbers.length > 1 && (
+                <SelectField
+                  label="Answer on"
+                  name="connection_id"
+                  options={[
+                    { value: "", label: "Every number" },
+                    ...numbers.map((number) => ({ value: number.id, label: number.label })),
+                  ]}
+                />
+              )}
             </div>
           </ActionForm>
         </Card>
