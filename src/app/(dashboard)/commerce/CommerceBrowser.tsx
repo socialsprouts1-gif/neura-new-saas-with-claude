@@ -10,6 +10,7 @@ import {
   Eye,
   Loader2,
   Package,
+  Pencil,
   RefreshCw,
   Send,
   ShoppingCart,
@@ -218,6 +219,11 @@ function ProductsTab({
   // of the message to how many products are in it, and the reader should
   // see which of the three they are about to send before they send it.
   const [picked, setPicked] = useState<string[]>([]);
+  // Which product's card has opened into its form. A price that changed
+  // used to mean deleting the row and retyping it — which on an imported
+  // product throws away the content id, the one field that makes it
+  // sendable and the one nobody remembers.
+  const [editing, setEditing] = useState<string | null>(null);
   const toggle = (id: string) =>
     setPicked((current) =>
       current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
@@ -263,7 +269,58 @@ function ProductsTab({
           />
         ) : (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {products.map((product) => (
+            {products.map((product) =>
+              editing === product.id ? (
+                <ActionForm
+                  key={product.id}
+                  action={saveProduct}
+                  submitLabel="Save changes"
+                  className="glass-card p-5 border-accent/30"
+                >
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <h4 className="font-semibold text-sm">Editing</h4>
+                    <button
+                      type="button"
+                      onClick={() => setEditing(null)}
+                      className="btn-quiet btn-compact"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </button>
+                  </div>
+                  <input type="hidden" name="id" value={product.id} />
+                  <div className="space-y-4">
+                    <Field label="Product name" name="name" required defaultValue={product.name} />
+                    <Field label="SKU" name="sku" defaultValue={product.sku ?? ""} />
+                    <Field
+                      label="Price (₹)"
+                      name="price"
+                      type="number"
+                      required
+                      defaultValue={String(product.price_cents / 100)}
+                    />
+                    <Field
+                      label="Stock"
+                      name="stock"
+                      type="number"
+                      defaultValue={product.stock === null ? "" : String(product.stock)}
+                      hint="Blank if untracked"
+                    />
+                    <Field
+                      label="Image URL"
+                      name="image_url"
+                      type="url"
+                      defaultValue={product.image_url ?? ""}
+                    />
+                    <Field
+                      label="Meta content ID"
+                      name="retailer_id"
+                      defaultValue={product.retailer_id ?? ""}
+                      hint="Without it this product can be listed here but not sent to a customer."
+                    />
+                  </div>
+                </ActionForm>
+              ) : (
               <div
                 key={product.id}
                 className={`glass-card overflow-hidden flex flex-col transition-colors ${
@@ -335,15 +392,29 @@ function ProductsTab({
                   </div>
 
                   {canManage && (
-                    <div className="mt-auto">
-                      <ActionForm action={deleteProduct} submitLabel="Delete" compact>
+                    <div className="mt-auto flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(product.id)}
+                        className="btn-quiet btn-compact"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        Edit
+                      </button>
+                      <ActionForm
+                        action={deleteProduct}
+                        submitLabel="Delete"
+                        variant="danger"
+                        compact
+                      >
                         <input type="hidden" name="id" value={product.id} />
                       </ActionForm>
                     </div>
                   )}
                 </div>
               </div>
-            ))}
+              )
+            )}
           </div>
         )}
       </div>

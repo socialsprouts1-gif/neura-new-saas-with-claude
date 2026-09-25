@@ -1128,9 +1128,18 @@ async function congratulateFirstBot(
   }
 }
 
+/**
+ * Writes a product — a new one, or an edit to one that exists.
+ *
+ * It only ever inserted, so a price that changed meant deleting the row
+ * and typing it again. On a product imported from the Meta catalogue
+ * that also throws away the content id, which is the one field that
+ * makes it sendable and the one nobody remembers.
+ */
 export async function saveProduct(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
 
+  const id = String(formData.get("id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const sku = String(formData.get("sku") ?? "").trim() || null;
   const priceRupees = Number(formData.get("price") ?? 0);
@@ -1147,15 +1156,39 @@ export async function saveProduct(formData: FormData): Promise<ActionResult> {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("products").insert({
-    org_id: orgId,
+  const fields = {
     name,
     sku,
     price_cents: Math.round(priceRupees * 100),
-    stock: stockRaw ? Number(stockRaw) : null,
+    stock: stockRaw !== null && String(stockRaw).trim() !== "" ? Number(stockRaw) : null,
     image_url: imageUrl,
     retailer_id: retailerId,
-  });
+  };
+
+  if (id) {
+    // .select(), because Postgres does not error on an UPDATE whose rows
+    // RLS filtered out — it reports zero rows changed and PostgREST
+    // returns that as success.
+    const { data, error } = await supabase
+      .from("products")
+      .update(fields)
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .select("id");
+
+    if (error) {
+      if (error.code === "23505") return { ok: false, error: "That SKU already exists." };
+      return { ok: false, error: error.message };
+    }
+    if (!data || data.length === 0) {
+      return { ok: false, error: "That product no longer exists in this workspace." };
+    }
+
+    revalidatePath("/commerce");
+    return { ok: true, message: "Saved." };
+  }
+
+  const { error } = await supabase.from("products").insert({ org_id: orgId, ...fields });
 
   if (error) {
     if (error.code === "23505") return { ok: false, error: "That SKU already exists." };
