@@ -7,30 +7,31 @@ import type { AppBrand } from "@/lib/app-brand";
 import { pathAllowed } from "@/lib/features";
 import { useState } from "react";
 import {
-  LayoutDashboard,
-  MessageCircle,
   Bell,
-  LifeBuoy,
-  Users,
+  BookOpen,
   Bot,
-  Sparkles,
-  HelpCircle,
-  Plug,
-  ShoppingBag,
-  Truck,
-  Image as ImageIcon,
   Building2,
-  Code2,
-  CreditCard,
-  Send,
-  Settings,
-  Shield,
   CalendarCheck,
   CalendarDays,
   ChevronRight,
+  Code2,
+  CreditCard,
   DollarSign,
-  Wallet,
+  HelpCircle,
+  Image as ImageIcon,
+  LayoutDashboard,
+  LifeBuoy,
+  MessageCircle,
   Phone,
+  Plug,
+  Send,
+  Settings,
+  Shield,
+  ShoppingBag,
+  Sparkles,
+  Truck,
+  Users,
+  Wallet,
 } from "lucide-react";
 
 // The navigation, in the order the product presents it. One heading, then
@@ -63,6 +64,10 @@ interface NavItem {
 
 const PLATFORM: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/overview" },
+  // Second, deliberately. Somebody who cannot find how the product works
+  // does not go looking under Settings — they email support, or they
+  // leave.
+  { icon: BookOpen, label: "Guides", href: "/guides" },
   { icon: MessageCircle, label: "Inbox", href: "/inbox" },
   { icon: Phone, label: "WhatsApp Numbers", href: "/numbers" },
   {
