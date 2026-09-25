@@ -828,6 +828,10 @@ export async function savePaymentSettings(formData: FormData): Promise<ActionRes
       wa_payment_gateway: gateway,
       goods_type:
         String(formData.get("goods_type") ?? "physical") === "digital" ? "digital" : "physical",
+      // A checkbox is absent from the form data when it is unticked, so
+      // this reads as off only when the form actually offered it — the
+      // hidden companion field below is what says it did.
+      auto_request_payment: String(formData.get("auto_request_payment") ?? "") === "1",
       payment_expiry_minutes: Math.max(
         10,
         Math.min(20160, Math.round(number("payment_expiry_minutes", 1440)))

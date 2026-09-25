@@ -7,6 +7,7 @@ import { formatMoney } from "@/types/admin";
 import { INTEGRATIONS } from "@/lib/integrations";
 import { PAYMENT_PROVIDERS, STORE_PROVIDERS } from "@/lib/provider-meta";
 import type { PaymentSettings, Product } from "@/types/portal";
+import { splitByOrigin } from "@/lib/order-origin";
 import CommerceBrowser from "./CommerceBrowser";
 import type { OrderRow } from "./OrderList";
 
@@ -130,13 +131,21 @@ export default async function CommercePage() {
   }
   for (const order of orders) order.items = itemsByOrder.get(order.id) ?? [];
 
+  // Orders that started here, not every parcel the courier knows about.
+  // Pulling a Shiprocket account in put a year of shipments into this
+  // list — each with no items on it and a tracking button that belongs
+  // on the Shipments screen, which already exists and does it better.
+  const { own: ownOrders, courier: courierOrders } = splitByOrigin(
+    orders.map((order) => ({ ...order, itemCount: order.items?.length ?? 0 }))
+  );
+
   const connected = new Set((integrationsResult.data ?? []).map((row) => row.provider));
 
   const inventoryValue = products.reduce(
     (total, product) => total + product.price_cents * (product.stock ?? 0),
     0
   );
-  const paidOrders = orders.filter((order) => order.paidAt);
+  const paidOrders = ownOrders.filter((order) => order.paidAt);
   const revenue = paidOrders.reduce((total, order) => total + order.totalCents, 0);
 
   return (
@@ -153,14 +162,22 @@ export default async function CommercePage() {
           value={products.filter((product) => product.retailer_id).length}
           hint="Have a Meta content ID"
         />
-        <StatCard label="Orders" value={orders.length} />
+        <StatCard
+          label="Orders"
+          value={ownOrders.length}
+          hint={
+            courierOrders.length > 0
+              ? `${courierOrders.length} more in Shipments`
+              : undefined
+          }
+        />
         <StatCard label="Paid" value={formatMoney(revenue)} hint={`${paidOrders.length} orders`} />
       </div>
 
       <CommerceBrowser
         canManage={canManage}
         products={products}
-        orders={orders}
+        orders={ownOrders}
         ordersMigrated={ordersMigrated}
         ordersError={ordersResult.error?.message ?? null}
         productsError={productsResult.error?.message ?? null}
@@ -210,7 +227,13 @@ export interface CatalogueState {
 }
 
 /**
- * The catalogue link on the default number.
+ * The catalogue link, on whichever number actually has one.
+ *
+ * This used to read the default number and only the default number,
+ * while linking wrote to whichever number the operator picked. With four
+ * numbers connected, linking a catalogue to the third one and then being
+ * told "no Meta catalogue is linked" is not a confusing message — it is
+ * the screen reading a different row from the one it just wrote.
  *
  * Read from the connection row rather than Meta on every page load: the
  * catalogue id never changes, and a Graph call in a page render is a
@@ -220,13 +243,16 @@ async function loadCatalogueState(
   supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string
 ): Promise<CatalogueState> {
-  const { data, error } = await supabase
+  const { data: rows, error } = await supabase
     .from("waba_connections")
     .select("id, catalog_id, catalog_name, is_catalog_visible, is_cart_enabled, is_default")
     .eq("org_id", orgId)
-    .order("is_default", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("is_default", { ascending: false });
+
+  // A linked catalogue wins over the default number, because a linked
+  // one is a decision somebody made and the default is only a fallback.
+  const data =
+    (rows ?? []).find((row) => row.catalog_id) ?? (rows ?? [])[0] ?? null;
 
   if (error) {
     return {

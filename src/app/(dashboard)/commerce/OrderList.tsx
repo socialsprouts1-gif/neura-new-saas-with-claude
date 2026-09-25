@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CreditCard, ExternalLink, Package, Truck, User } from "lucide-react";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { Badge, EmptyState, type Tone } from "@/components/ui/primitives";
 import { formatAmount } from "@/lib/orders";
 import { askForPayment, saveOrderShipping, setOrderStatus } from "../commerce-actions";
-import { trackOrderShipment, pushOrderToShiprocket } from "../integration-actions";
+import { pushOrderToShiprocket } from "../integration-actions";
 
 export interface OrderRow {
   id: string;
@@ -157,23 +158,20 @@ function OrderCard({
             )}
           </div>
 
-          {/* The AWB is on the order and the conversation is on the
-              contact, so "where is my order?" is answerable from here
-              rather than by typing the number into a settings dialog and
-              reading a toast. */}
+          {/* Tracking used to live here as well as on Shipments, which
+              meant two screens doing the same job and this one — whose
+              question is "what did somebody buy" — carrying a courier's
+              vocabulary. Shipments has the whole parcel lifecycle: the
+              AWB, the label, the invoice, the pickup. This links there
+              rather than reimplementing a corner of it. */}
           {order.awb && (
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              <ActionForm action={trackOrderShipment} submitLabel="Where is it?" variant="quiet" compact>
-                <input type="hidden" name="order_id" value={order.id} />
-              </ActionForm>
-
-              {order.hasConversation && (
-                <ActionForm action={trackOrderShipment} submitLabel="Tell the customer" variant="quiet" compact>
-                  <input type="hidden" name="order_id" value={order.id} />
-                  <input type="hidden" name="send" value="1" />
-                </ActionForm>
-              )}
-            </div>
+            <Link
+              href="/shipments"
+              className="inline-flex items-center gap-1.5 mt-3 text-[11px] text-accent2-ink hover:underline"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              Track and print this in Shipments
+            </Link>
           )}
         </div>
 

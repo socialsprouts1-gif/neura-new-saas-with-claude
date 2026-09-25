@@ -1002,6 +1002,32 @@ function PaymentsTab({
           )}
 
           <div className="pt-5 border-t border-white/8">
+            {/* The step that used to need a person.
+                ------------------------------------------------------
+                A customer sent their cart, got "thanks for your order",
+                and then waited for somebody to open this dashboard and
+                press Ask to pay — so the shop was only open while
+                somebody was watching it. On by default; off for a
+                business that checks stock before charging. */}
+            <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/3 p-4 mb-5 cursor-pointer">
+              <input
+                type="checkbox"
+                name="auto_request_payment"
+                value="1"
+                defaultChecked={settings.auto_request_payment !== false}
+                className="mt-0.5 w-4 h-4 rounded accent-[#00FF87] cursor-pointer flex-shrink-0"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">
+                  Ask for payment as soon as a cart arrives
+                </span>
+                <span className="block text-[11px] text-white/45 leading-relaxed mt-1">
+                  The customer is holding their phone with their card ready. Turn this off only
+                  if you check stock before charging.
+                </span>
+              </span>
+            </label>
+
             <h4 className="font-semibold text-sm mb-3">What gets charged</h4>
             <div className="grid sm:grid-cols-2 gap-4">
               <SelectField

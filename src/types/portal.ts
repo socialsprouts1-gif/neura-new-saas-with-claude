@@ -693,6 +693,12 @@ export type PaymentSettings = {
   wa_payment_configuration: string | null;
   wa_payment_gateway: string | null;
   goods_type: "physical" | "digital";
+  /**
+   * Send the payment request the moment a cart arrives. Optional because
+   * a database that has not run update 15 returns rows without it; the
+   * code treats anything but an explicit false as on.
+   */
+  auto_request_payment?: boolean;
   payment_expiry_minutes: number;
   tax_percent: number;
   shipping_cents: number;

@@ -53,6 +53,8 @@ interface SettingsRow {
   wa_payment_configuration: string | null;
   wa_payment_gateway: string | null;
   goods_type: "physical" | "digital";
+  /** Ask for the money the moment a cart arrives, rather than by hand. */
+  auto_request_payment: boolean;
   payment_expiry_minutes: number;
   tax_percent: number;
   shipping_cents: number;
@@ -68,6 +70,7 @@ const DEFAULT_SETTINGS: SettingsRow = {
   wa_payment_configuration: null,
   wa_payment_gateway: null,
   goods_type: "physical",
+  auto_request_payment: true,
   payment_expiry_minutes: 1440,
   tax_percent: 0,
   shipping_cents: 0,
@@ -201,13 +204,36 @@ export async function recordInboundCart(
       skipWindowCheck: true,
     });
 
+    // And then ask for the money.
+    //
+    // This is the whole point of a catalogue in the chat, and it was the
+    // one step that needed a person: the customer sent their cart, got
+    // "thanks for your order", and waited for somebody to open the
+    // dashboard and press a button. They are holding their phone with
+    // their card ready — this is the moment, not tomorrow morning.
+    //
+    // Never fatal. A gateway that is down, or a WhatsApp payment
+    // configuration that does not exist, must not cost the customer
+    // their order: the row is saved either way and the shop can chase
+    // it by hand.
+    let payment: PaymentRequestResult | null = null;
+    if (settings.auto_request_payment) {
+      try {
+        payment = await requestPayment(context, created.id);
+      } catch (error) {
+        console.error("Asking for payment on a new cart failed", error);
+      }
+    }
+
     return {
       orderId: created.id,
       reference,
       totals,
       lineCount: lines.length,
       reply: body,
-      error: sent.ok ? null : sent.error,
+      // The confirmation is what the customer needed; a payment that
+      // could not be asked for is reported but does not fail the cart.
+      error: sent.ok ? (payment && !payment.ok ? (payment.error ?? null) : null) : sent.error,
     };
   } catch (error) {
     console.error("Recording the cart failed", error);

@@ -6,6 +6,7 @@ import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/A
 import { PageHeader, Card, Badge, statusTone } from "@/components/ui/primitives";
 import { formatMoney, formatDate } from "@/types/admin";
 import { loadEntitlement } from "@/lib/entitlement";
+import { listConnections, optionLabel } from "@/lib/connections";
 import TeamPanel from "./TeamPanel";
 
 export default async function SettingsPage() {
@@ -13,14 +14,16 @@ export default async function SettingsPage() {
   const supabase = await createClient();
 
   const [
-    { data: connections },
+    connections,
     { data: members },
     { data: subscription },
     { data: tickets },
     { data: invites },
   ] =
     await Promise.all([
-      supabase.from("waba_connections").select("*").eq("org_id", orgId).order("created_at"),
+      // The summary shape, because it is what knows a number's real
+      // phone number and name — the raw row only has ids.
+      listConnections(supabase, orgId),
       supabase.from("org_members").select("user_id, role, created_at").eq("org_id", orgId),
       supabase.from("subscriptions").select("*, plans(name, price_cents, currency)").eq("org_id", orgId).maybeSingle(),
       supabase
@@ -68,7 +71,7 @@ export default async function SettingsPage() {
         <Card>
           <h2 className="font-semibold mb-1">WhatsApp connection</h2>
           <p className="text-sm text-white/50 mb-5">
-            {connections && connections.length > 0
+            {connections.length > 0
               ? `${connections.length} number${connections.length === 1 ? "" : "s"} connected. Manage them, and copy the webhook values Meta asks for, on Integrations.`
               : "No number connected yet. Connect one on Integrations to start receiving messages."}
           </p>
@@ -78,7 +81,7 @@ export default async function SettingsPage() {
             </Link>
             {connections?.map((c) => (
               <Badge key={c.id} tone={statusTone(c.status)}>
-                {c.phone_number_id} · {c.status}
+                {optionLabel(c)} · {c.status}
               </Badge>
             ))}
           </div>
