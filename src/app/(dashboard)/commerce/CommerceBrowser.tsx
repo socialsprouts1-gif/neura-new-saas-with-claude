@@ -11,9 +11,11 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Send,
   ShoppingCart,
   Store,
   Upload,
+  X,
 } from "lucide-react";
 import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
 import { Badge, EmptyState } from "@/components/ui/primitives";
@@ -31,12 +33,27 @@ import {
   importProductSheet,
   savePaymentSettings,
   saveStorefront,
+  sendProducts,
 } from "../commerce-actions";
+import {
+  planProductSend,
+  windowState,
+  canReceiveProducts,
+  MAX_PRODUCTS_PER_MESSAGE,
+} from "@/lib/product-send";
 import OrderList, { type OrderRow } from "./OrderList";
 import type { CatalogueState } from "./page";
 
 const TABS = ["Orders", "Products", "Catalogue", "Payments"] as const;
 type Tab = (typeof TABS)[number];
+
+/** Someone a product card could be sent to. */
+export interface SendTarget {
+  id: string;
+  name: string | null;
+  waId: string;
+  lastInboundAt: string | null;
+}
 
 export default function CommerceBrowser({
   canManage,
@@ -52,6 +69,7 @@ export default function CommerceBrowser({
   connectedGateways,
   connectedShops,
   shopNames,
+  conversations,
 }: {
   canManage: boolean;
   products: Product[];
@@ -66,6 +84,7 @@ export default function CommerceBrowser({
   connectedGateways: PaymentProvider[];
   connectedShops: string[];
   shopNames: Record<string, string>;
+  conversations: SendTarget[];
 }) {
   const [tab, setTab] = useState<Tab>("Orders");
 
@@ -149,6 +168,7 @@ export default function CommerceBrowser({
           connectedShops={connectedShops}
           shopNames={shopNames}
           catalogueLinked={!!catalogue.catalogId}
+          conversations={conversations}
         />
       )}
 
@@ -182,6 +202,7 @@ function ProductsTab({
   connectedShops,
   shopNames,
   catalogueLinked,
+  conversations,
 }: {
   products: Product[];
   productsError: string | null;
@@ -190,7 +211,18 @@ function ProductsTab({
   connectedShops: string[];
   shopNames: Record<string, string>;
   catalogueLinked: boolean;
+  conversations: SendTarget[];
 }) {
+  // What is ticked for sending. Held here rather than on each card so the
+  // send panel can price the whole selection — WhatsApp charges the shape
+  // of the message to how many products are in it, and the reader should
+  // see which of the three they are about to send before they send it.
+  const [picked, setPicked] = useState<string[]>([]);
+  const toggle = (id: string) =>
+    setPicked((current) =>
+      current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
+    );
+
   return (
     <div className="grid lg:grid-cols-[1fr_340px] gap-6 items-start">
       <div className="order-2 lg:order-1 space-y-4">
@@ -232,7 +264,12 @@ function ProductsTab({
         ) : (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {products.map((product) => (
-              <div key={product.id} className="glass-card overflow-hidden flex flex-col">
+              <div
+                key={product.id}
+                className={`glass-card overflow-hidden flex flex-col transition-colors ${
+                  picked.includes(product.id) ? "ring-1 ring-accent/60 border-accent/40" : ""
+                }`}
+              >
                 {product.image_url ? (
                   // Not next/image: these URLs come from Shopify, Woo and
                   // Meta, and allowlisting every possible CDN host is not
@@ -271,10 +308,18 @@ function ProductsTab({
                       here: whether it can actually be sent as a card. */}
                   <div className="mb-3">
                     {product.retailer_id ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-accent-ink">
-                        <Check className="w-3 h-3" />
-                        sendable
-                      </span>
+                      // The tick that used to only report "sendable" now
+                      // does the sending. It was the one thing the card
+                      // knew and the one thing you could not act on.
+                      <label className="inline-flex items-center gap-1.5 text-[11px] text-accent-ink cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={picked.includes(product.id)}
+                          onChange={() => toggle(product.id)}
+                          className="w-3.5 h-3.5 rounded accent-[#00FF87] cursor-pointer"
+                        />
+                        {picked.includes(product.id) ? "picked to send" : "sendable"}
+                      </label>
                     ) : (
                       <span
                         className="text-[11px] text-white/35"
@@ -304,6 +349,16 @@ function ProductsTab({
       </div>
 
       <div className="order-1 lg:order-2 space-y-4">
+        {canManage && (
+          <SendProductsPanel
+            products={products}
+            picked={picked}
+            clear={() => setPicked([])}
+            catalogueLinked={catalogueLinked}
+            conversations={conversations}
+          />
+        )}
+
         {canManage && (
           <ActionForm
             action={saveProduct}
@@ -341,6 +396,211 @@ function ProductsTab({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Putting the catalogue in front of a customer.
+ *
+ * The send itself was already written and wired to nothing — there was no
+ * button anywhere in the product that sent a product card, which made the
+ * headline on this screen ("customers browse, build a cart, send it as an
+ * order") describe something nobody could start.
+ *
+ * Two things decide whether a send works, and both are shown before the
+ * button rather than reported by Meta afterwards: which of WhatsApp's
+ * three product messages the selection adds up to, and whether the chosen
+ * customer is still inside the 24-hour window.
+ */
+function SendProductsPanel({
+  products,
+  picked,
+  clear,
+  catalogueLinked,
+  conversations,
+}: {
+  products: Product[];
+  picked: string[];
+  clear: () => void;
+  catalogueLinked: boolean;
+  conversations: SendTarget[];
+}) {
+  const [target, setTarget] = useState("");
+  const [body, setBody] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sending, startSending] = useTransition();
+
+  // Recomputed on render rather than memoised on mount: the window is a
+  // countdown, and a panel that says "2h left" an hour after the page was
+  // opened is wrong in the direction that loses the message.
+  const reachable = conversations.filter((row) => canReceiveProducts(row.lastInboundAt));
+
+  const plan = planProductSend(
+    products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      retailerId: product.retailer_id ?? null,
+    })),
+    picked,
+    catalogueLinked
+  );
+
+  const chosen = reachable.find((row) => row.id === target) ?? null;
+  const ready = plan.ok && Boolean(chosen);
+
+  const send = () => {
+    if (!chosen || !plan.ok) return;
+    setResult(null);
+
+    const data = new FormData();
+    data.set("conversation_id", chosen.id);
+    data.set("retailer_ids", plan.retailerIds.join(","));
+    data.set("mode", plan.kind === "catalogue" ? "catalog" : "auto");
+    if (body.trim()) data.set("body", body.trim());
+    if (plan.kind === "list") data.set("header", "Our products");
+
+    startSending(async () => {
+      const outcome = await sendProducts(data);
+      setResult({
+        ok: Boolean(outcome.ok),
+        text: outcome.ok ? (outcome.message ?? "Sent.") : (outcome.error ?? "Could not send."),
+      });
+      if (outcome.ok) clear();
+    });
+  };
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Send className="w-4 h-4 text-accent-ink" />
+        <h4 className="font-semibold">Send to a customer</h4>
+      </div>
+      <p className="text-xs text-white/45 mb-4 leading-relaxed">
+        Tick products to send those, or tick nothing to send the whole storefront.
+      </p>
+
+      {/* What is about to be sent, in words. WhatsApp picks between three
+          different messages by how many products are named, which is not
+          something a row of checkboxes tells you. */}
+      <div
+        className={`rounded-xl border p-3 mb-4 text-[11.5px] leading-relaxed ${
+          plan.ok
+            ? "border-accent/25 bg-accent/8 text-white/70"
+            : "border-amber-400/25 bg-amber-400/8 text-white/70"
+        }`}
+      >
+        {plan.ok ? (
+          <>
+            <span className="text-white/90 font-medium">
+              {plan.kind === "catalogue"
+                ? "Whole catalogue"
+                : plan.kind === "single"
+                  ? "One product card"
+                  : `Product list · ${plan.retailerIds.length}`}
+            </span>
+            <span className="block mt-0.5">{plan.summary}</span>
+          </>
+        ) : (
+          plan.error
+        )}
+      </div>
+
+      {picked.length > 0 && (
+        <button
+          type="button"
+          onClick={clear}
+          className="btn-quiet btn-compact mb-4"
+        >
+          <X className="w-3 h-3" />
+          Clear {picked.length} picked
+        </button>
+      )}
+
+      {reachable.length === 0 ? (
+        <p className="text-[11px] text-white/45 leading-relaxed">
+          Nobody has messaged you in the last 24 hours. WhatsApp only allows a product card
+          inside that window, so there is nobody to send one to right now — an approved
+          template is the only way to reopen a conversation.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          <label className="block">
+            <span className="block text-xs font-medium text-white/70 mb-1.5">Customer</span>
+            <select
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-all"
+            >
+              <option value="" className="bg-[var(--surface-3)]">
+                Choose a customer…
+              </option>
+              {reachable.map((row) => {
+                const state = windowState(row.lastInboundAt);
+                return (
+                  <option key={row.id} value={row.id} className="bg-[var(--surface-3)]">
+                    {row.name || row.waId} · {state.label}
+                  </option>
+                );
+              })}
+            </select>
+            <span className="block text-[11px] text-white/35 mt-1">
+              Only the {reachable.length} who wrote in the last 24 hours — WhatsApp refuses a
+              product card outside that window.
+            </span>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs font-medium text-white/70 mb-1.5">
+              Message above it (optional)
+            </span>
+            <textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              rows={2}
+              placeholder="Here is what we have:"
+              className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y"
+            />
+          </label>
+
+          {result && (
+            <p
+              className={`flex items-start gap-2 text-[11.5px] leading-relaxed ${
+                result.ok ? "text-white/65" : "text-red-300/90"
+              }`}
+              role={result.ok ? "status" : "alert"}
+            >
+              {result.ok ? (
+                <Check className="w-3.5 h-3.5 mt-px flex-shrink-0 text-accent-ink" />
+              ) : (
+                <AlertTriangle className="w-3.5 h-3.5 mt-px flex-shrink-0" />
+              )}
+              <span>{result.text}</span>
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={send}
+            disabled={!ready || sending}
+            className="btn-primary w-full justify-center text-sm disabled:opacity-50"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {sending
+              ? "Sending…"
+              : plan.kind === "catalogue"
+                ? "Send the catalogue"
+                : `Send ${plan.retailerIds.length === 1 ? "this product" : `these ${plan.retailerIds.length}`}`}
+          </button>
+
+          {picked.length > MAX_PRODUCTS_PER_MESSAGE && (
+            <p className="text-[11px] text-white/35 leading-relaxed">
+              Tip: with this many, the whole catalogue is usually the better message — the
+              customer can search it rather than scroll a list.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -28,8 +28,14 @@ export default async function CommercePage() {
   const supabase = await createClient();
   const canManage = role === "owner" || role === "admin";
 
-  const [productsResult, ordersResult, connections, settings, integrationsResult] =
-    await Promise.all([
+  const [
+    productsResult,
+    ordersResult,
+    connections,
+    settings,
+    integrationsResult,
+    conversationsResult,
+  ] = await Promise.all([
       supabase
         .from("products")
         .select("*")
@@ -49,6 +55,17 @@ export default async function CommercePage() {
         .select("provider, status")
         .eq("org_id", orgId)
         .eq("status", "connected"),
+      // Who a product card could go to. A product message is an
+      // interactive one, so WhatsApp only allows it inside 24 hours of the
+      // customer's own last message — last_inbound_at is what decides
+      // whether each of these is still reachable.
+      supabase
+        .from("conversations")
+        .select("id, last_inbound_at, last_message_at, contacts(name, wa_id)")
+        .eq("org_id", orgId)
+        .not("last_inbound_at", "is", null)
+        .order("last_inbound_at", { ascending: false })
+        .limit(60),
     ]);
 
   const products = (productsResult.data ?? []) as Product[];
@@ -154,6 +171,20 @@ export default async function CommercePage() {
           label: optionLabel(connection),
         }))}
         catalogue={await loadCatalogueState(supabase, orgId)}
+        // Recent enough to be worth offering. Whether each one is still
+        // inside the 24-hour window is worked out in the browser, so the
+        // countdown stays right while the page is open.
+        conversations={(conversationsResult.data ?? [])
+          .map((row) => {
+            const contact = row.contacts as { name: string | null; wa_id: string } | null;
+            return {
+              id: row.id as string,
+              name: contact?.name ?? null,
+              waId: contact?.wa_id ?? "",
+              lastInboundAt: row.last_inbound_at as string | null,
+            };
+          })
+          .filter((row) => row.waId)}
         // Which gateways and shops are actually connected, so the tabs can
         // point at Integrations rather than offering a dropdown of nothing.
         connectedGateways={PAYMENT_PROVIDERS.filter((slug) => connected.has(slug))}
