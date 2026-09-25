@@ -74,15 +74,20 @@ export default function ChatbotTable({
 
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[44rem]">
+          {/* The id column is gone from the row and lives in the ⋮ menu.
+              It was a 36-character UUID in the widest column on the
+              screen, beside four bots all called "Untitled bot" — so the
+              one column that could have told them apart was spent on the
+              one thing that never does. The name now carries what the bot
+              is: how many steps, and the words that set it off. */}
+          <table className="w-full text-sm min-w-[40rem]">
             <thead>
               <tr className="text-left text-sm font-semibold bg-accent/8 border-b border-accent/15">
-                <th className="px-5 py-4">Name</th>
-                <th className="px-5 py-4">Chatbot ID</th>
+                <th className="px-6 py-4">Bot</th>
                 {/* Only earns a column once the workspace has a choice. */}
-                {numbers.length > 1 && <th className="px-5 py-4">Number</th>}
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4 text-right">Actions</th>
+                {numbers.length > 1 && <th className="px-6 py-4">Number</th>}
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -120,25 +125,55 @@ function BotTableRow({ bot, numbers }: { bot: BotRow; numbers: NumberOption[] })
       else router.refresh();
     });
 
+  // What sets this bot off, read off its own trigger node. Four bots all
+  // called "Untitled bot" are only told apart by this.
+  const triggers = bot.nodes.flatMap((node) =>
+    node.kind === "on_message" && Array.isArray(node.data?.keywords)
+      ? (node.data.keywords as string[]).filter((word) => typeof word === "string" && word.trim())
+      : []
+  );
+
   return (
     <tr className="border-b border-white/5 last:border-0 hover:bg-white/2 transition-colors">
-      <td className="px-5 py-3.5">
+      <td className="px-6 py-5">
         <Link
           href={`/chatbot/${bot.id}`}
           className="font-medium hover:text-accent-ink transition-colors"
-          title={`${bot.nodes.length} node${bot.nodes.length === 1 ? "" : "s"}, ${bot.edges.length} connection${bot.edges.length === 1 ? "" : "s"}, v${bot.version}`}
         >
           {bot.name}
         </Link>
-        {error && <div className="text-[11px] text-red-400 mt-1">{error}</div>}
-      </td>
 
-      <td className="px-5 py-3.5">
-        <CopyableId id={bot.id} />
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[11px] text-white/35">
+          <span>
+            {bot.nodes.length} step{bot.nodes.length === 1 ? "" : "s"}
+          </span>
+          <span className="text-white/15">·</span>
+          <span>
+            {bot.edges.length} connection{bot.edges.length === 1 ? "" : "s"}
+          </span>
+          {triggers.length > 0 && (
+            <>
+              <span className="text-white/15">·</span>
+              <span className="flex flex-wrap gap-1">
+                {triggers.slice(0, 4).map((word) => (
+                  <span
+                    key={word}
+                    className="font-mono px-1.5 py-px rounded bg-white/5 border border-white/10 text-white/45"
+                  >
+                    {word}
+                  </span>
+                ))}
+                {triggers.length > 4 && <span>+{triggers.length - 4}</span>}
+              </span>
+            </>
+          )}
+        </div>
+
+        {error && <div className="text-[11px] text-red-400 mt-1.5">{error}</div>}
       </td>
 
       {numbers.length > 1 && (
-        <td className="px-5 py-3.5">
+        <td className="px-6 py-5">
           <NumberPicker
             kind="chatbot"
             id={bot.id}
@@ -149,7 +184,7 @@ function BotTableRow({ bot, numbers }: { bot: BotRow; numbers: NumberOption[] })
         </td>
       )}
 
-      <td className="px-5 py-3.5">
+      <td className="px-6 py-5">
         <button
           type="button"
           onClick={toggle}
@@ -174,7 +209,7 @@ function BotTableRow({ bot, numbers }: { bot: BotRow; numbers: NumberOption[] })
         </button>
       </td>
 
-      <td className="px-5 py-3.5">
+      <td className="px-6 py-5">
         <div className="flex items-center justify-end gap-1">
           <Link
             href={`/chatbot/${bot.id}`}
@@ -190,35 +225,6 @@ function BotTableRow({ bot, numbers }: { bot: BotRow; numbers: NumberOption[] })
   );
 }
 
-function CopyableId({ id }: { id: string }) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <button
-      type="button"
-      className="group inline-flex items-center gap-1.5 font-mono text-[11px] text-white/45 hover:text-white/80 transition-colors"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(id);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        } catch {
-          // Clipboard access can be refused (insecure context, permissions).
-          // The id is on screen and selectable, so this is not worth an alert.
-        }
-      }}
-      title="Copy bot ID"
-    >
-      <span className="truncate max-w-[13rem]">{id}</span>
-      {copied ? (
-        <Check className="w-3 h-3 text-accent-ink flex-shrink-0" />
-      ) : (
-        <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-      )}
-    </button>
-  );
-}
-
 function RowMenu({ bot }: { bot: BotRow }) {
   const router = useRouter();
   const details = useDismissableDetails();
@@ -229,6 +235,8 @@ function RowMenu({ bot }: { bot: BotRow }) {
     details.current?.removeAttribute("open");
     setConfirming(false);
   };
+
+  const [copied, setCopied] = useState(false);
 
   const exportBot = () => {
     // Round-trips through importFlow, so what comes out is what goes in.
@@ -280,6 +288,25 @@ function RowMenu({ bot }: { bot: BotRow }) {
         >
           <Download className="w-3.5 h-3.5" />
           Export as JSON
+        </button>
+
+        {/* Still reachable, just no longer occupying the widest column on
+            a screen where it told nobody anything. Needed for the API. */}
+        <button
+          type="button"
+          onClick={() => {
+            void navigator.clipboard?.writeText(bot.id);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1400);
+          }}
+          className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-white/70 hover:text-white hover:bg-white/6 transition-colors"
+        >
+          {copied ? (
+            <Check className="w-3.5 h-3.5 text-accent-ink" />
+          ) : (
+            <Copy className="w-3.5 h-3.5" />
+          )}
+          {copied ? "Copied" : "Copy bot ID"}
         </button>
 
         <div className="h-px bg-white/8 my-1" />

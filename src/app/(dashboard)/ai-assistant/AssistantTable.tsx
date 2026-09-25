@@ -7,6 +7,15 @@ import { useRouter } from "next/navigation";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { createAiAssistant, deleteAiAssistant } from "../portal-actions";
 import { providerById } from "@/lib/ai-providers";
+import BrandLogo from "@/components/ui/BrandLogo";
+
+/** The colour behind each provider's mark, for the ones with no solid tile. */
+const PROVIDER_BRAND: Record<string, string> = {
+  anthropic: "#D97757",
+  openai: "#10A37F",
+  google: "#4285F4",
+  custom: "#8B5CF6",
+};
 
 export interface AssistantRow {
   connection_id: string | null;
@@ -111,11 +120,23 @@ function AssistantRowView({
 
       <td className="px-5 py-3.5 text-white/60">{assistant.role || "—"}</td>
 
+      {/* The mark, not just the name. A row that read "gpt-5-mini ·
+          OpenAI" in grey looked like a setting; it is the thing actually
+          answering your customers, and at a glance it should say so. */}
       <td className="px-5 py-3.5">
-        <code className="text-xs text-accent2-ink">{assistant.model}</code>
-        <span className="text-[11px] text-white/35 ml-2">
-          {providerById(assistant.provider)?.name ?? assistant.provider}
-        </span>
+        <div className="flex items-center gap-2.5">
+          <BrandLogo
+            slug={assistant.provider}
+            brand={PROVIDER_BRAND[assistant.provider] ?? "#8B5CF6"}
+            size={26}
+          />
+          <div className="min-w-0">
+            <code className="block text-xs text-accent2-ink truncate">{assistant.model}</code>
+            <span className="text-[11px] text-white/35">
+              {providerById(assistant.provider)?.name ?? assistant.provider}
+            </span>
+          </div>
+        </div>
       </td>
 
       {numbers.length > 1 && (

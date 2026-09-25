@@ -30,6 +30,53 @@ interface Mark {
 }
 
 const MARKS: Record<string, Mark> = {
+  // --- the model providers -------------------------------------------------
+  //
+  // An AI assistant's row said "gpt-5-mini · OpenAI" in grey text, which
+  // reads as a setting rather than as what is actually answering your
+  // customers. A mark makes the row say it at a glance.
+
+  // Anthropic's burst: strokes radiating from a centre, in their clay.
+  // Drawn as an even ten-point burst rather than traced from the real
+  // file — the first attempt read as the letters "/A", which is not
+  // their mark at all and is exactly the mistake the Slack arms made.
+  anthropic: {
+    solid: "#D97757",
+    art: (
+      <path
+        d="M12.00 9.40L12.00 1.80M13.53 9.90L18.00 3.75M14.47 11.20L21.70 8.85M14.47 12.80L21.70 15.15M13.53 14.10L18.00 20.25M12.00 14.60L12.00 22.20M10.47 14.10L6.00 20.25M9.53 12.80L2.30 15.15M9.53 11.20L2.30 8.85M10.47 9.90L6.00 3.75"
+        stroke="#FFFFFF"
+        strokeWidth={2.3}
+        strokeLinecap="round"
+        fill="none"
+      />
+    ),
+  },
+
+  // OpenAI's knot, simplified to the interlocking hexafoil silhouette.
+  openai: {
+    solid: "#FFFFFF",
+    art: (
+      <path
+        fill="#000000"
+        d="M22.28 9.82a5.99 5.99 0 0 0-.52-4.91 6.05 6.05 0 0 0-6.51-2.9A6 6 0 0 0 4.98 4.18a5.99 5.99 0 0 0-4 2.9 6.05 6.05 0 0 0 .74 7.1 5.98 5.98 0 0 0 .51 4.91 6.05 6.05 0 0 0 6.52 2.9A5.98 5.98 0 0 0 13.26 24a6.06 6.06 0 0 0 5.77-4.21 5.99 5.99 0 0 0 4-2.9 6.06 6.06 0 0 0-.75-7.07Zm-9.02 12.6a4.48 4.48 0 0 1-2.88-1.04l.14-.08 4.78-2.76a.79.79 0 0 0 .39-.68v-6.74l2.02 1.17a.07.07 0 0 1 .04.05v5.58a4.5 4.5 0 0 1-4.5 4.5ZM3.6 18.3a4.47 4.47 0 0 1-.54-3.01l.14.09 4.78 2.76a.77.77 0 0 0 .78 0l5.84-3.37v2.33a.08.08 0 0 1-.03.06L9.73 19.96a4.5 4.5 0 0 1-6.14-1.65ZM2.34 7.9a4.48 4.48 0 0 1 2.34-1.97V11.6a.77.77 0 0 0 .38.67l5.82 3.36-2.02 1.17a.08.08 0 0 1-.07 0L3.96 14a4.5 4.5 0 0 1-1.62-6.1Zm16.6 3.86-5.83-3.4L15.13 7.2a.08.08 0 0 1 .07 0l4.83 2.79a4.49 4.49 0 0 1-.68 8.1v-5.67a.79.79 0 0 0-.4-.67Zm2.01-3.03-.14-.09-4.77-2.78a.78.78 0 0 0-.79 0L9.42 9.24V6.9a.07.07 0 0 1 .03-.06l4.83-2.79a4.5 4.5 0 0 1 6.68 4.66ZM8.32 12.87 6.3 11.7a.08.08 0 0 1-.04-.06V6.07a4.5 4.5 0 0 1 7.38-3.45l-.14.08L8.71 5.46a.79.79 0 0 0-.39.68v6.73Zm1.1-2.36L12 9.01l2.6 1.5v3l-2.6 1.5-2.6-1.5v-3Z"
+      />
+    ),
+  },
+
+  // Google's four-colour spark, as used for their AI products.
+  google: {
+    solid: "#FFFFFF",
+    art: (
+      <>
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z" fill="#4285F4" />
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.99.66-2.25 1.05-3.72 1.05-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" fill="#34A853" />
+        <path d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z" fill="#FBBC05" />
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.82 6.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52Z" fill="#EA4335" />
+      </>
+    ),
+  },
+
   // --- the automation and workspace tools ---------------------------------
 
   whatsapp: {
