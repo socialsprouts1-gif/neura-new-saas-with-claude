@@ -455,8 +455,6 @@ function ProductsTab({
           </ActionForm>
         )}
 
-        <CatalogueExportImport />
-
         <div className="glass-card p-5">
           <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-2">
             Inventory value
@@ -731,19 +729,38 @@ function CatalogueExportImport() {
   };
 
   return (
-    <div className="glass-card p-5">
-      <h4 className="font-semibold text-sm mb-1">Import from Meta</h4>
-      <p className="text-xs text-white/45 leading-relaxed mb-4">
-        In Commerce Manager open your catalogue, go to Products, and export it as CSV. Every
-        product arrives here with its content ID already set, so all of them are sendable without
-        typing anything.
+    <div>
+      <div className="flex items-center gap-2 mb-1.5">
+        <Upload className="w-4 h-4 text-accent-ink" />
+        <h4 className="font-semibold text-sm">Import from a Commerce Manager export</h4>
+      </div>
+      <p className="text-xs text-white/45 leading-relaxed mb-3">
+        Brings the name, price, <span className="text-white/70">photo</span> and content ID of
+        every product — the same details the button above would fetch, from a file Meta lets
+        anybody download. Nothing needs approving.
       </p>
+
+      <ol className="space-y-1.5 mb-4 text-[11.5px] text-white/50 leading-relaxed list-none p-0 m-0">
+        {[
+          "Open your catalogue in Meta Commerce Manager.",
+          "Go to Catalogue → Items, and choose Export.",
+          "Pick CSV. Meta emails it or downloads it.",
+          "Drop that file in below.",
+        ].map((step, index) => (
+          <li key={step} className="flex gap-2.5">
+            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-white/8 border border-white/12 text-[9px] font-bold flex items-center justify-center tabular-nums text-white/60">
+              {index + 1}
+            </span>
+            {step}
+          </li>
+        ))}
+      </ol>
 
       <button
         type="button"
         disabled={pending}
         onClick={() => input.current?.click()}
-        className="btn-secondary text-sm w-full justify-center disabled:opacity-50"
+        className="btn-primary text-sm w-full justify-center disabled:opacity-50"
       >
         {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
         {pending ? "Importing…" : "Upload the export"}
@@ -835,13 +852,24 @@ function CatalogueTab({
                   </p>
                 </ActionForm>
 
-                <ActionForm action={linkCatalog} submitLabel="Re-check the link" compact>
+                <ActionForm action={linkCatalog} submitLabel="Re-check the link" variant="quiet" compact>
                   <input type="hidden" name="connection_id" value={catalogue.connectionId ?? ""} />
                   <p className="text-xs text-white/45 leading-relaxed flex items-start gap-2">
                     <RefreshCw className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                     Asks Meta again, in case the catalogue or the storefront changed there.
                   </p>
                 </ActionForm>
+
+                {/* The path that always works, on the screen where the
+                    other one fails. Meta refuses the products edge on a
+                    number that runs alongside the WhatsApp Business app
+                    — no permission changes it — and the export carries
+                    exactly the same names, prices, images and content
+                    IDs with nobody's approval needed. Burying it under
+                    the Products tab meant the failure had no next step. */}
+                <div className="border-t border-white/8 pt-5 mt-1">
+                  <CatalogueExportImport />
+                </div>
               </>
             )}
           </div>

@@ -204,6 +204,17 @@ const META_DETAIL_HELP: Array<{ match: RegExp; help: string }> = [
       "This number is not set up to take payments inside WhatsApp. The name saved under Commerce → Payments has to match a payment configuration that actually exists at Meta: open WhatsApp Manager → Payment configurations → India, add one linking your Razorpay or PayU account, and save that exact name here. Until it exists at Meta, switch the method to Payment link — the customer pays on the gateway's own page and the order is marked paid the same way.",
   },
   {
+    // The catalogue read, refused. Meta reports a node it will not let
+    // the token see as a node that has no such edge, so "nonexisting
+    // field (products)" is almost never a wrong id — it is the same
+    // refusal as the SMB one below, arriving through a different door.
+    // Said separately because the fix is the same and the wording is
+    // not: this one fires on the import, where the CSV is right there.
+    match: /nonexisting field \(products\)/i,
+    help:
+      "Meta will not let this app read that catalogue's items — on a number that runs alongside the WhatsApp Business app it refuses this outright, whatever the permissions say. Sending product cards still works once the catalogue is linked; only the automatic import is blocked. Use \u201cImport from a Commerce Manager export\u201d below instead: it brings the names, prices, images and content IDs, and needs nobody's approval.",
+  },
+  {
     // Coexistence. The WhatsApp Business account Meta creates for a number
     // kept on the Business app is of type SMB, and the catalogue endpoints
     // refuse it outright — no permission, no App Review and no token

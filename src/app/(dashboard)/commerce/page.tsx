@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
 import { listConnections, optionLabel } from "@/lib/connections";
 import { loadPaymentSettings } from "@/lib/commerce";
+import { IndianRupee, Package, Send, ShoppingCart } from "lucide-react";
 import { HeroHeader, StatCard } from "@/components/ui/primitives";
 import { formatMoney } from "@/types/admin";
 import { INTEGRATIONS } from "@/lib/integrations";
@@ -145,6 +146,7 @@ export default async function CommercePage() {
     (total, product) => total + product.price_cents * (product.stock ?? 0),
     0
   );
+  const sendable = products.filter((product) => product.retailer_id).length;
   const paidOrders = ownOrders.filter((order) => order.paidAt);
   const revenue = paidOrders.reduce((total, order) => total + order.totalCents, 0);
 
@@ -156,22 +158,49 @@ export default async function CommercePage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Products" value={products.length} />
+        <StatCard label="Products" value={products.length} icon={Package} />
+        {/* A share, not a total — "1" alone does not say that the other
+            one cannot be sent, which is the thing worth knowing here. */}
         <StatCard
           label="Sendable"
-          value={products.filter((product) => product.retailer_id).length}
-          hint="Have a Meta content ID"
+          value={sendable}
+          icon={Send}
+          meter={
+            products.length > 0
+              ? {
+                  value: sendable,
+                  of: products.length,
+                  tone: sendable < products.length ? "warn" : "accent",
+                }
+              : undefined
+          }
+          hint={
+            products.length > 0
+              ? `of ${products.length} · the rest have no Meta content ID`
+              : "Have a Meta content ID"
+          }
         />
         <StatCard
           label="Orders"
           value={ownOrders.length}
+          icon={ShoppingCart}
           hint={
             courierOrders.length > 0
               ? `${courierOrders.length} more in Shipments`
               : undefined
           }
         />
-        <StatCard label="Paid" value={formatMoney(revenue)} hint={`${paidOrders.length} orders`} />
+        <StatCard
+          label="Paid"
+          value={formatMoney(revenue)}
+          icon={IndianRupee}
+          meter={
+            ownOrders.length > 0
+              ? { value: paidOrders.length, of: ownOrders.length }
+              : undefined
+          }
+          hint={`${paidOrders.length} of ${ownOrders.length} orders paid`}
+        />
       </div>
 
       <CommerceBrowser

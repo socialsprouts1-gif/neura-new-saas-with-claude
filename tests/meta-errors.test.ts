@@ -349,3 +349,21 @@ test("an empty half is dropped rather than leaving stray punctuation", () => {
   assert.equal(andThen("It failed.", ""), "It failed.");
   assert.equal(andThen("  ", "  "), "");
 });
+
+// --- the catalogue import, refused -----------------------------------------
+
+test("a refused catalogue read points at the import that works", () => {
+  // "nonexisting field (products)" reads as a wrong id and is almost
+  // never one — it is Meta refusing the edge. The fix is the CSV, which
+  // is on the same screen.
+  const text = describeMetaError(400, {
+    error: {
+      message: "(#100) Tried accessing nonexisting field (products) on node type (ProductCatalog)",
+      code: 100,
+      type: "OAuthException",
+    },
+  });
+  assert.match(text, /Commerce Manager export/);
+  assert.match(text, /product cards still works/);
+  assert.doesNotMatch(text, /does not look like a catalogue id/);
+});

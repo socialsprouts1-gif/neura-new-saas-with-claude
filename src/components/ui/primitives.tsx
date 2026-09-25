@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
 // Shared shells so every page in the app lands on the same grid, spacing and
 // glass treatment rather than each screen inventing its own.
@@ -84,20 +85,73 @@ export function StatCard({
   label,
   value,
   hint,
+  icon: Icon,
+  meter,
 }: {
   label: string;
   value: string | number;
   hint?: string;
+  /** A glyph for the thing being counted. Anchors a row of these. */
+  icon?: LucideIcon;
+  /**
+   * A part-of-whole bar under the number, when the number is a share of
+   * something — "1 of 2 products sendable" says more than "1" does.
+   * Left off when the stat is a plain total, where a bar would be
+   * decoration pretending to be data.
+   */
+  meter?: { value: number; of: number; tone?: "accent" | "warn" };
 }) {
+  const share =
+    meter && meter.of > 0 ? Math.max(0, Math.min(1, meter.value / meter.of)) : null;
+
   return (
-    <div className="glass-card p-4 sm:p-5 min-w-0">
-      {/* Wraps rather than truncating: two of these sit side by side on a
-          phone, and half a word is worse than two lines. */}
-      <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider sm:tracking-widest text-white/40 leading-tight">
-        {label}
+    <div className="glass-card p-5 sm:p-6 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        {/* Wraps rather than truncating: two of these sit side by side on a
+            phone, and half a word is worse than two lines. */}
+        <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider sm:tracking-widest text-white/40 leading-tight">
+          {label}
+        </div>
+        {Icon && <Icon className="w-4 h-4 text-white/25 flex-shrink-0" />}
       </div>
-      <div className="text-xl sm:text-2xl font-bold mt-2 tabular-nums truncate">{value}</div>
-      {hint && <div className="text-xs text-white/40 mt-1">{hint}</div>}
+
+      {/* Proportional figures, not tabular: tabular-nums gives every digit
+          the width of a zero, which makes a standalone number like 121
+          look loose at this size. Tabular is for columns that must line
+          up vertically. */}
+      <div className="text-2xl sm:text-3xl font-bold mt-2.5 truncate">{value}</div>
+
+      {share !== null && (
+        <div
+          className="mt-3 h-1.5 rounded-full overflow-hidden"
+          // The unfilled track is a lighter step of the fill's own ramp,
+          // so the state reads across the whole bar rather than the fill
+          // floating on a neutral grey.
+          style={{
+            // A neutral groove, not a tint of the fill's own hue.
+            //
+            // The usual advice — track as a lighter step of the fill's
+            // ramp — assumes a light surface, where a pale tint reads as
+            // empty. On near-black, any tint of a bright hue reads as
+            // ink: a meter at zero looked exactly like a meter at full,
+            // which is the one thing a meter must never do. Checked by
+            // rendering the zero case and looking at it.
+            background: "color-mix(in oklab, var(--color-white) 10%, transparent)",
+          }}
+          role="img"
+          aria-label={`${meter!.value} of ${meter!.of}`}
+        >
+          <div
+            className="h-full rounded-full transition-[width] duration-500"
+            style={{
+              width: `${share * 100}%`,
+              background: meter?.tone === "warn" ? "#FACC15" : "var(--accent)",
+            }}
+          />
+        </div>
+      )}
+
+      {hint && <div className="text-xs text-white/40 mt-2">{hint}</div>}
     </div>
   );
 }
