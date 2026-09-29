@@ -53,7 +53,7 @@ export default async function CannedMessagesPage() {
                     <input type="hidden" name="id" value={reply.id} />
                   </ActionForm>
                 </div>
-                <div className="text-[11px] text-white/30">Used {reply.use_count} times</div>
+                <div className="text-[12px] text-white/30">Used {reply.use_count} times</div>
               </Card>
             ))
           ) : (

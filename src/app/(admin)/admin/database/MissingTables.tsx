@@ -80,7 +80,7 @@ export default function MissingTables({
           </div>
 
           <div className="glass-card p-5">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+            <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
               Missing tables by migration
             </div>
             <div className="space-y-2">
@@ -141,7 +141,7 @@ export default function MissingTables({
             {present.map((table) => (
               <code
                 key={table}
-                className="text-[11px] px-2 py-1 rounded-lg bg-white/5 border border-white/8 text-white/50"
+                className="text-[12px] px-2 py-1 rounded-lg bg-white/5 border border-white/8 text-white/50"
               >
                 {table}
               </code>
@@ -169,7 +169,7 @@ function CopyButton({ value }: { value: string }) {
           // screen to select by hand, which is the fallback anyway.
         }
       }}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-white/50 hover:text-white hover:bg-white/8 transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] text-white/50 hover:text-white hover:bg-white/8 transition-colors"
     >
       {copied ? <Check className="w-3 h-3 text-accent-ink" /> : <Copy className="w-3 h-3" />}
       {copied ? "Copied" : "Copy path"}

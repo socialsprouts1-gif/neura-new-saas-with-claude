@@ -46,10 +46,10 @@ export default function DiagnoseTemplates({ id }: { id: string }) {
 
       {report && (
         <div className="mt-3">
-          <p className="text-[11px] text-white/40 mb-1.5">
+          <p className="text-[12px] text-white/40 mb-1.5">
             Meta&apos;s own answer, verbatim. Send this over and it names the cause.
           </p>
-          <pre className="text-[11px] leading-relaxed bg-black/40 border border-white/10 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words text-white/70">
+          <pre className="text-[12px] leading-relaxed bg-black/40 border border-white/10 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words text-white/70">
             {report}
           </pre>
         </div>

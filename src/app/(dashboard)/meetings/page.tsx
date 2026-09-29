@@ -83,7 +83,7 @@ export default async function MeetingsPage() {
           ) : (
             <>
               <section>
-                <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+                <h2 className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
                   Upcoming
                 </h2>
                 {upcoming.length === 0 ? (
@@ -103,7 +103,7 @@ export default async function MeetingsPage() {
 
               {past.length > 0 && (
                 <section>
-                  <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+                  <h2 className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
                     Past and closed
                   </h2>
                   <div className="space-y-2">
@@ -191,7 +191,7 @@ export default async function MeetingsPage() {
                 />
                 <span className="text-sm text-white/75">
                   Tell the customer on WhatsApp
-                  <span className="block text-[11px] text-white/40 leading-relaxed">
+                  <span className="block text-[12px] text-white/40 leading-relaxed">
                     Needs a contact picked above, and a conversation with them inside WhatsApp&apos;s
                     24-hour window. The meeting saves either way.
                   </span>

@@ -128,7 +128,7 @@ export default function CopilotMenu({
                 </button>
               </div>
 
-              <p className="text-[10px] text-white/35 mt-2.5 leading-relaxed">
+              <p className="text-[11px] text-white/35 mt-2.5 leading-relaxed">
                 Read it before you send. AI can be wrong about anything specific to your business.
               </p>
             </div>

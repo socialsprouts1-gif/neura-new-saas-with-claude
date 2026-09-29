@@ -203,7 +203,7 @@ export default function ConversationList({
                 All conversations
               </MenuItem>
               {allTags.length === 0 ? (
-                <p className="px-3 py-2 text-[11px] text-white/35 leading-relaxed">
+                <p className="px-3 py-2 text-[12px] text-white/35 leading-relaxed">
                   No tags on any contact yet. Add them on the Contacts screen.
                 </p>
               ) : (
@@ -251,12 +251,12 @@ export default function ConversationList({
                 </MenuItem>
               ))}
 
-              <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 text-[11px] text-white/40">
+              <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 text-[12px] text-white/40">
                 Assigned To…
                 <ChevronRight className="w-3 h-3" />
               </div>
               {teammates.length === 0 ? (
-                <p className="px-3 pb-2 text-[11px] text-white/35">You are the only member.</p>
+                <p className="px-3 pb-2 text-[12px] text-white/35">You are the only member.</p>
               ) : (
                 teammates.map((mate) => (
                   <MenuItem
@@ -439,24 +439,24 @@ export default function ConversationList({
                       {row.name}
                     </span>
                     {(row.score ?? 0) >= HOT_SCORE && (
-                      <span className="text-[10px] text-[#FF6B35] flex-shrink-0" title={`Lead score ${row.score}`}>
+                      <span className="text-[11px] text-[#FF6B35] flex-shrink-0" title={`Lead score ${row.score}`}>
                         🔥
                       </span>
                     )}
-                    <span className="ml-auto text-[10px] text-white/35 flex-shrink-0">
+                    <span className="ml-auto text-[11px] text-white/35 flex-shrink-0">
                       {clockOrDay(row.lastMessageAt)}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span
-                      className={`text-[11px] truncate ${
+                      className={`text-[12px] truncate ${
                         row.unread ? "text-white/70" : "text-white/40"
                       }`}
                     >
                       {row.preview || "No messages yet"}
                     </span>
                     {row.needsHuman && (
-                      <span className="ml-auto text-[10px] text-[#FB923C] flex-shrink-0">
+                      <span className="ml-auto text-[11px] text-[#FB923C] flex-shrink-0">
                         human
                       </span>
                     )}
@@ -465,7 +465,7 @@ export default function ConversationList({
                     )}
                   </div>
                   {row.assignedName && (
-                    <div className="text-[10px] text-accent2-ink mt-0.5 truncate">
+                    <div className="text-[11px] text-accent2-ink mt-0.5 truncate">
                       {row.assignedName}
                     </div>
                   )}
@@ -571,7 +571,7 @@ function Chip({ children, onClear }: { children: React.ReactNode; onClear: () =>
     <button
       type="button"
       onClick={onClear}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/12 border border-accent/25 text-[11px] text-accent-ink hover:bg-accent/20 transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent/12 border border-accent/25 text-[12px] text-accent-ink hover:bg-accent/20 transition-colors"
     >
       {children}
       <span aria-hidden>×</span>
@@ -680,7 +680,7 @@ function NumberMenu({
                   className="sr-only"
                 />
                 <span className="text-sm flex-1 truncate tabular-nums">{number.label}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/12 text-accent-ink shrink-0">
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent/12 text-accent-ink shrink-0">
                   {number.status === "active" || !number.status ? "Active" : number.status}
                 </span>
               </label>
@@ -695,7 +695,7 @@ function NumberMenu({
               onClear();
               details.current?.removeAttribute("open");
             }}
-            className="w-full text-left px-3 py-2 text-[11px] text-white/45 hover:text-white hover:bg-white/5 border-t border-white/8"
+            className="w-full text-left px-3 py-2 text-[12px] text-white/45 hover:text-white hover:bg-white/5 border-t border-white/8"
           >
             Show all numbers
           </button>

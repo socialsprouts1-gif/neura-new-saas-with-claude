@@ -175,7 +175,7 @@ function DayRow({ day, windows }: { day: Weekday; windows: Window[] }) {
                   <button
                     type="button"
                     onClick={() => setRows([...rows, { start: "14:00", end: "18:00" }])}
-                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] text-white/45 hover:text-white hover:bg-white/8 transition-colors"
+                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[12px] text-white/45 hover:text-white hover:bg-white/8 transition-colors"
                   >
                     <Plus className="w-3 h-3" />
                     Add

@@ -97,7 +97,7 @@ export default async function AdminUsersPage() {
             const auth = emailById.get(m.user_id);
             return (
               <tr key={`${m.user_id}-${org?.id}`} className="hover:bg-white/3 transition-colors">
-                <Td className="font-mono text-[11px] text-white/50">{m.user_id.slice(0, 8)}…</Td>
+                <Td className="font-mono text-[12px] text-white/50">{m.user_id.slice(0, 8)}…</Td>
                 <Td className="font-medium">
                   <div className="flex items-center gap-2">
                     {auth?.email ?? <span className="text-white/30">—</span>}
@@ -108,7 +108,7 @@ export default async function AdminUsersPage() {
                   {org ? (
                     <div>
                       <div>{org.name}</div>
-                      <div className="font-mono text-[10px] text-white/30">{org.id.slice(0, 8)}…</div>
+                      <div className="font-mono text-[11px] text-white/30">{org.id.slice(0, 8)}…</div>
                     </div>
                   ) : (
                     <span className="text-white/30">—</span>

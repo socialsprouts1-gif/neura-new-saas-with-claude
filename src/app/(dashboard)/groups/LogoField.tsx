@@ -143,7 +143,7 @@ export default function LogoField({
           {problem}
         </p>
       )}
-      <p className="text-[11px] text-white/35 mt-1.5">
+      <p className="text-[12px] text-white/35 mt-1.5">
         Shown instead of the icon. A square image looks best.
       </p>
     </div>

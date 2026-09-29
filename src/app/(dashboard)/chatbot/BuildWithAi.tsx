@@ -114,7 +114,7 @@ export default function BuildWithAi() {
             </label>
 
             <div className="mt-3">
-              <span className="block text-[11px] text-white/40 mb-2">
+              <span className="block text-[12px] text-white/40 mb-2">
                 Say what triggers it, what the branches are, and where each one ends. Or start
                 from one of these:
               </span>
@@ -125,7 +125,7 @@ export default function BuildWithAi() {
                     type="button"
                     disabled={pending}
                     onClick={() => setBrief(example)}
-                    className="w-full text-left text-[11px] text-white/50 hover:text-white/80 leading-relaxed px-3 py-2 rounded-lg border border-white/8 bg-white/2 hover:border-white/20 transition-colors disabled:opacity-50"
+                    className="w-full text-left text-[12px] text-white/50 hover:text-white/80 leading-relaxed px-3 py-2 rounded-lg border border-white/8 bg-white/2 hover:border-white/20 transition-colors disabled:opacity-50"
                   >
                     {example}
                   </button>
@@ -140,7 +140,7 @@ export default function BuildWithAi() {
             )}
 
             <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t border-white/8">
-              <span className="text-[11px] text-white/35 mr-auto">
+              <span className="text-[12px] text-white/35 mr-auto">
                 {pending
                   ? "Writing every message and wiring the branches. A detailed brief takes up to a minute — leave this open."
                   : "Runs on your own AI key if you have one saved, otherwise the platform's."}

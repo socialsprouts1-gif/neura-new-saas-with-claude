@@ -178,7 +178,7 @@ function ServiceForm({ type, onDone }: { type?: AppointmentType; onDone: () => v
           />
           <span className="text-sm text-white/70">
             Offer this to customers
-            <span className="block text-[11px] text-white/35">
+            <span className="block text-[12px] text-white/35">
               Unticked, it stays here but never appears in the chat menu.
             </span>
           </span>
@@ -212,7 +212,7 @@ function DeleteService({ id, name }: { id: string; name: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] text-white/50 hidden sm:inline">Delete “{name}”?</span>
+      <span className="text-[12px] text-white/50 hidden sm:inline">Delete “{name}”?</span>
       <ActionForm action={deleteAppointmentType} submitLabel="Yes, delete" compact>
         <input type="hidden" name="id" value={id} />
       </ActionForm>

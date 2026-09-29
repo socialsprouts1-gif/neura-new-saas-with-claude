@@ -156,7 +156,7 @@ export default function InvoiceBuilder({
                     </option>
                   ))}
                 </select>
-                <span className="block text-[11px] text-white/35 mt-1.5">
+                <span className="block text-[12px] text-white/35 mt-1.5">
                   The invoice message goes out from this number and lands in that chat.
                 </span>
               </label>
@@ -190,7 +190,7 @@ export default function InvoiceBuilder({
                   </option>
                 ))}
               </select>
-              <span className="block text-[11px] text-white/35 mt-1">
+              <span className="block text-[12px] text-white/35 mt-1">
                 A contact is needed to send the invoice on WhatsApp.
               </span>
             </label>
@@ -219,7 +219,7 @@ export default function InvoiceBuilder({
                 }`}
               />
               <span
-                className={`block text-[11px] mt-1 ${
+                className={`block text-[12px] mt-1 ${
                   gstinLooksRight ? "text-white/35" : "text-[#F87171]"
                 }`}
               >
@@ -254,7 +254,7 @@ export default function InvoiceBuilder({
             <h4 className="text-xs font-semibold uppercase tracking-widest text-white/40">
               Lines
             </h4>
-            <span className="text-[11px] text-white/35">Amounts in rupees, before tax</span>
+            <span className="text-[12px] text-white/35">Amounts in rupees, before tax</span>
           </div>
 
           <div className="space-y-2">
@@ -411,7 +411,7 @@ function LineInput({
 }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-wider text-white/35 mb-1">
+      <span className="block text-[11px] uppercase tracking-wider text-white/35 mb-1">
         {label}
       </span>
       <input

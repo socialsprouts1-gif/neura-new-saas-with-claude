@@ -40,7 +40,7 @@ export default function GuidesPage() {
         subtitle="How this all works, in plain language. Start at the top if you are new — the first two explain most of what people get stuck on."
       />
 
-      <p className="text-[13px] text-white/35 mt-6 mb-5">
+      <p className="text-[14px] text-white/35 mt-6 mb-5">
         {GUIDES.length} guides · about {totalMinutes()} minutes to read all of them
       </p>
 
@@ -57,7 +57,7 @@ export default function GuidesPage() {
                 <div className="w-11 h-11 rounded-xl bg-accent/12 border border-accent/25 flex items-center justify-center flex-shrink-0">
                   <Icon className="w-5 h-5 text-accent-ink" />
                 </div>
-                <span className="text-[11px] text-white/25 tabular-nums">
+                <span className="text-[12px] text-white/25 tabular-nums">
                   {String(index + 1).padStart(2, "0")}
                 </span>
               </div>
@@ -65,9 +65,9 @@ export default function GuidesPage() {
               <h2 className="font-semibold mb-2 group-hover:text-accent-ink transition-colors">
                 {guide.title}
               </h2>
-              <p className="text-[13px] leading-relaxed text-white/50 flex-1">{guide.summary}</p>
+              <p className="text-[14px] leading-relaxed text-white/50 flex-1">{guide.summary}</p>
 
-              <div className="flex items-center gap-1.5 mt-4 text-[11px] text-white/35">
+              <div className="flex items-center gap-1.5 mt-4 text-[12px] text-white/35">
                 {guide.minutes} min read
                 <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
               </div>

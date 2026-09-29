@@ -43,7 +43,7 @@ export default function SuspendControls({
             placeholder="Payment for August has not come through."
             className="w-full bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50"
           />
-          <p className="text-[11px] text-white/35 mt-1.5">
+          <p className="text-[12px] text-white/35 mt-1.5">
             Shown to everyone in the workspace, so write it as though they are reading it — because
             they are.
           </p>

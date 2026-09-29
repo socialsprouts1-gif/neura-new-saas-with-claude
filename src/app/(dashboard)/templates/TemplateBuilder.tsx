@@ -226,12 +226,12 @@ export default function TemplateBuilder({
                 </select>
               )}
               {chosen && (
-                <span className="text-[11px] text-white/35 font-mono">
+                <span className="text-[12px] text-white/35 font-mono">
                   WABA {chosen.wabaId}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
+            <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
               Templates live on the WhatsApp Business Account, not on this workspace. One
               approved here is not available on your other numbers.
             </p>
@@ -250,7 +250,7 @@ export default function TemplateBuilder({
                   className={input}
                 />
                 {spec.name && normaliseName(spec.name) !== spec.name && (
-                  <span className="block text-[11px] text-accent2-ink mt-1">
+                  <span className="block text-[12px] text-accent2-ink mt-1">
                     Will be saved as {normaliseName(spec.name)}
                   </span>
                 )}
@@ -290,7 +290,7 @@ export default function TemplateBuilder({
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-white/40 mt-2 leading-relaxed">
+              <p className="text-[12px] text-white/40 mt-2 leading-relaxed">
                 {CATEGORY_HELP[spec.category]}
               </p>
             </Field>
@@ -349,7 +349,7 @@ export default function TemplateBuilder({
                     key={index}
                     type="button"
                     onClick={() => set("body", `${spec.body}{{${index}}}`)}
-                    className="text-[11px] px-2 py-1 rounded-lg border border-white/12 text-white/50 hover:text-white hover:border-white/25"
+                    className="text-[12px] px-2 py-1 rounded-lg border border-white/12 text-white/50 hover:text-white hover:border-white/25"
                   >
                     + {`{{${index}}}`}
                   </button>
@@ -365,7 +365,7 @@ export default function TemplateBuilder({
                 <div className="space-y-2">
                   {bodyVariables.map((variable, index) => (
                     <div key={variable} className="flex items-center gap-2">
-                      <code className="text-[11px] text-accent2-ink w-12 flex-shrink-0">
+                      <code className="text-[12px] text-accent2-ink w-12 flex-shrink-0">
                         {`{{${variable}}}`}
                       </code>
                       <input
@@ -398,7 +398,7 @@ export default function TemplateBuilder({
               <div className="space-y-2">
                 {spec.buttons.map((button, index) => (
                   <div key={index} className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] uppercase tracking-wider text-white/35 w-20 flex-shrink-0">
+                    <span className="text-[11px] uppercase tracking-wider text-white/35 w-20 flex-shrink-0">
                       {button.type === "QUICK_REPLY"
                         ? "Reply"
                         : button.type === "URL"
@@ -472,7 +472,7 @@ export default function TemplateBuilder({
 
           {/* Preview */}
           <div className="lg:sticky lg:top-4">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-white/35 mb-2">
+            <div className="text-[12px] font-semibold uppercase tracking-widest text-white/35 mb-2">
               Preview
             </div>
             <Preview spec={spec} />
@@ -480,7 +480,7 @@ export default function TemplateBuilder({
             {!validation.ok && (
               <ul className="mt-4 space-y-1.5">
                 {validation.errors.map((message) => (
-                  <li key={message} className="text-[11px] text-[#FACC15] leading-relaxed">
+                  <li key={message} className="text-[12px] text-[#FACC15] leading-relaxed">
                     • {message}
                   </li>
                 ))}
@@ -540,7 +540,7 @@ export default function TemplateBuilder({
                         Sync from Meta
                       </button>
                     </div>
-                    {syncNote && <p className="text-[11px] text-white/50 mt-2.5">{syncNote}</p>}
+                    {syncNote && <p className="text-[12px] text-white/50 mt-2.5">{syncNote}</p>}
                   </div>
                 )}
 
@@ -551,20 +551,20 @@ export default function TemplateBuilder({
                     find a field in an envelope is why it never got quoted. */}
                 {trace && (
                   <div className="mt-3 p-2.5 rounded-lg border border-white/12 bg-black/30">
-                    <div className="text-[10px] uppercase tracking-widest text-white/35 mb-1">
+                    <div className="text-[11px] uppercase tracking-widest text-white/35 mb-1">
                       Meta&apos;s reference for this request
                     </div>
                     <div className="flex items-center gap-2">
-                      <code className="text-[11px] text-white/80 break-all flex-1">{trace}</code>
+                      <code className="text-[12px] text-white/80 break-all flex-1">{trace}</code>
                       <button
                         type="button"
                         onClick={() => void navigator.clipboard?.writeText(trace)}
-                        className="btn-secondary text-[10px] py-1 px-2 shrink-0"
+                        className="btn-secondary text-[11px] py-1 px-2 shrink-0"
                       >
                         Copy
                       </button>
                     </div>
-                    <p className="text-[10px] text-white/40 mt-1.5 leading-relaxed">
+                    <p className="text-[11px] text-white/40 mt-1.5 leading-relaxed">
                       Give this to WhatsApp support — it finds this exact request in Meta&apos;s
                       logs, including the part of the refusal they do not send back.
                     </p>
@@ -573,10 +573,10 @@ export default function TemplateBuilder({
 
                 {detail && (
                   <details className="mt-2">
-                    <summary className="cursor-pointer text-[11px] text-white/40 hover:text-white/65 list-none">
+                    <summary className="cursor-pointer text-[12px] text-white/40 hover:text-white/65 list-none">
                       Show Meta&apos;s exact response
                     </summary>
-                    <pre className="mt-2 text-[10px] leading-relaxed bg-black/40 border border-white/10 rounded-lg p-2.5 overflow-x-auto whitespace-pre-wrap break-words text-white/65">
+                    <pre className="mt-2 text-[11px] leading-relaxed bg-black/40 border border-white/10 rounded-lg p-2.5 overflow-x-auto whitespace-pre-wrap break-words text-white/65">
                       {detail}
                     </pre>
                   </details>
@@ -620,7 +620,7 @@ function Preview({ spec }: { spec: TemplateSpec }) {
           <div className="text-sm font-semibold mb-1.5 text-white">{header}</div>
         )}
         {["IMAGE", "VIDEO", "DOCUMENT"].includes(spec.headerFormat) && (
-          <div className="h-20 rounded-md bg-white/8 grid place-items-center text-[10px] text-white/40 mb-2">
+          <div className="h-20 rounded-md bg-white/8 grid place-items-center text-[11px] text-white/40 mb-2">
             {spec.headerFormat.toLowerCase()}
           </div>
         )}
@@ -629,8 +629,8 @@ function Preview({ spec }: { spec: TemplateSpec }) {
           {body || <span className="text-white/30">Your message appears here…</span>}
         </p>
 
-        {spec.footer && <p className="text-[11px] text-white/40 mt-2">{spec.footer}</p>}
-        <div className="text-[10px] text-white/30 text-right mt-1">12:00</div>
+        {spec.footer && <p className="text-[12px] text-white/40 mt-2">{spec.footer}</p>}
+        <div className="text-[11px] text-white/30 text-right mt-1">12:00</div>
       </div>
 
       {spec.buttons.length > 0 && (
@@ -665,7 +665,7 @@ function Field({
     <div>
       <span className="block text-xs font-medium text-white/70 mb-1.5">{label}</span>
       {children}
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </div>
   );
 }

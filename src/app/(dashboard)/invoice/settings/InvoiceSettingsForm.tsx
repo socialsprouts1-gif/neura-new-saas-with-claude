@@ -147,7 +147,7 @@ export default function InvoiceSettingsForm({
               }`}
             />
             <span
-              className={`block text-[11px] mt-1 ${
+              className={`block text-[12px] mt-1 ${
                 gstinLooksRight ? "text-white/35" : "text-[#F87171]"
               }`}
             >
@@ -213,14 +213,14 @@ export default function InvoiceSettingsForm({
           </div>
 
           <div className="mt-4 rounded-xl border border-white/10 bg-white/4 px-4 py-3">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1">
+            <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-1">
               Next invoice will be
             </div>
             <code className="text-base text-accent-ink font-semibold">{preview}</code>
           </div>
 
           {issuedCount > 0 && (
-            <p className="text-[11px] text-white/35 mt-3 leading-relaxed">
+            <p className="text-[12px] text-white/35 mt-3 leading-relaxed">
               {issuedCount} {issuedCount === 1 ? "invoice has" : "invoices have"} been issued, so
               the counter cannot be moved backwards — it would reuse a number that is already on a
               document.
@@ -253,7 +253,7 @@ export default function InvoiceSettingsForm({
             />
             <span className="text-sm text-white/75">
               Round the total to the nearest rupee
-              <span className="block text-[11px] text-white/40">
+              <span className="block text-[12px] text-white/40">
                 Shown as its own “round off” line, which is the Indian convention.
               </span>
             </span>

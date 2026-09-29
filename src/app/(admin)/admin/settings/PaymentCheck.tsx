@@ -77,7 +77,7 @@ export default async function PaymentCheck() {
         {steps.map((step, index) => (
           <li key={step.title} className="flex gap-3">
             <span
-              className={`grid place-items-center w-5 h-5 rounded-full text-[10px] font-semibold shrink-0 mt-0.5 ${
+              className={`grid place-items-center w-5 h-5 rounded-full text-[11px] font-semibold shrink-0 mt-0.5 ${
                 step.done
                   ? "bg-accent/15 text-accent-ink border border-accent/30"
                   : "bg-white/6 text-white/40 border border-white/12"
@@ -89,7 +89,7 @@ export default async function PaymentCheck() {
               <span className={`text-sm ${step.done ? "text-white/55" : "text-white/85"}`}>
                 {step.title}
               </span>
-              <span className="block text-[11.5px] text-white/40 leading-relaxed mt-0.5">
+              <span className="block text-[12.5px] text-white/40 leading-relaxed mt-0.5">
                 {step.detail}
               </span>
             </span>
@@ -98,11 +98,11 @@ export default async function PaymentCheck() {
       </ol>
 
       <div className="rounded-xl border border-white/10 bg-white/3 p-3.5">
-        <div className="text-[11px] font-medium text-white/60 mb-1.5">
+        <div className="text-[12px] font-medium text-white/60 mb-1.5">
           Webhook URL — paste this into Razorpay → Settings → Webhooks
         </div>
-        <code className="block text-[11.5px] text-accent-ink break-all mb-2.5">{webhookUrl}</code>
-        <div className="text-[11px] text-white/40 leading-relaxed">
+        <code className="block text-[12.5px] text-accent-ink break-all mb-2.5">{webhookUrl}</code>
+        <div className="text-[12px] text-white/40 leading-relaxed">
           Tick these events and nothing else:{" "}
           <span className="text-white/60">{RAZORPAY_EVENTS.join(", ")}</span>. Set a secret there,
           and paste the same secret into the Razorpay integration as{" "}

@@ -108,7 +108,7 @@ export function TextInput({
         {...props}
         className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
       />
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -131,7 +131,7 @@ export function TextArea({
         {...props}
         className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y leading-relaxed"
       />
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -162,7 +162,7 @@ export function Select({
           </option>
         ))}
       </select>
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -190,7 +190,7 @@ export function Toggle({
       <div className="min-w-0">
         <div className="text-sm font-medium">{label}</div>
         {description && (
-          <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">{description}</p>
+          <p className="text-[12px] text-white/40 mt-0.5 leading-relaxed">{description}</p>
         )}
       </div>
       <input type="hidden" name={name} value={String(checked)} />
@@ -256,7 +256,7 @@ export function SliderRow({
         className="w-full accent-[var(--accent)] cursor-pointer"
       />
       {scale && (
-        <div className="flex justify-between text-[10px] text-white/30 mt-1">
+        <div className="flex justify-between text-[11px] text-white/30 mt-1">
           <span>{scale[0]}</span>
           <span>{scale[1]}</span>
         </div>

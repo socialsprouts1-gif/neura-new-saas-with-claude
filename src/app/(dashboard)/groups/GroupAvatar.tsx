@@ -1,7 +1,7 @@
 import { initials, withAlpha } from "@/lib/group-identity";
 
 const SIZES = {
-  sm: { box: "w-9 h-9 rounded-xl", glyph: "text-base", letters: "text-[11px]" },
+  sm: { box: "w-9 h-9 rounded-xl", glyph: "text-base", letters: "text-[12px]" },
   md: { box: "w-12 h-12 rounded-2xl", glyph: "text-xl", letters: "text-sm" },
   lg: { box: "w-16 h-16 rounded-2xl", glyph: "text-3xl", letters: "text-lg" },
 } as const;

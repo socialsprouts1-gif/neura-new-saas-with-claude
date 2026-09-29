@@ -121,7 +121,7 @@ export function Field({
         defaultValue={defaultValue}
         className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
       />
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -183,7 +183,7 @@ export function TextareaField({
         placeholder={placeholder}
         className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y"
       />
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }

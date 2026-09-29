@@ -144,7 +144,7 @@ export default function TeamPanel({
 
       {invites.length > 0 && (
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 mb-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30 mb-2">
             Invited, not joined yet
           </div>
           <div className="space-y-2">
@@ -155,7 +155,7 @@ export default function TeamPanel({
               >
                 <Mail className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
                 <span className="text-sm truncate min-w-0 flex-1">{invite.email}</span>
-                <span className="text-[11px] text-white/35">
+                <span className="text-[12px] text-white/35">
                   expires{" "}
                   {new Date(invite.expiresAt).toLocaleDateString("en-IN", {
                     day: "numeric",
@@ -172,7 +172,7 @@ export default function TeamPanel({
                       data.set("id", invite.id);
                       run(() => revokeInvite(data));
                     }}
-                    className="text-[11px] text-white/45 hover:text-[#F87171] transition-colors"
+                    className="text-[12px] text-white/45 hover:text-[#F87171] transition-colors"
                   >
                     Cancel
                   </button>
@@ -240,7 +240,7 @@ export default function TeamPanel({
                 </button>
               </div>
 
-              <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
+              <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
                 An admin can manage the workspace and its team. A member can work the inbox but
                 cannot change billing or invite anybody.
                 {seatsLeft !== null && ` ${seatsLeft} seat${seatsLeft === 1 ? "" : "s"} left.`}
@@ -255,7 +255,7 @@ export default function TeamPanel({
                 sent to.
               </p>
               <div className="flex flex-col sm:flex-row gap-2">
-                <code className="flex-1 min-w-0 text-[11px] text-accent-ink bg-black/30 rounded-lg px-3 py-2 break-all">
+                <code className="flex-1 min-w-0 text-[12px] text-accent-ink bg-black/30 rounded-lg px-3 py-2 break-all">
                   {link}
                 </code>
                 <button

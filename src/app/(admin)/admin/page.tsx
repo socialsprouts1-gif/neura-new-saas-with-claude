@@ -83,7 +83,7 @@ export default async function AdminDashboard() {
                     <div key={o.id} className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">{org?.name ?? "—"}</div>
-                        <div className="text-[11px] text-white/40">
+                        <div className="text-[12px] text-white/40">
                           {o.kind.replace("_", " ")} · {formatDate(o.created_at)}
                         </div>
                       </div>
@@ -119,7 +119,7 @@ export default async function AdminDashboard() {
               {recentOrgs.data.map((o) => (
                 <div key={o.id} className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium truncate">{o.name}</span>
-                  <span className="text-[11px] text-white/40 flex-shrink-0">
+                  <span className="text-[12px] text-white/40 flex-shrink-0">
                     {formatDate(o.created_at)}
                   </span>
                 </div>

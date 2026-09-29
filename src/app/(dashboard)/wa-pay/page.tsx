@@ -164,7 +164,7 @@ export default async function WaPayPage() {
                   gateway webhook, and found out what was actually missing
                   only when Meta refused the send. */}
               <div className="glass-card p-5">
-                <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+                <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
                   {settings.method === "whatsapp"
                     ? "To charge inside WhatsApp"
                     : "Before the first charge"}
@@ -327,7 +327,7 @@ function PathCard({
         {!available && <Badge tone="amber">not set up</Badge>}
       </div>
       <p className="text-xs text-white/55 mb-2 leading-relaxed">{summary}</p>
-      <p className={`text-[11px] leading-relaxed ${available ? "text-white/40" : "text-[#FACC15]"}`}>
+      <p className={`text-[12px] leading-relaxed ${available ? "text-white/40" : "text-[#FACC15]"}`}>
         {requirement}
       </p>
     </div>

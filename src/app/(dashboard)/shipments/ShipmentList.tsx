@@ -129,14 +129,14 @@ function ShipmentCard({
             )}
           </div>
 
-          <p className="text-[11px] text-white/40 leading-relaxed mt-2 max-w-2xl">{view.detail}</p>
+          <p className="text-[12px] text-white/40 leading-relaxed mt-2 max-w-2xl">{view.detail}</p>
         </div>
 
         <div className="text-right flex-shrink-0">
           <div className="text-base font-bold tabular-nums">
             {formatAmount(order.totalCents, order.currency)}
           </div>
-          <div className="text-[11px] text-white/35">
+          <div className="text-[12px] text-white/35">
             {new Date(order.createdAt).toLocaleDateString("en-IN", {
               day: "numeric",
               month: "short",
@@ -183,7 +183,7 @@ function ShipmentCard({
 
           {result && (
             <p
-              className={`flex items-start gap-2 mt-3 text-[11.5px] leading-relaxed ${
+              className={`flex items-start gap-2 mt-3 text-[12.5px] leading-relaxed ${
                 result.ok ? "text-white/60" : "text-red-300/90"
               }`}
               role={result.ok ? "status" : "alert"}
@@ -200,7 +200,7 @@ function ShipmentCard({
           {/* Which number the customer hears from. Saved with the order so
               a later update goes out from the same one. */}
           {numbers.length > 1 && actions.includes("notify") && (
-            <p className="text-[11px] text-white/30 mt-3">
+            <p className="text-[12px] text-white/30 mt-3">
               Updates go out from{" "}
               <span className="text-white/45">
                 {numbers.find((n) => n.id === order.connectionId)?.label ??

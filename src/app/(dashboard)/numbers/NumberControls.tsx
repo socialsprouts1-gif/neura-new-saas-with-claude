@@ -47,7 +47,7 @@ export function MakeDefaultButton({ id, isDefault }: { id: string; isDefault: bo
 
   if (isDefault) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-accent-ink">
+      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-accent-ink">
         <Star className="w-3.5 h-3.5 fill-current" />
         Default
       </span>
@@ -66,11 +66,11 @@ export function MakeDefaultButton({ id, isDefault }: { id: string; isDefault: bo
             router.refresh();
           })
         }
-        className="text-[11px] text-white/45 hover:text-accent-ink transition-colors"
+        className="text-[12px] text-white/45 hover:text-accent-ink transition-colors"
       >
         Make default
       </button>
-      {problem && <span className="text-[11px] text-[#F87171]">{problem}</span>}
+      {problem && <span className="text-[12px] text-[#F87171]">{problem}</span>}
     </span>
   );
 }
@@ -177,7 +177,7 @@ export function RegisterNumberButton({ id }: { id: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-lg bg-accent/12 text-accent-ink border border-accent/25 hover:bg-accent/20 transition-colors"
+        className="inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-lg bg-accent/12 text-accent-ink border border-accent/25 hover:bg-accent/20 transition-colors"
       >
         <Power className="w-3 h-3" />
         Register number
@@ -207,22 +207,22 @@ export function RegisterNumberButton({ id }: { id: string }) {
               router.refresh();
             })
           }
-          className="text-[11px] px-2 py-1 rounded-lg bg-accent/12 text-accent-ink border border-accent/25 disabled:opacity-40"
+          className="text-[12px] px-2 py-1 rounded-lg bg-accent/12 text-accent-ink border border-accent/25 disabled:opacity-40"
         >
           {pending ? "Registering…" : "Register"}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="text-[11px] px-1.5 py-1 text-white/45 hover:text-white"
+          className="text-[12px] px-1.5 py-1 text-white/45 hover:text-white"
         >
           Cancel
         </button>
       </div>
-      <p className="text-[10px] text-white/35 max-w-[14rem] text-right leading-relaxed">
+      <p className="text-[11px] text-white/35 max-w-[14rem] text-right leading-relaxed">
         Meta → WhatsApp → Two-step verification. Not your login password.
       </p>
-      {note && <p className="text-[11px] text-[#F87171] max-w-[16rem] text-right">{note}</p>}
+      {note && <p className="text-[12px] text-[#F87171] max-w-[16rem] text-right">{note}</p>}
     </div>
   );
 }
@@ -284,7 +284,7 @@ export function AccountCheckButton({ id }: { id: string }) {
       {result?.checks && (
         <div className="mt-3 p-3.5 rounded-xl border border-white/10 bg-white/3 max-w-xl">
           <p className="text-xs text-white/70 leading-relaxed mb-1">{result.headline}</p>
-          <p className="text-[10px] text-white/30 font-mono mb-3">
+          <p className="text-[11px] text-white/30 font-mono mb-3">
             Read from Meta for account {result.wabaId}
           </p>
 
@@ -296,7 +296,7 @@ export function AccountCheckButton({ id }: { id: string }) {
                   <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${tone.dot}`} />
                   <div className="min-w-0">
                     <div className="text-xs text-white/75">{check.label}</div>
-                    <div className={`text-[11px] leading-relaxed ${tone.text}`}>{check.detail}</div>
+                    <div className={`text-[12px] leading-relaxed ${tone.text}`}>{check.detail}</div>
                   </div>
                 </li>
               );

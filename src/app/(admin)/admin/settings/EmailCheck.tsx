@@ -47,7 +47,7 @@ export default function EmailCheck() {
               working. */}
           {posture && posture.level !== "ok" && (
             <div
-              className={`text-[11px] mb-4 leading-relaxed ${
+              className={`text-[12px] mb-4 leading-relaxed ${
                 posture.level === "broken" ? "text-[#F87171]" : "text-[#FACC15]"
               }`}
             >
@@ -57,7 +57,7 @@ export default function EmailCheck() {
           )}
 
           {posture?.level === "ok" && (
-            <p className="text-[11px] text-white/35 mb-4 leading-relaxed">
+            <p className="text-[12px] text-white/35 mb-4 leading-relaxed">
               Sending as <span className="text-white/60">{identity?.from}</span> over {transport}.{" "}
               {posture.fix}
             </p>
@@ -73,7 +73,7 @@ export default function EmailCheck() {
               hint="Use an address you can open right now — ideally not the one the Resend or SMTP account was opened with."
             />
           </ActionForm>
-          <p className="text-[11px] text-white/35 mt-3 leading-relaxed">
+          <p className="text-[12px] text-white/35 mt-3 leading-relaxed">
             Whatever happens, it is recorded in{" "}
             <Link href="/admin/emails" className="underline hover:text-white/60">
               the email log

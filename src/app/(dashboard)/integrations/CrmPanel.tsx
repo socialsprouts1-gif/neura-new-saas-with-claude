@@ -152,7 +152,7 @@ function Stat({
       >
         {value}
       </div>
-      <div className="text-[11px] text-white/45 mt-0.5">{label}</div>
+      <div className="text-[12px] text-white/45 mt-0.5">{label}</div>
     </div>
   );
 }

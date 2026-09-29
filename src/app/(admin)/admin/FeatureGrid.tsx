@@ -86,7 +86,7 @@ export default function FeatureGrid({
 
           return (
             <div key={group}>
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 mb-2">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30 mb-2">
                 {group}
               </div>
               <div className="grid sm:grid-cols-2 gap-1.5">
@@ -100,7 +100,7 @@ export default function FeatureGrid({
                         <Lock className="w-3.5 h-3.5 text-white/30 mt-0.5 flex-shrink-0" />
                         <span className="min-w-0">
                           <span className="block text-sm font-medium">{feature.label}</span>
-                          <span className="block text-[11px] text-white/35 leading-relaxed mt-0.5">
+                          <span className="block text-[12px] text-white/35 leading-relaxed mt-0.5">
                             Always on — the product does not work without it.
                           </span>
                         </span>
@@ -133,12 +133,12 @@ export default function FeatureGrid({
                         <span className="flex items-center gap-2">
                           <span className="text-sm font-medium">{feature.label}</span>
                           {differs && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#A855F7]/15 text-[#C084FC]">
+                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-[#A855F7]/15 text-[#C084FC]">
                               override
                             </span>
                           )}
                         </span>
-                        <span className="block text-[11px] text-white/40 leading-relaxed mt-0.5">
+                        <span className="block text-[12px] text-white/40 leading-relaxed mt-0.5">
                           {feature.description}
                         </span>
                       </span>

@@ -122,7 +122,7 @@ function newId(kind: string): string {
 // --- field editors ---------------------------------------------------------
 
 const inputClass =
-  "w-full bg-white/4 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white placeholder-white/25 focus:outline-none focus:border-accent/40 nodrag";
+  "w-full bg-white/4 border border-white/10 rounded-lg px-2.5 py-1.5 text-[12px] text-white placeholder-white/25 focus:outline-none focus:border-accent/40 nodrag";
 
 export interface BuilderNumber {
   id: string;
@@ -253,14 +253,14 @@ function FieldEditor({
     case "variable":
       return (
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-white/30 font-mono">{"{{"}</span>
+          <span className="text-[11px] text-white/30 font-mono">{"{{"}</span>
           <input
             className={inputClass}
             placeholder={field.placeholder}
             value={String(value ?? "")}
             onChange={(e) => onChange(e.target.value.replace(/[^\w.]/g, ""))}
           />
-          <span className="text-[10px] text-white/30 font-mono">{"}}"}</span>
+          <span className="text-[11px] text-white/30 font-mono">{"}}"}</span>
         </div>
       );
 
@@ -334,7 +334,7 @@ function KeywordsEditor({
           {keywords.map((keyword, index) => (
             <span
               key={`${keyword}-${index}`}
-              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-accent/10 border border-accent/25 text-[10px] text-accent-ink"
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-accent/10 border border-accent/25 text-[11px] text-accent-ink"
             >
               <span className="max-w-[9rem] truncate">{keyword}</span>
               <button
@@ -381,7 +381,7 @@ function KeywordsEditor({
           setDraft("");
         }}
       />
-      <p className="text-[9px] text-white/25 mt-1">
+      <p className="text-[11px] text-white/25 mt-1">
         Separate keywords with commas. Leave empty to match any message.
       </p>
     </div>
@@ -430,7 +430,7 @@ function ButtonsEditor({
       {buttons.length < max && (
         <button
           type="button"
-          className="nodrag w-full text-[11px] text-accent2-ink border border-dashed border-accent2/30 rounded-lg py-1.5 hover:bg-accent2/5"
+          className="nodrag w-full text-[12px] text-accent2-ink border border-dashed border-accent2/30 rounded-lg py-1.5 hover:bg-accent2/5"
           onClick={() => onChange([...buttons, { id: newId("btn"), title: "" }])}
         >
           + Add button
@@ -506,7 +506,7 @@ function SectionsEditor({ value, onChange }: { value: unknown; onChange: (next: 
           {rowCount < 10 && (
             <button
               type="button"
-              className="nodrag w-full text-[11px] text-accent2-ink py-1 hover:underline"
+              className="nodrag w-full text-[12px] text-accent2-ink py-1 hover:underline"
               onClick={() =>
                 patch(sIndex, { rows: [...section.rows, { id: newId("row"), title: "" }] })
               }
@@ -519,13 +519,13 @@ function SectionsEditor({ value, onChange }: { value: unknown; onChange: (next: 
 
       <button
         type="button"
-        className="nodrag w-full text-[11px] text-accent2-ink border border-dashed border-accent2/30 rounded-lg py-1.5 hover:bg-accent2/5"
+        className="nodrag w-full text-[12px] text-accent2-ink border border-dashed border-accent2/30 rounded-lg py-1.5 hover:bg-accent2/5"
         onClick={() => onChange([...sections, { title: "", rows: [{ id: newId("row"), title: "" }] }])}
       >
         + Add section
       </button>
       {rowCount >= 10 && (
-        <p className="text-[10px] text-amber-400/70">
+        <p className="text-[11px] text-amber-400/70">
           10 rows is WhatsApp&apos;s maximum for a list.
         </p>
       )}
@@ -659,7 +659,7 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
       </header>
 
       {def.runtime !== "ready" && (
-        <div className="mx-3 mt-2 text-[10px] leading-relaxed text-amber-300/80 bg-amber-400/8 border border-amber-400/20 rounded-lg px-2 py-1.5">
+        <div className="mx-3 mt-2 text-[11px] leading-relaxed text-amber-300/80 bg-amber-400/8 border border-amber-400/20 rounded-lg px-2 py-1.5">
           <span className="font-semibold">{RUNTIME_LABEL[def.runtime]}.</span> {def.runtimeNote}
         </div>
       )}
@@ -667,17 +667,17 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
       <div className="p-3 space-y-2.5">
         {def.fields.map((field) => (
           <div key={field.name}>
-            <label className="block text-[10px] font-medium text-white/45 mb-1">{field.label}</label>
+            <label className="block text-[11px] font-medium text-white/45 mb-1">{field.label}</label>
             <FieldEditor
               field={field}
               value={data.values[field.name]}
               onChange={(next) => setValue(field.name, next)}
             />
-            {field.hint && <p className="text-[9px] text-white/25 mt-1">{field.hint}</p>}
+            {field.hint && <p className="text-[11px] text-white/25 mt-1">{field.hint}</p>}
           </div>
         ))}
         {def.fields.length === 0 && (
-          <p className="text-[11px] text-white/35">{def.description}</p>
+          <p className="text-[12px] text-white/35">{def.description}</p>
         )}
       </div>
 
@@ -688,7 +688,7 @@ function FlowNodeCard({ id, data, selected }: NodeProps<BuilderNode>) {
           {outlets.map((outlet, index) => (
             <div
               key={outlet.id}
-              className="relative flex items-center justify-end px-3 py-1.5 text-[10px] text-white/50 border-b border-white/5 last:border-0"
+              className="relative flex items-center justify-end px-3 py-1.5 text-[11px] text-white/50 border-b border-white/5 last:border-0"
             >
               <span className="truncate">{outlet.label}</span>
               <Handle
@@ -943,7 +943,7 @@ function Builder({
         <div className="flex-1 overflow-y-auto p-3 space-y-4">
           {palette.map(({ group, items }) => (
             <div key={group}>
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 mb-2">
+              <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30 mb-2">
                 {group} ({items.length})
               </div>
               <div className="space-y-1.5">
@@ -970,14 +970,14 @@ function Builder({
                         something does is to drop it on the canvas. */}
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-medium truncate">{def.label}</span>
-                      <span className="block text-[10px] text-white/35 truncate leading-snug">
+                      <span className="block text-[11px] text-white/35 truncate leading-snug">
                         {def.description}
                       </span>
                     </span>
 
                     {def.runtime !== "ready" && (
                       <span
-                        className="flex-shrink-0 w-4 h-4 rounded-full grid place-items-center text-[9px] font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30"
+                        className="flex-shrink-0 w-4 h-4 rounded-full grid place-items-center text-[11px] font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30"
                         title={def.runtimeNote}
                       >
                         !
@@ -1029,7 +1029,7 @@ function Builder({
               </span>
             </button>
             <span
-              className={`text-[10px] px-2 py-0.5 rounded-md border ${
+              className={`text-[11px] px-2 py-0.5 rounded-md border ${
                 active
                   ? "text-accent-ink border-accent/30 bg-accent/10"
                   : "text-white/40 border-white/12 bg-white/4"
@@ -1044,7 +1044,7 @@ function Builder({
             </span>
           </div>
 
-          <div className="text-[11px] text-white/35">
+          <div className="text-[12px] text-white/35">
             {nodes.length} node{nodes.length === 1 ? "" : "s"} · {edges.length} connection
             {edges.length === 1 ? "" : "s"}
           </div>
@@ -1150,7 +1150,7 @@ function FormPicker({
 
   if (forms.length === 0) {
     return (
-      <p className="text-[11px] text-white/45 leading-relaxed">
+      <p className="text-[12px] text-white/45 leading-relaxed">
         {all.length > 0 && listeningLabel ? (
           <>
             No form exists on {listeningLabel}. A form belongs to one WhatsApp account and only a
@@ -1192,12 +1192,12 @@ function FormPicker({
         ))}
       </select>
       {listeningLabel && (
-        <p className="text-[11px] text-white/30 mt-1.5">
+        <p className="text-[12px] text-white/30 mt-1.5">
           Forms on {listeningLabel}.
         </p>
       )}
       {current && !known && (
-        <p className="text-[11px] text-[#FACC15] mt-1.5 leading-relaxed">
+        <p className="text-[12px] text-[#FACC15] mt-1.5 leading-relaxed">
           {onAnotherNumber ? (
             <>
               This node opens a form built on a different WhatsApp account, so this bot cannot
@@ -1234,7 +1234,7 @@ function NumbersEditor({
 
   if (numbers.length === 0) {
     return (
-      <p className="text-[11px] text-white/35 leading-relaxed">
+      <p className="text-[12px] text-white/35 leading-relaxed">
         No numbers connected yet. Connect one under Integrations and it will appear here.
       </p>
     );
@@ -1269,7 +1269,7 @@ function NumbersEditor({
             />
             <span className="text-xs tabular-nums flex-1 truncate">{number.label}</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded ${
+              className={`text-[11px] px-1.5 py-0.5 rounded ${
                 number.status === "active"
                   ? "bg-accent/12 text-accent-ink"
                   : "bg-white/8 text-white/45"
@@ -1280,7 +1280,7 @@ function NumbersEditor({
           </label>
         );
       })}
-      <p className="text-[11px] text-white/30 pt-1">
+      <p className="text-[12px] text-white/30 pt-1">
         {selected.length === 0
           ? "Listening on all numbers."
           : `Listening on ${selected.length} of ${numbers.length}.`}
@@ -1322,7 +1322,7 @@ function AssistantPicker({
 
   if (available.length === 0) {
     return (
-      <p className="text-[11px] text-white/45 leading-relaxed">
+      <p className="text-[12px] text-white/45 leading-relaxed">
         {all.length > 0 && listeningLabel ? (
           <>
             No assistant runs on {listeningLabel}. An assistant answers on the number it is set to
@@ -1364,10 +1364,10 @@ function AssistantPicker({
         ))}
       </select>
       {listeningLabel && (
-        <p className="text-[11px] text-white/30 mt-1.5">Assistants on {listeningLabel}.</p>
+        <p className="text-[12px] text-white/30 mt-1.5">Assistants on {listeningLabel}.</p>
       )}
       {current && !known && (
-        <p className="text-[11px] text-[#FACC15] mt-1.5 leading-relaxed">
+        <p className="text-[12px] text-[#FACC15] mt-1.5 leading-relaxed">
           {onAnotherNumber ? (
             <>
               This node points at an assistant that answers on a number this bot does not listen

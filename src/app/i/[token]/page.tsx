@@ -153,7 +153,7 @@ export default async function PublicInvoicePage({
             </div>
 
             <div className="text-right">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
+              <div className="text-[12px] font-semibold uppercase tracking-widest text-zinc-400">
                 Tax invoice
               </div>
               <div className="text-2xl font-bold mt-1">{invoice.number ?? "Draft"}</div>
@@ -176,7 +176,7 @@ export default async function PublicInvoicePage({
 
           <section className="grid sm:grid-cols-2 gap-6 py-6">
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
+              <div className="text-[12px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
                 Billed to
               </div>
               <div className="font-semibold">{invoice.customer_name ?? "—"}</div>
@@ -201,7 +201,7 @@ export default async function PublicInvoicePage({
             {/* The place of supply, which is what decides IGST versus
                 CGST+SGST — and is required on the document. */}
             <div className="sm:text-right">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
+              <div className="text-[12px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
                 Place of supply
               </div>
               <div className="text-sm">
@@ -216,7 +216,7 @@ export default async function PublicInvoicePage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-y border-zinc-200 text-[11px] uppercase tracking-wider text-zinc-500">
+                <tr className="border-y border-zinc-200 text-[12px] uppercase tracking-wider text-zinc-500">
                   <th className="text-left py-2.5 pr-3 font-semibold">Description</th>
                   <th className="text-left py-2.5 px-3 font-semibold whitespace-nowrap">
                     HSN/SAC
@@ -254,7 +254,7 @@ export default async function PublicInvoicePage({
 
           <section className="flex flex-col sm:flex-row justify-between gap-8 pt-6">
             <div className="text-sm max-w-xs">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
+              <div className="text-[12px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
                 Amount in words
               </div>
               <div className="text-zinc-700">
@@ -263,7 +263,7 @@ export default async function PublicInvoicePage({
 
               {(settings.upi_id || settings.bank_account_number) && (
                 <div className="mt-6">
-                  <div className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
+                  <div className="text-[12px] font-semibold uppercase tracking-widest text-zinc-400 mb-1.5">
                     Pay by transfer
                   </div>
                   <dl className="text-zinc-700 space-y-0.5">

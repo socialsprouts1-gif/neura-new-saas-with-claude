@@ -344,7 +344,7 @@ export default function CampaignBuilder({
                   </p>
                   {slots.map((slot, index) => (
                     <div key={slot} className="flex items-center gap-2">
-                      <span className="text-[11px] font-mono text-accent2-ink w-12 shrink-0">
+                      <span className="text-[12px] font-mono text-accent2-ink w-12 shrink-0">
                         {"{{"}
                         {slot}
                         {"}}"}
@@ -376,7 +376,7 @@ export default function CampaignBuilder({
                       {fillVariables(template.body_text ?? "", variables)}
                     </p>
                     {template.footer_text && (
-                      <p className="text-[11px] text-white/40 mt-2">{template.footer_text}</p>
+                      <p className="text-[12px] text-white/40 mt-2">{template.footer_text}</p>
                     )}
                   </div>
                 </div>
@@ -397,7 +397,7 @@ export default function CampaignBuilder({
                     }`}
                   >
                     <div className="text-sm font-medium">{option.label}</div>
-                    <div className="text-[11px] text-white/40 mt-0.5">{option.hint}</div>
+                    <div className="text-[12px] text-white/40 mt-0.5">{option.hint}</div>
                   </button>
                 ))}
               </div>
@@ -619,7 +619,7 @@ export default function CampaignBuilder({
             )}
 
             <div className="flex items-center justify-between gap-4 pt-1 border-t border-white/8">
-              <p className="text-[11px] text-white/35 max-w-sm leading-relaxed pt-4">
+              <p className="text-[12px] text-white/35 max-w-sm leading-relaxed pt-4">
                 Recipients are queued and sent by the dispatcher, so closing this window
                 won&apos;t stop the campaign. You can cancel it while it runs.
               </p>
@@ -895,7 +895,7 @@ function Field({
     <div>
       <span className="block text-xs font-medium text-white/70 mb-1.5">{label}</span>
       {children}
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </div>
   );
 }
@@ -918,12 +918,12 @@ function Section({
     // decoration and the eye has nothing to follow.
     <section className="relative pl-9 last:pb-0 pb-1">
       <span className="absolute left-[13px] top-8 bottom-0 w-px bg-white/8" aria-hidden />
-      <span className="absolute left-0 top-0 grid place-items-center w-7 h-7 rounded-full bg-accent/12 border border-accent/25 text-[11px] font-semibold text-accent-ink">
+      <span className="absolute left-0 top-0 grid place-items-center w-7 h-7 rounded-full bg-accent/12 border border-accent/25 text-[12px] font-semibold text-accent-ink">
         {step}
       </span>
       <div className="mb-3.5 min-h-[1.75rem] flex flex-col justify-center">
         <h4 className="text-sm font-semibold leading-tight">{title}</h4>
-        {subtitle && <p className="text-[11px] text-white/40 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-[12px] text-white/40 mt-0.5">{subtitle}</p>}
       </div>
       {children}
     </section>

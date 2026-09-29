@@ -57,7 +57,7 @@ export default async function ApiEndpointsPage() {
         <div className="order-2 lg:order-1 space-y-6">
           {/* -------- Keys -------- */}
           <div>
-            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+            <h2 className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
               API keys
             </h2>
             {error ? (
@@ -73,7 +73,7 @@ export default async function ApiEndpointsPage() {
                     <tr key={k.id} className="hover:bg-white/3 transition-colors">
                       <Td className="font-medium">{k.name}</Td>
                       <Td>
-                        <code className="text-[11px] text-white/60">{k.key_prefix}…</code>
+                        <code className="text-[12px] text-white/60">{k.key_prefix}…</code>
                       </Td>
                       <Td>
                         <div className="flex flex-wrap gap-1">
@@ -113,7 +113,7 @@ export default async function ApiEndpointsPage() {
 
           {/* -------- Endpoint reference -------- */}
           <div>
-            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+            <h2 className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
               Endpoints
             </h2>
             <div className="space-y-3">
@@ -126,7 +126,7 @@ export default async function ApiEndpointsPage() {
                   <p className="text-sm text-white/50 mb-3">{e.summary}</p>
                   {e.body && (
                     <pre className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-3.5 overflow-x-auto">
-                      <code className="text-[11px] text-white/70">{e.body}</code>
+                      <code className="text-[12px] text-white/70">{e.body}</code>
                     </pre>
                   )}
                 </Card>
@@ -138,12 +138,12 @@ export default async function ApiEndpointsPage() {
           <Card>
             <h2 className="font-semibold mb-3">Example request</h2>
             <pre className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-4 overflow-x-auto">
-              <code className="text-[11px] text-white/75">{`curl -X POST ${base}/api/messages/send \\
+              <code className="text-[12px] text-white/75">{`curl -X POST ${base}/api/messages/send \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer nc_live_…" \\
   -d '{"orgId":"${orgId}","contactId":"<uuid>","body":"Hi!"}'`}</code>
             </pre>
-            <p className="text-[11px] text-white/35 mt-3 leading-relaxed">
+            <p className="text-[12px] text-white/35 mt-3 leading-relaxed">
               The send endpoint currently authenticates with your signed-in session. Bearer-token
               auth using these keys is the next step — the keys are real and stored hashed, but
               the route does not accept them yet.

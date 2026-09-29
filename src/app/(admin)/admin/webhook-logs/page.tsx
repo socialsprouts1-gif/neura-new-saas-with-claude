@@ -50,7 +50,7 @@ export default async function AdminWebhookLogsPage() {
                   <span className="text-white/30">unmatched</span>
                 )}
               </Td>
-              <Td className="font-mono text-[11px] text-white/60">{l.phone_number_id ?? "—"}</Td>
+              <Td className="font-mono text-[12px] text-white/60">{l.phone_number_id ?? "—"}</Td>
               <Td className="text-xs">{l.event_type ?? "—"}</Td>
               <Td>
                 <Badge tone={l.signature_valid ? "green" : "red"}>

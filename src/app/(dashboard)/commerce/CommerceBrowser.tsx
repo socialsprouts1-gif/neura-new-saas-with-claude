@@ -354,7 +354,7 @@ function ProductsTab({
                   </div>
 
                   {product.sku && (
-                    <div className="text-[11px] text-white/35 mb-1">{product.sku}</div>
+                    <div className="text-[12px] text-white/35 mb-1">{product.sku}</div>
                   )}
 
                   <div className="text-lg font-bold mb-2">
@@ -368,7 +368,7 @@ function ProductsTab({
                       // The tick that used to only report "sendable" now
                       // does the sending. It was the one thing the card
                       // knew and the one thing you could not act on.
-                      <label className="inline-flex items-center gap-1.5 text-[11px] text-accent-ink cursor-pointer select-none">
+                      <label className="inline-flex items-center gap-1.5 text-[12px] text-accent-ink cursor-pointer select-none">
                         <input
                           type="checkbox"
                           checked={picked.includes(product.id)}
@@ -379,7 +379,7 @@ function ProductsTab({
                       </label>
                     ) : (
                       <span
-                        className="text-[11px] text-white/35"
+                        className="text-[12px] text-white/35"
                         title={
                           catalogueLinked
                             ? "Not in your Meta catalogue, so it cannot be sent as a product card. Add it in Commerce Manager and import again."
@@ -456,7 +456,7 @@ function ProductsTab({
         )}
 
         <div className="glass-card p-5">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-2">
+          <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-2">
             Inventory value
           </div>
           <div className="text-2xl font-bold tabular-nums">{formatMoney(inventoryValue)}</div>
@@ -553,7 +553,7 @@ function SendProductsPanel({
           different messages by how many products are named, which is not
           something a row of checkboxes tells you. */}
       <div
-        className={`rounded-xl border p-3 mb-4 text-[11.5px] leading-relaxed ${
+        className={`rounded-xl border p-3 mb-4 text-[12.5px] leading-relaxed ${
           plan.ok
             ? "border-accent/25 bg-accent/8 text-white/70"
             : "border-amber-400/25 bg-amber-400/8 text-white/70"
@@ -587,7 +587,7 @@ function SendProductsPanel({
       )}
 
       {reachable.length === 0 ? (
-        <p className="text-[11px] text-white/45 leading-relaxed">
+        <p className="text-[12px] text-white/45 leading-relaxed">
           Nobody has messaged you in the last 24 hours. WhatsApp only allows a product card
           inside that window, so there is nobody to send one to right now — an approved
           template is the only way to reopen a conversation.
@@ -613,7 +613,7 @@ function SendProductsPanel({
                 );
               })}
             </select>
-            <span className="block text-[11px] text-white/35 mt-1">
+            <span className="block text-[12px] text-white/35 mt-1">
               Only the {reachable.length} who wrote in the last 24 hours — WhatsApp refuses a
               product card outside that window.
             </span>
@@ -634,7 +634,7 @@ function SendProductsPanel({
 
           {result && (
             <p
-              className={`flex items-start gap-2 text-[11.5px] leading-relaxed ${
+              className={`flex items-start gap-2 text-[12.5px] leading-relaxed ${
                 result.ok ? "text-white/65" : "text-red-300/90"
               }`}
               role={result.ok ? "status" : "alert"}
@@ -663,7 +663,7 @@ function SendProductsPanel({
           </button>
 
           {picked.length > MAX_PRODUCTS_PER_MESSAGE && (
-            <p className="text-[11px] text-white/35 leading-relaxed">
+            <p className="text-[12px] text-white/35 leading-relaxed">
               Tip: with this many, the whole catalogue is usually the better message — the
               customer can search it rather than scroll a list.
             </p>
@@ -740,7 +740,7 @@ function CatalogueExportImport() {
         anybody download. Nothing needs approving.
       </p>
 
-      <ol className="space-y-1.5 mb-4 text-[11.5px] text-white/50 leading-relaxed list-none p-0 m-0">
+      <ol className="space-y-1.5 mb-4 text-[12.5px] text-white/50 leading-relaxed list-none p-0 m-0">
         {[
           "Open your catalogue in Meta Commerce Manager.",
           "Go to Catalogue → Items, and choose Export.",
@@ -748,7 +748,7 @@ function CatalogueExportImport() {
           "Drop that file in below.",
         ].map((step, index) => (
           <li key={step} className="flex gap-2.5">
-            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-white/8 border border-white/12 text-[9px] font-bold flex items-center justify-center tabular-nums text-white/60">
+            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-white/8 border border-white/12 text-[11px] font-bold flex items-center justify-center tabular-nums text-white/60">
               {index + 1}
             </span>
             {step}
@@ -829,7 +829,7 @@ function CatalogueTab({
                 <Check className="w-4 h-4 text-accent-ink" />
                 <span className="font-medium text-sm">{catalogue.catalogName}</span>
               </div>
-              <code className="text-[11px] text-white/45">{catalogue.catalogId}</code>
+              <code className="text-[12px] text-white/45">{catalogue.catalogId}</code>
               <div className="flex flex-wrap gap-2 mt-3">
                 <Badge tone={catalogue.isCatalogVisible ? "green" : "amber"}>
                   storefront {catalogue.isCatalogVisible ? "on" : "off"}
@@ -968,7 +968,7 @@ function CatalogueTab({
               />
               <span className="text-sm text-white/75">
                 Show the storefront
-                <span className="block text-[11px] text-white/40">
+                <span className="block text-[12px] text-white/40">
                   Puts the shop icon in the chat and on your business profile.
                 </span>
               </span>
@@ -983,14 +983,14 @@ function CatalogueTab({
               />
               <span className="text-sm text-white/75">
                 Let customers build a cart
-                <span className="block text-[11px] text-white/40">
+                <span className="block text-[12px] text-white/40">
                   Off, they can browse but not send an order. This is what turns a catalogue into a
                   shop.
                 </span>
               </span>
             </label>
 
-            <p className="text-[11px] text-white/35 leading-relaxed">
+            <p className="text-[12px] text-white/35 leading-relaxed">
               Changes can take a few minutes to show up in WhatsApp.
             </p>
           </div>
@@ -1092,7 +1092,7 @@ function PaymentsTab({
                   ]}
                 />
               </div>
-              <p className="text-[11px] text-white/35 leading-relaxed">
+              <p className="text-[12px] text-white/35 leading-relaxed">
                 Meta&rsquo;s India payments programme is invitation-based. If WhatsApp Manager has
                 no Payments section, this option will be refused however it is filled in — use a
                 payment link until it appears.
@@ -1120,7 +1120,7 @@ function PaymentsTab({
                 <span className="block text-sm font-medium">
                   Ask for payment as soon as a cart arrives
                 </span>
-                <span className="block text-[11px] text-white/45 leading-relaxed mt-1">
+                <span className="block text-[12px] text-white/45 leading-relaxed mt-1">
                   The customer is holding their phone with their card ready. Turn this off only
                   if you check stock before charging.
                 </span>
@@ -1211,7 +1211,7 @@ function PaymentsTab({
             "You mark it shipped and add the AWB, and they are told that too.",
           ].map((step, index) => (
             <li key={index} className="flex gap-2.5">
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/8 text-[10px] font-bold flex items-center justify-center text-white/60">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-white/8 text-[11px] font-bold flex items-center justify-center text-white/60">
                 {index + 1}
               </span>
               <span>{step}</span>
@@ -1222,7 +1222,7 @@ function PaymentsTab({
         <div className="mt-4 pt-4 border-t border-white/8">
           <div className="flex items-center gap-2 mb-2">
             <Package className="w-3.5 h-3.5 text-white/40" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
+            <span className="text-[12px] font-semibold uppercase tracking-widest text-white/40">
               Webhook to set
             </span>
           </div>
@@ -1264,7 +1264,7 @@ function MethodCard({
         {chosen && <Check className="w-3.5 h-3.5 text-accent-ink" />}
         <span className="font-medium text-sm">{title}</span>
       </div>
-      <p className="text-[11px] text-white/45 leading-relaxed">{detail}</p>
+      <p className="text-[12px] text-white/45 leading-relaxed">{detail}</p>
     </button>
   );
 }

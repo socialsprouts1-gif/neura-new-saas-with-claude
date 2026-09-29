@@ -48,7 +48,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
           </div>
           <h1 className="text-2xl md:text-3xl font-bold mb-3 leading-tight">{guide.title}</h1>
           <p className="text-[15px] text-white/55 leading-relaxed">{guide.summary}</p>
-          <p className="text-[11px] text-white/30 mt-3">{guide.minutes} min read</p>
+          <p className="text-[12px] text-white/30 mt-3">{guide.minutes} min read</p>
         </header>
 
         <div className="space-y-7">
@@ -63,7 +63,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             className="glass-card p-5 mt-10 flex items-center justify-between gap-4 group hover:border-accent/30 transition-colors"
           >
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-widest text-white/35 mb-1">
+              <div className="text-[12px] uppercase tracking-widest text-white/35 mb-1">
                 Next
               </div>
               <div className="font-semibold group-hover:text-accent-ink transition-colors">

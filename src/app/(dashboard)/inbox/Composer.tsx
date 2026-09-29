@@ -165,11 +165,11 @@ export default function Composer({
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate">{entry.title}</span>
-                  <code className="text-[10px] text-accent2-ink flex-shrink-0">
+                  <code className="text-[11px] text-accent2-ink flex-shrink-0">
                     /{entry.shortcut}
                   </code>
                 </div>
-                <p className="text-[11px] text-white/40 line-clamp-1 mt-0.5">{entry.body}</p>
+                <p className="text-[12px] text-white/40 line-clamp-1 mt-0.5">{entry.body}</p>
               </button>
             ))}
           </div>

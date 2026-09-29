@@ -101,7 +101,7 @@ export default function MeetingRow({ meeting }: { meeting: MeetingItem }) {
               type="button"
               onClick={() => run(() => setMeetingStatus(meeting.id, "completed"))}
               disabled={pending}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-accent/30 bg-accent/10 text-accent-ink hover:bg-accent/20 transition-colors disabled:opacity-50"
+              className="text-[12px] px-2.5 py-1.5 rounded-lg border border-accent/30 bg-accent/10 text-accent-ink hover:bg-accent/20 transition-colors disabled:opacity-50"
             >
               Done
             </button>
@@ -109,7 +109,7 @@ export default function MeetingRow({ meeting }: { meeting: MeetingItem }) {
               type="button"
               onClick={() => run(() => setMeetingStatus(meeting.id, "no_show"))}
               disabled={pending}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/12 text-white/55 hover:text-white transition-colors disabled:opacity-50"
+              className="text-[12px] px-2.5 py-1.5 rounded-lg border border-white/12 text-white/55 hover:text-white transition-colors disabled:opacity-50"
             >
               No-show
             </button>
@@ -117,7 +117,7 @@ export default function MeetingRow({ meeting }: { meeting: MeetingItem }) {
               type="button"
               onClick={() => run(() => setMeetingStatus(meeting.id, "cancelled"))}
               disabled={pending}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/12 text-white/55 hover:text-white transition-colors disabled:opacity-50"
+              className="text-[12px] px-2.5 py-1.5 rounded-lg border border-white/12 text-white/55 hover:text-white transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

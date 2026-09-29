@@ -162,7 +162,7 @@ function Text({
       ) : (
         <input value={value} onChange={(event) => onChange(event.target.value)} className={shared} />
       )}
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -191,7 +191,7 @@ function AssetSlot({
           {url ? (
             <Image src={url} alt={label} width={48} height={48} className="object-contain" unoptimized />
           ) : (
-            <span className="text-[10px] text-white/30">none</span>
+            <span className="text-[11px] text-white/30">none</span>
           )}
         </div>
 
@@ -211,7 +211,7 @@ function AssetSlot({
               }}
             />
           </label>
-          <p className="text-[11px] text-white/35 mt-1 leading-snug">{hint}</p>
+          <p className="text-[12px] text-white/35 mt-1 leading-snug">{hint}</p>
         </div>
 
         {url && (

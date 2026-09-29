@@ -79,11 +79,11 @@ export default function ProviderPanel({
 
       {webhookUrl && (
         <div className="rounded-xl border border-white/10 bg-white/4 p-4 mb-5">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
+          <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
             Webhook to set on {def.name}
           </div>
           <code className="text-xs text-accent-ink break-all">{webhookUrl}</code>
-          <p className="text-[11px] text-white/40 mt-2 leading-relaxed">
+          <p className="text-[12px] text-white/40 mt-2 leading-relaxed">
             Paste the signing secret from {def.name} into the Webhook secret field above.
             Without it a payment clears at the gateway and no order is ever marked paid.
           </p>

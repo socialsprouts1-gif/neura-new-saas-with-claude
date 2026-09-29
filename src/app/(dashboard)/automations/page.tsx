@@ -138,7 +138,7 @@ export default async function AutomationsPage() {
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs">{MATCH_LABELS[run.matched_kind] ?? run.matched_kind}</span>
                         {run.matched_label && (
-                          <span className="text-[11px] text-white/35 line-clamp-1">
+                          <span className="text-[12px] text-white/35 line-clamp-1">
                             {run.matched_label}
                           </span>
                         )}
@@ -157,7 +157,7 @@ export default async function AutomationsPage() {
                       <div className="flex items-center gap-2">
                         <Badge tone={OUTCOME_TONE[run.outcome] ?? "grey"}>{run.outcome}</Badge>
                         {run.duration_ms !== null && (
-                          <span className="text-[10px] text-white/25">{run.duration_ms}ms</span>
+                          <span className="text-[11px] text-white/25">{run.duration_ms}ms</span>
                         )}
                       </div>
                     </Td>

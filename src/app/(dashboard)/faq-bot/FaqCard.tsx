@@ -95,7 +95,7 @@ export default function FaqCard({
               it is the difference between the right shop's hours and the
               wrong one's. */}
           {numbers.length > 1 && (
-            <div className="flex items-center gap-1.5 mt-2.5 text-[11px] text-white/40">
+            <div className="flex items-center gap-1.5 mt-2.5 text-[12px] text-white/40">
               <Phone className="w-3 h-3" />
               {onNumber ? `Only on ${onNumber}` : "Every number"}
             </div>
@@ -106,7 +106,7 @@ export default function FaqCard({
               {entry.keywords.map((keyword) => (
                 <span
                   key={keyword}
-                  className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/45"
+                  className="text-[11px] font-mono px-2 py-0.5 rounded bg-white/5 border border-white/10 text-white/45"
                 >
                   {keyword}
                 </span>

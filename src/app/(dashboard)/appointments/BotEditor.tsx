@@ -68,7 +68,7 @@ export default function BotEditor({
             <span className="text-sm text-white/80">
               Let customers book on WhatsApp
               {!hasServices && (
-                <span className="block text-[11px] text-[#FACC15]">
+                <span className="block text-[12px] text-[#FACC15]">
                   Add a service on the Services tab first — there is nothing to offer yet.
                 </span>
               )}

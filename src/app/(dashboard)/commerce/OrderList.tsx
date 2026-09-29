@@ -167,7 +167,7 @@ function OrderCard({
           {order.awb && (
             <Link
               href="/shipments"
-              className="inline-flex items-center gap-1.5 mt-3 text-[11px] text-accent2-ink hover:underline"
+              className="inline-flex items-center gap-1.5 mt-3 text-[12px] text-accent2-ink hover:underline"
             >
               <Truck className="w-3.5 h-3.5" />
               Track and print this in Shipments
@@ -182,7 +182,7 @@ function OrderCard({
           <button
             type="button"
             onClick={() => setOpen((current) => !current)}
-            className="text-[11px] text-white/40 hover:text-white transition-colors"
+            className="text-[12px] text-white/40 hover:text-white transition-colors"
           >
             {open ? "Hide" : "Details"}
           </button>
@@ -334,7 +334,7 @@ function OrderCard({
 
             <div className="flex flex-wrap items-center gap-2 mt-3">
               {order.shiprocketOrderId ? (
-                <span className="text-[11px] text-white/45 inline-flex items-center gap-1.5">
+                <span className="text-[12px] text-white/45 inline-flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5" />
                   On Shiprocket as {order.shiprocketOrderId}
                   {order.courierName ? ` · ${order.courierName}` : ""}

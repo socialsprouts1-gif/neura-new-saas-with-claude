@@ -295,7 +295,7 @@ export default function GalleryBrowser({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {stats.map((stat) => (
           <div key={stat.label} className="glass-card px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/40 mb-1">
+            <div className="text-[11px] uppercase tracking-widest text-white/40 mb-1">
               {stat.label}
             </div>
             <div className="text-xl font-semibold">{stat.value}</div>
@@ -338,7 +338,7 @@ export default function GalleryBrowser({
           </p>
         </div>
         {uploading.length > 0 && (
-          <p className="text-[11px] text-white/35 mt-2 truncate">{uploading.join(", ")}</p>
+          <p className="text-[12px] text-white/35 mt-2 truncate">{uploading.join(", ")}</p>
         )}
       </div>
 
@@ -514,7 +514,7 @@ function MediaCard({
           <button
             type="button"
             onClick={onCopy}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[11px] py-1.5 rounded-lg bg-accent/90 text-[#050508] font-medium hover:bg-accent transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-[12px] py-1.5 rounded-lg bg-accent/90 text-[#050508] font-medium hover:bg-accent transition-colors"
           >
             <Link2 className="w-3.5 h-3.5" />
             Copy URL
@@ -541,7 +541,7 @@ function MediaCard({
 
         {confirming && (
           <div className="absolute inset-0 bg-[var(--app-bg)]/92 flex flex-col items-center justify-center gap-2 p-3 text-center">
-            <p className="text-[11px] text-white/70 leading-relaxed">
+            <p className="text-[12px] text-white/70 leading-relaxed">
               Delete this file? Any flow using its URL will stop sending media.
             </p>
             <div className="flex gap-1.5">
@@ -551,14 +551,14 @@ function MediaCard({
                   setConfirming(false);
                   onDelete();
                 }}
-                className="text-[11px] px-2.5 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30"
+                className="text-[12px] px-2.5 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30"
               >
                 Delete
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="text-[11px] px-2.5 py-1 rounded-lg border border-white/15 text-white/60 hover:bg-white/6"
+                className="text-[12px] px-2.5 py-1 rounded-lg border border-white/15 text-white/60 hover:bg-white/6"
               >
                 Cancel
               </button>
@@ -567,7 +567,7 @@ function MediaCard({
         )}
 
         <span
-          className="absolute top-2 right-2 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded backdrop-blur-sm"
+          className="absolute top-2 right-2 text-[11px] uppercase tracking-wider px-1.5 py-0.5 rounded backdrop-blur-sm"
           style={{ background: `${accent}25`, color: accent }}
         >
           {asset.media_type}
@@ -575,10 +575,10 @@ function MediaCard({
       </div>
 
       <div className="p-2.5">
-        <p className="text-[11px] font-medium truncate" title={asset.name}>
+        <p className="text-[12px] font-medium truncate" title={asset.name}>
           {asset.name}
         </p>
-        <div className="flex items-center justify-between text-[10px] text-white/35 mt-0.5">
+        <div className="flex items-center justify-between text-[11px] text-white/35 mt-0.5">
           <span>{formatBytes(asset.size_bytes)}</span>
           <span>{new Date(asset.created_at).toLocaleDateString()}</span>
         </div>

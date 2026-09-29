@@ -39,7 +39,7 @@ export default function IntegrationCard({
         <h3 className="font-semibold text-base truncate flex-1 min-w-0 mt-1.5">{card.name}</h3>
 
         <span
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border flex-shrink-0 ${
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[12px] font-medium border flex-shrink-0 ${
             card.connected
               ? "bg-accent/10 text-accent-ink border-accent/20"
               : "bg-white/5 text-white/45 border-white/10"
@@ -53,7 +53,7 @@ export default function IntegrationCard({
       <p className="text-sm text-white/55 mt-3.5 leading-relaxed">{card.description}</p>
 
       {card.note && (
-        <p className="text-[11px] text-white/45 leading-relaxed mt-3.5 pl-3 border-l-2 border-accent/40">
+        <p className="text-[12px] text-white/45 leading-relaxed mt-3.5 pl-3 border-l-2 border-accent/40">
           {card.note}
         </p>
       )}

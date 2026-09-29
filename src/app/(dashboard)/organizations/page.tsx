@@ -79,7 +79,7 @@ export default async function OrganizationsPage() {
                       <span className="text-white/35 font-normal"> (you)</span>
                     )}
                   </div>
-                  <div className="text-[10px] text-white/35">joined {formatDate(m.created_at)}</div>
+                  <div className="text-[11px] text-white/35">joined {formatDate(m.created_at)}</div>
                 </div>
                 <Badge tone={m.role === "owner" ? "green" : m.role === "admin" ? "blue" : "grey"}>
                   {m.role}
@@ -87,7 +87,7 @@ export default async function OrganizationsPage() {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-white/35 mt-4">
+          <p className="text-[12px] text-white/35 mt-4">
             Inviting teammates by email needs transactional email, which isn&apos;t wired up yet.
             For now, have them sign up and an owner can add their membership row.
           </p>
@@ -108,7 +108,7 @@ export default async function OrganizationsPage() {
                       {optionLabel(connection)}
                     </div>
                     {connection.qualityRating && (
-                      <div className="text-[11px] text-white/35 mt-0.5">
+                      <div className="text-[12px] text-white/35 mt-0.5">
                         quality {connection.qualityRating.toLowerCase()}
                       </div>
                     )}

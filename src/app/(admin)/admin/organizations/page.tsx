@@ -83,7 +83,7 @@ export default async function AdminOrganizationsPage() {
                       </Badge>
                     )}
                   </div>
-                  <div className="font-mono text-[10px] text-white/30">{o.id.slice(0, 8)}…</div>
+                  <div className="font-mono text-[11px] text-white/30">{o.id.slice(0, 8)}…</div>
                 </Td>
                 <Td className="tabular-nums">{memberCount.get(o.id) ?? 0}</Td>
                 <Td>
@@ -101,7 +101,7 @@ export default async function AdminOrganizationsPage() {
                         <Badge tone={statusTone(sub.status)}>{sub.status}</Badge>
                       </div>
                       {sub.current_period_end && (
-                        <div className="text-[11px] text-white/35 mt-0.5">
+                        <div className="text-[12px] text-white/35 mt-0.5">
                           {new Date(sub.current_period_end) < new Date() ? "expired" : "renews"}{" "}
                           {formatDate(sub.current_period_end)}
                         </div>

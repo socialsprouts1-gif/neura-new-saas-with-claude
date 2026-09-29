@@ -45,7 +45,7 @@ export default async function SupportPage() {
                   </div>
                 </div>
                 <p className="text-sm text-white/55 whitespace-pre-wrap mb-3">{t.body}</p>
-                <p className="text-[11px] text-white/35">Raised {formatDate(t.created_at)}</p>
+                <p className="text-[12px] text-white/35">Raised {formatDate(t.created_at)}</p>
               </Card>
             ))
           ) : (

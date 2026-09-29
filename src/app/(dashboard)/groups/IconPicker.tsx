@@ -41,7 +41,7 @@ export default function IconPicker({
           aria-pressed={icon === ""}
           title="No icon — use the group's initials"
           className={`w-9 h-9 rounded-xl grid place-items-center font-semibold border transition-colors ${
-            groupName.trim() ? "text-[11px]" : "text-[9px] uppercase tracking-wide"
+            groupName.trim() ? "text-[12px]" : "text-[11px] uppercase tracking-wide"
           } ${icon === "" ? "ring-2 ring-[var(--accent)]" : "hover:bg-white/8"}`}
           style={{
             background: withAlpha(colour, 0.16),

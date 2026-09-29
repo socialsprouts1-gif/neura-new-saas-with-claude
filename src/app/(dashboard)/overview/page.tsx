@@ -177,7 +177,7 @@ export default async function DashboardPage({
               </div>
               {change && (
                 <span
-                  className={`text-[11px] px-2 py-0.5 rounded-md ${
+                  className={`text-[12px] px-2 py-0.5 rounded-md ${
                     change.startsWith("-") ? "text-red-400 bg-red-400/10" : "text-accent-ink bg-accent/10"
                   }`}
                 >
@@ -199,7 +199,7 @@ export default async function DashboardPage({
               <h2 className="font-semibold">Message activity</h2>
               <p className="text-xs text-white/40 mt-0.5">Sent and received over the last {DAYS} days</p>
             </div>
-            <div className="flex items-center gap-4 text-[11px]">
+            <div className="flex items-center gap-4 text-[12px]">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-accent" /> Sent
               </span>
@@ -227,7 +227,7 @@ export default async function DashboardPage({
                       <div className="bg-accent2/70" style={{ flexGrow: bucket.received || 0 }} />
                       <div className="bg-accent/70" style={{ flexGrow: bucket.sent || 0 }} />
                     </div>
-                    <span className="text-[9px] text-white/25 truncate">
+                    <span className="text-[11px] text-white/25 truncate">
                       {bucket.day.getDate()}
                     </span>
                   </div>
@@ -255,7 +255,7 @@ export default async function DashboardPage({
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-white/8 hover:border-white/20 hover:bg-white/3 transition-colors"
               >
                 <span
-                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] flex-shrink-0 ${
+                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[11px] flex-shrink-0 ${
                     step.done ? "bg-accent text-[#050508]" : "border border-white/20"
                   }`}
                 >

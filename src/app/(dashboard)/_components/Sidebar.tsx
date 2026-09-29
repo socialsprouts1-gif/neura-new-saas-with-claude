@@ -64,10 +64,6 @@ interface NavItem {
 
 const PLATFORM: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/overview" },
-  // Second, deliberately. Somebody who cannot find how the product works
-  // does not go looking under Settings — they email support, or they
-  // leave.
-  { icon: BookOpen, label: "Guides", href: "/guides" },
   { icon: MessageCircle, label: "Inbox", href: "/inbox" },
   { icon: Phone, label: "WhatsApp Numbers", href: "/numbers" },
   {
@@ -129,6 +125,10 @@ const MAIN: NavItem[] = [
   { icon: Code2, label: "API Endpoints", href: "/api-endpoints" },
   { icon: CreditCard, label: "Billing", href: "/billing" },
   { icon: Wallet, label: "WhatsApp Wallet", href: "/wallet", soon: true },
+  // Last, under Billing. Reference rather than daily work — somebody who
+  // needs it goes looking, and it should not sit between the Dashboard
+  // and the Inbox for everyone who does not.
+  { icon: BookOpen, label: "Guides", href: "/guides" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 
@@ -172,7 +172,7 @@ export function SidebarNav({
   return (
     <>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4 overscroll-contain">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 px-3 mb-2">
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30 px-3 mb-2">
           Platform
         </div>
         <div className="space-y-0.5 mb-4">
@@ -225,7 +225,7 @@ export function SidebarBrand({ brand }: { brand?: AppBrand }) {
         <div className="font-bold text-sm leading-tight whitespace-nowrap">
           {name} {accent && <span className="gradient-text-green">{accent}</span>}
         </div>
-        <div className="text-[9px] uppercase tracking-widest text-white/30">
+        <div className="text-[11px] uppercase tracking-widest text-white/30">
           {brand?.tagline?.trim() || "Business inbox"}
         </div>
       </div>
@@ -314,7 +314,7 @@ function NavEntry({
                   key={child.href}
                   href={child.href}
                   onClick={onNavigate}
-                  className={`block px-3 py-2 rounded-lg text-[13px] transition-colors ${
+                  className={`block px-3 py-2 rounded-lg text-[14px] transition-colors ${
                     pathname === child.href
                       ? "text-accent-ink bg-accent/8"
                       : "text-white/50 hover:text-white hover:bg-white/5"
@@ -365,12 +365,12 @@ function SoonRow({
       title="Not built yet"
       aria-disabled="true"
       className={`flex items-center gap-3 px-3 rounded-xl text-white/25 cursor-default ${
-        Icon ? "py-2 text-sm font-medium" : "py-1.5 text-[13px]"
+        Icon ? "py-2 text-sm font-medium" : "py-1.5 text-[14px]"
       }`}
     >
       {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
       {label}
-      <span className="ml-auto text-[9px] uppercase tracking-wider text-white/20">soon</span>
+      <span className="ml-auto text-[11px] uppercase tracking-wider text-white/20">soon</span>
     </div>
   );
 }

@@ -104,7 +104,7 @@ export default function NewBooking({
             <input type="checkbox" name="allow_overlap" className="accent-[var(--accent)] w-4 h-4" />
             <span className="text-sm text-white/70">
               Book anyway if the time is taken
-              <span className="block text-[11px] text-white/35">
+              <span className="block text-[12px] text-white/35">
                 Otherwise a clash with an existing booking is refused.
               </span>
             </span>

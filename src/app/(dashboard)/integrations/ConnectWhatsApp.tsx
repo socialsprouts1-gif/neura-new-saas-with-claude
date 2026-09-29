@@ -71,7 +71,7 @@ export default function ConnectWhatsApp({ label = "Connect WhatsApp" }: { label?
       </button>
       </div>
 
-      <p className="text-[11px] text-white/40 leading-relaxed max-w-lg">
+      <p className="text-[12px] text-white/40 leading-relaxed max-w-lg">
         The first keeps your number on the WhatsApp Business app — your chats and history stay
         exactly where they are, and the API runs alongside. Use the second only for a number that
         has never had WhatsApp on it; Meta will refuse anything else.

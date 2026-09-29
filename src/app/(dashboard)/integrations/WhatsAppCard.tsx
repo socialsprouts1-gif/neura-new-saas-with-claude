@@ -214,7 +214,7 @@ export default function WhatsAppCard({
           ))}
 
           {healthUnavailable && (
-            <p className="text-[11px] text-white/35 leading-relaxed">
+            <p className="text-[12px] text-white/35 leading-relaxed">
               Connection health tracking is off — run{" "}
               <span className="font-mono text-white/55">supabase/setup.sql</span> to add the
               two columns it needs. Everything else on this page works without it.
@@ -267,7 +267,7 @@ export default function WhatsAppCard({
 
             <div className="space-y-3">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
                   Callback URL
                 </div>
                 <code className="block text-xs text-accent2-ink break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
@@ -278,7 +278,7 @@ export default function WhatsAppCard({
               {connections.map((c) => (
                 <div key={`vt-${c.id}`}>
                   <div className="flex items-center justify-between gap-3 mb-1.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-white/40">
+                    <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
                       Verify token
                       <span className="text-white/25 normal-case tracking-normal font-normal">
                         {" "}
@@ -298,7 +298,7 @@ export default function WhatsAppCard({
                   <code className="block text-xs text-accent-ink break-all bg-white/3 border border-white/8 rounded-lg p-2.5">
                     {c.webhook_verify_token}
                   </code>
-                  <p className="text-[10px] text-white/30 mt-1.5">
+                  <p className="text-[11px] text-white/30 mt-1.5">
                     {c.webhook_verify_token.length} characters. Meta rejects the handshake
                     unless this matches exactly — it is not your access token.
                   </p>

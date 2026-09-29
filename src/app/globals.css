@@ -19,6 +19,23 @@
    var() it gives up on the modifier again. Light mode then overrides
    --color-accent itself below, the same trick --color-white uses. */
 @theme {
+  /* The type scale, one step up from Tailwind's defaults.
+     ---------------------------------------------------------------------
+     This is a business tool people read all day, largely on laptops, and
+     it was set almost entirely in 11px and 12px. That is fine for a label
+     and wrong for the sentence that tells somebody why their campaign
+     failed. Raising the tokens lifts every text-xs and text-sm in the
+     product at once — about a thousand of them — rather than leaving the
+     legibility of each screen to whoever wrote it.
+
+     Line heights come with them: Tailwind pairs each size with one, and
+     changing the size alone leaves the old leading behind and makes the
+     bigger text look more cramped, not less. */
+  --text-xs: 0.8125rem;      /* 13px, was 12 */
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.9375rem;      /* 15px, was 14 */
+  --text-sm--line-height: 1.375rem;
+
   --color-accent: #00FF87;
   --color-accent-ink: #00FF87;
   --color-accent2: #00D4FF;

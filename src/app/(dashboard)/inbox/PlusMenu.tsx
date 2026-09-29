@@ -128,7 +128,7 @@ export default function PlusMenu({
 
           {view === "note" && (
             <Panel title="Internal note" onBack={() => setView("menu")} onClose={close}>
-              <p className="text-[11px] text-white/40 mb-2 leading-relaxed">
+              <p className="text-[12px] text-white/40 mb-2 leading-relaxed">
                 Only your team sees this. It is never sent to the customer.
               </p>
               <textarea
@@ -198,7 +198,7 @@ export default function PlusMenu({
                   {tags.map((existing) => (
                     <span
                       key={existing}
-                      className="text-[11px] px-2 py-0.5 rounded-lg bg-white/6 text-white/55"
+                      className="text-[12px] px-2 py-0.5 rounded-lg bg-white/6 text-white/55"
                     >
                       {existing}
                     </span>
@@ -253,7 +253,7 @@ export default function PlusMenu({
           {view === "media" && (
             <Panel title="Media" onBack={() => setView("menu")} onClose={close}>
               {media.length === 0 ? (
-                <p className="text-[11px] text-white/40 leading-relaxed py-2">
+                <p className="text-[12px] text-white/40 leading-relaxed py-2">
                   Nothing in the Gallery yet. WhatsApp needs a hosted URL, so attachments come from
                   your own media library.
                 </p>
@@ -281,7 +281,7 @@ export default function PlusMenu({
           {view === "template" && (
             <Panel title="Send template" onBack={() => setView("menu")} onClose={close}>
               {templates.length === 0 ? (
-                <p className="text-[11px] text-white/40 leading-relaxed py-2">
+                <p className="text-[12px] text-white/40 leading-relaxed py-2">
                   No approved templates yet. Only an approved template can reach someone outside the
                   24-hour window.
                 </p>
@@ -298,7 +298,7 @@ export default function PlusMenu({
                       className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
                     >
                       <div className="text-sm truncate">{template.name}</div>
-                      <div className="text-[10px] text-white/40">{template.language}</div>
+                      <div className="text-[11px] text-white/40">{template.language}</div>
                     </button>
                   ))}
                 </div>
@@ -309,7 +309,7 @@ export default function PlusMenu({
           {view === "form" && (
             <Panel title="Send a form" onBack={() => setView("menu")} onClose={close}>
               {forms.length === 0 ? (
-                <p className="text-[11px] text-white/40 leading-relaxed py-2">
+                <p className="text-[12px] text-white/40 leading-relaxed py-2">
                   No forms are ready to send. Build one under Manage → WhatsApp Forms and press
                   Update Flow — a form has to exist at WhatsApp before it can open in a chat.
                 </p>
@@ -330,13 +330,13 @@ export default function PlusMenu({
                       <div className="flex items-center gap-2">
                         <span className="text-sm truncate">{form.name}</span>
                         {form.status !== "published" && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15] flex-shrink-0">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15] flex-shrink-0">
                             draft
                           </span>
                         )}
                       </div>
                       {form.description && (
-                        <p className="text-[11px] text-white/40 line-clamp-1 mt-0.5">
+                        <p className="text-[12px] text-white/40 line-clamp-1 mt-0.5">
                           {form.description}
                         </p>
                       )}
@@ -344,7 +344,7 @@ export default function PlusMenu({
                   ))}
                 </div>
               )}
-              <p className="text-[10px] text-white/30 mt-2 leading-relaxed">
+              <p className="text-[11px] text-white/30 mt-2 leading-relaxed">
                 A draft form opens only for numbers on your own WhatsApp account — useful for
                 testing before you publish.
               </p>

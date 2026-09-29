@@ -130,12 +130,12 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             </Badge>
             {admins > 0 && <Badge tone="purple">{admins} key contact{admins === 1 ? "" : "s"}</Badge>}
             {defaultNumber ? (
-              <span className="inline-flex items-center gap-1 text-[11px] text-white/40">
+              <span className="inline-flex items-center gap-1 text-[12px] text-white/40">
                 <Phone className="w-3 h-3" />
                 {optionLabel(defaultNumber)}
               </span>
             ) : (
-              <span className="text-[11px] text-white/30">No default number</span>
+              <span className="text-[12px] text-white/30">No default number</span>
             )}
           </div>
         </div>
@@ -173,7 +173,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                           )}
                           {member.name || member.waId}
                         </div>
-                        <div className="text-[11px] text-white/35 tabular-nums">
+                        <div className="text-[12px] text-white/35 tabular-nums">
                           {member.waId}
                           {why && <span className="text-white/30"> · {explainSkip(why)}</span>}
                         </div>
@@ -204,7 +204,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
               </ul>
             )}
 
-            <p className="text-[11px] text-white/30 mt-4 leading-relaxed">
+            <p className="text-[12px] text-white/30 mt-4 leading-relaxed">
               A key contact is the person who speaks for the group — the owner in a dealer list,
               the secretary on a committee. They sit at the top here and can be messaged without
               messaging everybody. It is not a WhatsApp group admin; there is no WhatsApp group.
@@ -218,7 +218,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                 {(history ?? []).map((entry) => (
                   <li key={entry.id} className="text-xs">
                     <div className="text-white/65 leading-relaxed line-clamp-2">{entry.body}</div>
-                    <div className="text-[11px] text-white/35 mt-1">
+                    <div className="text-[12px] text-white/35 mt-1">
                       {new Date(entry.created_at).toLocaleString("en-IN", {
                         day: "numeric",
                         month: "short",
@@ -364,7 +364,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                     ]}
                   />
                 ) : (
-                  <p className="text-[11px] text-white/35 leading-relaxed">
+                  <p className="text-[12px] text-white/35 leading-relaxed">
                     No WhatsApp number is connected yet. Connect one on{" "}
                     <Link href="/numbers" className="text-accent-ink hover:underline">
                       Numbers

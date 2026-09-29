@@ -225,7 +225,7 @@ export default function ThreadHeader({
                   />
                   <span className="text-sm text-white/80">{MODE_LABEL[mode]}</span>
                 </div>
-                <p className="text-[10px] text-white/40 ml-5.5 mt-0.5">{MODE_HELP[mode]}</p>
+                <p className="text-[11px] text-white/40 ml-5.5 mt-0.5">{MODE_HELP[mode]}</p>
               </button>
             ))}
           </div>
@@ -294,7 +294,7 @@ export default function ThreadHeader({
         <div className="flex flex-wrap items-center gap-2 mt-2.5 rounded-lg border border-[#FB923C]/30 bg-[#FB923C]/8 px-3 py-2">
           <span className="text-xs text-[#FB923C] font-medium">Human needed</span>
           {needsHumanReason && (
-            <span className="text-[11px] text-white/55">{needsHumanReason}</span>
+            <span className="text-[12px] text-white/55">{needsHumanReason}</span>
           )}
           <button
             type="button"
@@ -327,7 +327,7 @@ export default function ThreadHeader({
           never asked to" look identical from the outside. */}
       {botEnabled && lastBotRun && lastBotRun.outcome !== "replied" && (
         <p
-          className={`text-[11px] mt-2 ${
+          className={`text-[12px] mt-2 ${
             lastBotRun.outcome === "failed" ? "text-red-400" : "text-white/35"
           }`}
         >
@@ -338,13 +338,13 @@ export default function ThreadHeader({
       )}
 
       {!windowOpen && (
-        <p className="text-[11px] text-[#FACC15] mt-2">
+        <p className="text-[12px] text-[#FACC15] mt-2">
           The 24-hour window has closed — only an approved template will reach this person.
         </p>
       )}
 
       {assignee && (
-        <p className="text-[11px] text-white/35 mt-1.5">Assigned to {assignee.name}</p>
+        <p className="text-[12px] text-white/35 mt-1.5">Assigned to {assignee.name}</p>
       )}
 
       {error && (
@@ -358,7 +358,7 @@ export default function ThreadHeader({
 
 function Heading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/35">
+    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-white/35">
       {children}
     </div>
   );

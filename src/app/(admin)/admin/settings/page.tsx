@@ -108,7 +108,7 @@ export default async function AdminSettingsPage() {
             <Card key={s.key}>
               <div className="flex items-baseline justify-between gap-3 mb-1">
                 <h2 className="font-semibold font-mono text-sm">{s.key}</h2>
-                <span className="text-[11px] text-white/35">
+                <span className="text-[12px] text-white/35">
                   updated {formatDate(s.updated_at)}
                 </span>
               </div>
@@ -121,7 +121,7 @@ export default async function AdminSettingsPage() {
                   rows={4}
                   placeholder={JSON.stringify(s.value, null, 2)}
                 />
-                <p className="text-[11px] text-white/35 mt-2">
+                <p className="text-[12px] text-white/35 mt-2">
                   Current: <code className="text-white/60">{JSON.stringify(s.value)}</code>
                 </p>
               </ActionForm>

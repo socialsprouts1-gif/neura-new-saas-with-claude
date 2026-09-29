@@ -158,7 +158,7 @@ function Text({
       ) : (
         <input value={value} onChange={(e) => onChange(e.target.value)} className={INPUT} />
       )}
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }
@@ -264,7 +264,7 @@ function Rows({
   return (
     <div>
       <span className="block text-xs font-medium text-white/70 mb-1.5">{label}</span>
-      {hint && <span className="block text-[11px] text-white/35 mb-2">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mb-2">{hint}</span>}
 
       <div className="space-y-2">
         {rows.map((row, rowIndex) => (

@@ -108,7 +108,7 @@ export default async function FormsPage() {
                     {flow.name}
                   </Link>
                   {flow.meta_flow_id && (
-                    <div className="text-[11px] text-white/30 mt-0.5 font-mono">
+                    <div className="text-[12px] text-white/30 mt-0.5 font-mono">
                       {flow.meta_flow_id}
                     </div>
                   )}

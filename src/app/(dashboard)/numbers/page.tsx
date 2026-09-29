@@ -119,11 +119,11 @@ export default async function NumbersPage() {
                     )}
                   </div>
 
-                  <div className="text-[11px] text-white/30 mt-2 font-mono">
+                  <div className="text-[12px] text-white/30 mt-2 font-mono">
                     WABA {connection.wabaId} · Number ID {connection.phoneNumberId}
                   </div>
 
-                  <div className="text-[11px] text-white/35 mt-1">
+                  <div className="text-[12px] text-white/35 mt-1">
                     {threadsByConnection.get(connection.id) ?? 0} conversation
                     {(threadsByConnection.get(connection.id) ?? 0) === 1 ? "" : "s"}
                     {connection.lastErrorAt && (

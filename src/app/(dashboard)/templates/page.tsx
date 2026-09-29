@@ -95,7 +95,7 @@ export default async function TemplatesPage() {
                     numbers={numbers}
                   />
                   {template.rejected_reason && (
-                    <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
+                    <div className="text-[12px] text-[#F87171] mt-1 max-w-xs">
                       {template.rejected_reason}
                     </div>
                   )}
@@ -116,7 +116,7 @@ export default async function TemplatesPage() {
                     {body || <span className="text-white/25">Created in WhatsApp Manager</span>}
                   </span>
                   {variablesIn(body).length > 0 && (
-                    <span className="block text-[11px] text-white/35 mt-1">
+                    <span className="block text-[12px] text-white/35 mt-1">
                       {variablesIn(body).length} variable
                       {variablesIn(body).length === 1 ? "" : "s"}
                     </span>

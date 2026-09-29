@@ -228,11 +228,11 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium">{c.name}</span>
-                            <span className="text-[10px] text-white/40">{c.time}</span>
+                            <span className="text-[11px] text-white/40">{c.time}</span>
                           </div>
-                          <div className="text-[10px] text-white/50 truncate">{c.msg}</div>
+                          <div className="text-[11px] text-white/50 truncate">{c.msg}</div>
                         </div>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === "AI Replying" ? "bg-accent/10 text-accent-ink" : "bg-white/5 text-white/40"}`}>
+                        <span className={`text-[11px] px-1.5 py-0.5 rounded ${c.status === "AI Replying" ? "bg-accent/10 text-accent-ink" : "bg-white/5 text-white/40"}`}>
                           {c.status}
                         </span>
                       </div>
@@ -262,7 +262,7 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
                 </div>
                 <div>
                   <div className="text-xs font-semibold">{card.title}</div>
-                  <div className="text-[10px] text-white/50">{card.subtitle}</div>
+                  <div className="text-[11px] text-white/50">{card.subtitle}</div>
                 </div>
               </motion.div>
             ))}

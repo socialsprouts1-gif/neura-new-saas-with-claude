@@ -80,7 +80,7 @@ export default function LeadBoard({ leads }: { leads: LeadCard[] }) {
                 </span>
               </div>
               {value > 0 && (
-                <div className="text-[11px] text-accent-ink mt-0.5 tabular-nums">
+                <div className="text-[12px] text-accent-ink mt-0.5 tabular-nums">
                   ₹{value.toLocaleString("en-IN")}
                 </div>
               )}
@@ -88,7 +88,7 @@ export default function LeadBoard({ leads }: { leads: LeadCard[] }) {
 
             <div className="p-2 space-y-2 min-h-[8rem] max-h-[calc(100vh-20rem)] overflow-y-auto">
               {column.length === 0 ? (
-                <p className="text-[11px] text-white/25 text-center py-6">Nothing here</p>
+                <p className="text-[12px] text-white/25 text-center py-6">Nothing here</p>
               ) : (
                 column.map((lead) => (
                   <div
@@ -112,9 +112,9 @@ export default function LeadBoard({ leads }: { leads: LeadCard[] }) {
                         />
                       )}
                     </div>
-                    <div className="text-[11px] text-white/40 font-mono mt-0.5">{lead.waId}</div>
+                    <div className="text-[12px] text-white/40 font-mono mt-0.5">{lead.waId}</div>
 
-                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-2 text-[10px] text-white/35">
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-2 text-[11px] text-white/35">
                       {lead.score !== null && <span>Score {lead.score}</span>}
                       {lead.dealValue ? (
                         <span className="text-accent-ink">
@@ -126,12 +126,12 @@ export default function LeadBoard({ leads }: { leads: LeadCard[] }) {
 
                     <div className="flex items-center gap-2 mt-2.5">
                       {lead.owner && (
-                        <span className="text-[10px] text-accent2-ink truncate">{lead.owner}</span>
+                        <span className="text-[11px] text-accent2-ink truncate">{lead.owner}</span>
                       )}
                       {lead.conversationId && (
                         <Link
                           href={`/inbox?c=${lead.conversationId}`}
-                          className="ml-auto inline-flex items-center gap-1 text-[10px] text-white/45 hover:text-white"
+                          className="ml-auto inline-flex items-center gap-1 text-[11px] text-white/45 hover:text-white"
                         >
                           <MessageCircle className="w-3 h-3" />
                           Open chat
@@ -145,7 +145,7 @@ export default function LeadBoard({ leads }: { leads: LeadCard[] }) {
                       value={lead.stage}
                       onChange={(event) => move(lead.contactId, event.target.value as LeadStage)}
                       aria-label={`Move ${lead.name} to another stage`}
-                      className="w-full mt-2 bg-white/4 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-white/60 focus:outline-none focus:border-accent/40"
+                      className="w-full mt-2 bg-white/4 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-white/60 focus:outline-none focus:border-accent/40"
                     >
                       {LEAD_STAGES.map((option) => (
                         <option key={option} value={option} className="bg-[var(--surface-3)]">

@@ -120,7 +120,7 @@ function NewFormDialog({
                 }`}
               >
                 <div className="text-sm font-medium">{option.name}</div>
-                <div className="text-[11px] text-white/45 leading-relaxed mt-0.5">
+                <div className="text-[12px] text-white/45 leading-relaxed mt-0.5">
                   {option.description}
                 </div>
               </button>
@@ -135,7 +135,7 @@ function NewFormDialog({
               }`}
             >
               <div className="text-sm font-medium">Blank form</div>
-              <div className="text-[11px] text-white/45 leading-relaxed mt-0.5">
+              <div className="text-[12px] text-white/45 leading-relaxed mt-0.5">
                 One screen with a heading and a single question. Build the rest yourself.
               </div>
             </button>
@@ -181,7 +181,7 @@ function NewFormDialog({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-white/40 mt-1.5 leading-relaxed">
+            <p className="text-[12px] text-white/40 mt-1.5 leading-relaxed">
               A form lives on one WhatsApp account for its whole life and cannot be moved
               afterwards. Only this number — and any other number on the same account — can send
               it, and only a bot listening there can open it.
@@ -243,14 +243,14 @@ export function DeleteFormButton({ id, name, published }: { id: string; name: st
               router.refresh();
             })
           }
-          className="text-[11px] px-2 py-1 rounded-lg bg-[#F87171]/12 text-[#F87171] border border-[#F87171]/25"
+          className="text-[12px] px-2 py-1 rounded-lg bg-[#F87171]/12 text-[#F87171] border border-[#F87171]/25"
         >
           {pending ? "Removing…" : published ? "Retire" : "Delete"}
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="text-[11px] px-2 py-1 rounded-lg text-white/45 hover:text-white"
+          className="text-[12px] px-2 py-1 rounded-lg text-white/45 hover:text-white"
         >
           Cancel
         </button>

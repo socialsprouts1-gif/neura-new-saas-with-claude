@@ -51,7 +51,7 @@ export default function NumberPicker({
           })
         }
         className={`bg-white/5 border border-white/12 rounded-lg text-white focus:outline-none focus:border-accent/50 ${
-          compact ? "px-2 py-1 text-[11px]" : "px-2.5 py-1.5 text-xs"
+          compact ? "px-2 py-1 text-[12px]" : "px-2.5 py-1.5 text-xs"
         }`}
       >
         <option value="" className="bg-[var(--surface-3)]">
@@ -64,7 +64,7 @@ export default function NumberPicker({
         ))}
       </select>
       {pending && <Loader2 className="w-3 h-3 animate-spin text-white/40" />}
-      {problem && <span className="text-[11px] text-[#F87171]">{problem}</span>}
+      {problem && <span className="text-[12px] text-[#F87171]">{problem}</span>}
     </span>
   );
 }

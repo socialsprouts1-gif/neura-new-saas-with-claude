@@ -79,7 +79,7 @@ export default function ContactPicker({ contacts }: { contacts: readonly Pickabl
               />
               <span className="text-xs min-w-0 flex-1 truncate">
                 {contact.name || contact.wa_id}
-                <span className="block text-[10px] text-white/30 tabular-nums">
+                <span className="block text-[11px] text-white/30 tabular-nums">
                   {contact.wa_id}
                 </span>
               </span>
@@ -88,7 +88,7 @@ export default function ContactPicker({ contacts }: { contacts: readonly Pickabl
         )}
       </div>
 
-      <p className="text-[11px] text-white/35 mt-2">
+      <p className="text-[12px] text-white/35 mt-2">
         {picked.size > 0
           ? `${picked.size} selected.`
           : contacts.length > shown.length

@@ -112,7 +112,7 @@ export default async function ScheduledPage() {
                         })}
                       </div>
                       {row.status === "pending" && (
-                        <div className="text-[10px] text-white/35">
+                        <div className="text-[11px] text-white/35">
                           {describeWhen(row.send_at, now)}
                         </div>
                       )}
@@ -124,7 +124,7 @@ export default async function ScheduledPage() {
                     <Td className="text-xs text-white/65 max-w-md">
                       <div className="line-clamp-3 leading-relaxed">{row.body}</div>
                       {row.error && (
-                        <div className="text-[11px] text-[#F87171] mt-1 leading-relaxed">
+                        <div className="text-[12px] text-[#F87171] mt-1 leading-relaxed">
                           {row.error}
                         </div>
                       )}
@@ -206,7 +206,7 @@ export default async function ScheduledPage() {
               />
             )}
             {active.length > 1 && (
-              <p className="text-[11px] text-white/35 -mt-2 leading-relaxed">
+              <p className="text-[12px] text-white/35 -mt-2 leading-relaxed">
                 Send from the number the customer already knows. One arriving from a number they
                 have never written to reads as a stranger.
               </p>

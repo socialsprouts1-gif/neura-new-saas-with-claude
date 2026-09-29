@@ -79,7 +79,7 @@ export function NewUserButton({ orgs }: { orgs: Array<{ id: string; name: string
                 </option>
               ))}
             </select>
-            <span className="block text-[11px] text-white/35 mt-1">
+            <span className="block text-[12px] text-white/35 mt-1">
               Everyone gets a workspace of their own on signup. Pick one here to put them in an
               existing team as well.
             </span>
@@ -163,7 +163,7 @@ export function UserRowActions({
     const isDelete = confirming === "delete";
     return (
       <div className="flex flex-col items-end gap-1.5">
-        <p className="text-[11px] text-white/55 max-w-[15rem] text-right leading-snug">
+        <p className="text-[12px] text-white/55 max-w-[15rem] text-right leading-snug">
           {isDelete
             ? `Delete ${email}? Their account and every membership go with it. This cannot be undone.`
             : `Remove ${email} from this organization? Their account stays.`}
@@ -178,14 +178,14 @@ export function UserRowActions({
               if (!isDelete) data.set("org_id", orgId);
               run(isDelete ? deleteUserAccount : removeMembership, data);
             }}
-            className="text-[11px] px-2 py-1 rounded-lg bg-[#F87171]/12 text-[#F87171] border border-[#F87171]/25"
+            className="text-[12px] px-2 py-1 rounded-lg bg-[#F87171]/12 text-[#F87171] border border-[#F87171]/25"
           >
             {pending ? "Working…" : isDelete ? "Delete account" : "Remove"}
           </button>
           <button
             type="button"
             onClick={() => setConfirming(null)}
-            className="text-[11px] px-2 py-1 text-white/45 hover:text-white"
+            className="text-[12px] px-2 py-1 text-white/45 hover:text-white"
           >
             Cancel
           </button>
@@ -212,7 +212,7 @@ export function UserRowActions({
             data.set("role", event.target.value);
             run(setMemberRole, data);
           }}
-          className="bg-white/5 border border-white/12 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-[#A855F7]/50 disabled:opacity-50"
+          className="bg-white/5 border border-white/12 rounded-lg px-2 py-1 text-[12px] text-white focus:outline-none focus:border-[#A855F7]/50 disabled:opacity-50"
         >
           {ORG_ROLES.map((value) => (
             <option key={value} value={value} className="bg-[var(--surface-3)]">
@@ -222,7 +222,7 @@ export function UserRowActions({
         </select>
 
         {isSelf ? (
-          <span className="text-[11px] text-white/25 pl-1">That&apos;s you</span>
+          <span className="text-[12px] text-white/25 pl-1">That&apos;s you</span>
         ) : (
         <>
         <button
@@ -271,7 +271,7 @@ export function UserRowActions({
         </>
         )}
       </div>
-      {note && <span className="text-[11px] text-[#F87171] max-w-[15rem] text-right">{note}</span>}
+      {note && <span className="text-[12px] text-[#F87171] max-w-[15rem] text-right">{note}</span>}
     </div>
   );
 }
@@ -298,7 +298,7 @@ function Field({
     <label className="block">
       <span className="block text-xs font-medium text-white/70 mb-1.5">{label}</span>
       <input type={type} name={name} required={required} placeholder={placeholder} className={INPUT} />
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </label>
   );
 }

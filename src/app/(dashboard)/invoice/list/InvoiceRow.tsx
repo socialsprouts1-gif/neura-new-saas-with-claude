@@ -153,7 +153,7 @@ export default function InvoiceRow({
           </div>
 
           {delivery.detail && (
-            <p className="text-[11px] text-[#FACC15] leading-relaxed mb-1.5 max-w-xl">
+            <p className="text-[12px] text-[#FACC15] leading-relaxed mb-1.5 max-w-xl">
               {delivery.detail}
             </p>
           )}
@@ -184,7 +184,7 @@ export default function InvoiceRow({
           <button
             type="button"
             onClick={() => setOpen((current) => !current)}
-            className="text-[11px] text-white/40 hover:text-white transition-colors"
+            className="text-[12px] text-white/40 hover:text-white transition-colors"
           >
             {open ? "Hide" : "Details"}
           </button>
@@ -321,7 +321,7 @@ export default function InvoiceRow({
             </ActionForm>
           )}
 
-          <p className="text-[11px] text-white/30 flex items-start gap-1.5">
+          <p className="text-[12px] text-white/30 flex items-start gap-1.5">
             <Copy className="w-3 h-3 flex-shrink-0 mt-0.5" />
             The invoice page prints cleanly — the customer&rsquo;s browser can save it as a PDF.
           </p>

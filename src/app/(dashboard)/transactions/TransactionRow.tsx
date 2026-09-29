@@ -45,7 +45,7 @@ export default function TransactionRow({ transaction }: { transaction: Transacti
       <td className="px-5 py-3.5">
         <div className="truncate max-w-[12rem]">{transaction.contactName ?? "—"}</div>
         {(transaction.method || transaction.reference) && (
-          <div className="text-[11px] text-white/35 truncate max-w-[12rem]">
+          <div className="text-[12px] text-white/35 truncate max-w-[12rem]">
             {[transaction.method, transaction.reference].filter(Boolean).join(" · ")}
           </div>
         )}
@@ -66,7 +66,7 @@ export default function TransactionRow({ transaction }: { transaction: Transacti
             maximumFractionDigits: 2,
           })}
         </span>
-        <span className="text-[11px] text-white/30 ml-1">{transaction.currency}</span>
+        <span className="text-[12px] text-white/30 ml-1">{transaction.currency}</span>
       </td>
 
       <td className="px-5 py-3.5">

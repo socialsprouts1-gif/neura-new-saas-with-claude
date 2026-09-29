@@ -108,7 +108,7 @@ export default function NewShipmentOrder({
                   </option>
                 ))}
               </select>
-              <span className="block text-[11px] text-white/35 mt-1.5">
+              <span className="block text-[12px] text-white/35 mt-1.5">
                 Saved on the order, so every later update goes out from the same number.
               </span>
             </label>
@@ -154,7 +154,7 @@ export default function NewShipmentOrder({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 mb-2.5">
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30 mb-2.5">
         {title}
       </div>
       <div className="grid sm:grid-cols-2 gap-3">{children}</div>

@@ -52,7 +52,7 @@ export default async function TagsPage() {
             <Card key={tag} className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-medium truncate">{tag}</div>
-                <div className="text-[11px] text-white/35 mt-0.5">
+                <div className="text-[12px] text-white/35 mt-0.5">
                   {count} contact{count === 1 ? "" : "s"}
                   {busiest > 0 && ` · ${Math.round((count / busiest) * 100)}% of the largest`}
                 </div>

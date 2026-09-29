@@ -178,7 +178,7 @@ export default async function AdminEmailsPage() {
           <ActionForm action={runBillingEmailsNow} submitLabel="Run the sweep now">
             <span className="sr-only">Sends whatever the schedule owes today.</span>
           </ActionForm>
-          <p className="text-[11px] text-white/30 mt-2.5 leading-relaxed">
+          <p className="text-[12px] text-white/30 mt-2.5 leading-relaxed">
             Safe to press twice — every message is keyed to the workspace, the period and the day,
             so a repeat is refused rather than sent.
           </p>
@@ -196,7 +196,7 @@ export default async function AdminEmailsPage() {
             belonging to the same person are all left out, and running it twice in a day sends
             nothing the second time.
           </p>
-          <p className="text-[11px] text-[#FACC15] mb-4 leading-relaxed">
+          <p className="text-[12px] text-[#FACC15] mb-4 leading-relaxed">
             Email cannot be recalled, and identical mail to a whole list is how a new sending
             domain earns a bad reputation. Worth doing once, not routinely.
           </p>
@@ -258,7 +258,7 @@ export default async function AdminEmailsPage() {
                     <>
                       <div className="text-white/55 break-all">{row.from_email}</div>
                       {row.transport && (
-                        <div className="text-[10px] text-white/30">over {row.transport}</div>
+                        <div className="text-[11px] text-white/30">over {row.transport}</div>
                       )}
                     </>
                   ) : (
@@ -276,7 +276,7 @@ export default async function AdminEmailsPage() {
                       {/* The provider's own words are kept, always. An
                           explanation that turns out to be wrong must never
                           be the only thing on screen. */}
-                      <div className="text-white/35 font-mono text-[10px] leading-relaxed break-all">
+                      <div className="text-white/35 font-mono text-[11px] leading-relaxed break-all">
                         {row.error}
                       </div>
                     </>

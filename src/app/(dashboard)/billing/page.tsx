@@ -161,7 +161,7 @@ export default async function BillingPage() {
         <UsageBars limits={entitlement.limits} usage={liveUsage} />
       </Card>
 
-      <h2 className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-3">
+      <h2 className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-3">
         Payment history
       </h2>
       {orders && orders.length > 0 ? (

@@ -98,7 +98,7 @@ export default async function KnownSettings() {
               />
               <span className="text-sm text-white/75">
                 Allow new signups
-                <span className="block text-[11px] text-white/40">
+                <span className="block text-[12px] text-white/40">
                   Off closes registration. People who already have a workspace are unaffected.
                 </span>
               </span>
@@ -112,7 +112,7 @@ export default async function KnownSettings() {
               />
               <span className="text-sm text-white/75">
                 Charge an onboarding fee
-                <span className="block text-[11px] text-white/40">
+                <span className="block text-[12px] text-white/40">
                   Requires payment before a new workspace is usable.
                 </span>
               </span>
@@ -142,7 +142,7 @@ export default async function KnownSettings() {
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-white/40 mt-2 leading-relaxed">
+          <p className="text-[12px] text-white/40 mt-2 leading-relaxed">
             Owner is the default and the safe one. Only an owner or an admin may connect a
             WhatsApp number, open billing or add an integration, so a workspace whose only
             member is a plain <span className="text-white/60">member</span> cannot be set up by

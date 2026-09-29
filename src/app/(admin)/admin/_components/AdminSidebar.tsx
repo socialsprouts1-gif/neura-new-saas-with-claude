@@ -63,7 +63,7 @@ export function AdminBrand() {
       </div>
       <div className="min-w-0">
         <div className="font-bold text-sm leading-tight">Neura Chat</div>
-        <div className="text-[10px] uppercase tracking-widest text-[#A855F7]">Admin</div>
+        <div className="text-[11px] uppercase tracking-widest text-[#A855F7]">Admin</div>
       </div>
     </div>
   );
@@ -80,7 +80,7 @@ export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 overscroll-contain">
         {SECTIONS.map((section) => (
           <div key={section.label}>
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-white/30 px-3 mb-2">
+            <div className="text-[11px] font-semibold uppercase tracking-widest text-white/30 px-3 mb-2">
               {section.label}
             </div>
             <div className="space-y-0.5">

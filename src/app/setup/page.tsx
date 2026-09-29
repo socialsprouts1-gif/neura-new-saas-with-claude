@@ -50,7 +50,7 @@ export default async function SetupPage({
 
         {reason && (
           <div className="bg-[var(--surface-1)] border border-white/10 rounded-xl p-4 mb-6">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
+            <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
               Reported error
             </div>
             <code className="text-xs text-[#FACC15] break-words">{reason}</code>

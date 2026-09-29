@@ -49,12 +49,12 @@ export default function GuideBlock({ block }: { block: Block }) {
                   >
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tone.dot}`} />
-                      <span className={`text-[13px] font-semibold leading-snug ${tone.text}`}>
+                      <span className={`text-[14px] font-semibold leading-snug ${tone.text}`}>
                         {lane.label}
                       </span>
                     </div>
                     {lane.detail && (
-                      <p className="text-[12px] leading-relaxed text-white/45">{lane.detail}</p>
+                      <p className="text-[13px] leading-relaxed text-white/45">{lane.detail}</p>
                     )}
                   </div>
 
@@ -70,7 +70,7 @@ export default function GuideBlock({ block }: { block: Block }) {
             })}
           </div>
           {block.caption && (
-            <figcaption className="text-[12px] text-white/40 mt-3 leading-relaxed">
+            <figcaption className="text-[13px] text-white/40 mt-3 leading-relaxed">
               {block.caption}
             </figcaption>
           )}
@@ -89,7 +89,7 @@ export default function GuideBlock({ block }: { block: Block }) {
                 </span>
                 <div className="min-w-0 pb-1">
                   <div className="font-semibold text-sm mb-1">{step.title}</div>
-                  <p className="text-[13.5px] leading-relaxed text-white/55">{step.body}</p>
+                  <p className="text-[14px] leading-relaxed text-white/55">{step.body}</p>
                 </div>
               </li>
             ))}
@@ -107,7 +107,7 @@ export default function GuideBlock({ block }: { block: Block }) {
             </div>
             <ul className="space-y-2 m-0 p-0 list-none">
               {block.good.map((item) => (
-                <li key={item} className="text-[13px] text-white/65 flex gap-2">
+                <li key={item} className="text-[14px] text-white/65 flex gap-2">
                   <span className="text-accent-ink flex-shrink-0">·</span>
                   {item}
                 </li>
@@ -122,7 +122,7 @@ export default function GuideBlock({ block }: { block: Block }) {
             </div>
             <ul className="space-y-2 m-0 p-0 list-none">
               {block.bad.map((item) => (
-                <li key={item} className="text-[13px] text-white/65 flex gap-2">
+                <li key={item} className="text-[14px] text-white/65 flex gap-2">
                   <span className="text-red-300/70 flex-shrink-0">·</span>
                   {item}
                 </li>
@@ -140,7 +140,7 @@ export default function GuideBlock({ block }: { block: Block }) {
               <thead>
                 <tr className="text-left bg-accent/8 border-b border-accent/15">
                   {block.head.map((cell) => (
-                    <th key={cell} className="px-5 py-3.5 font-semibold text-[13px]">
+                    <th key={cell} className="px-5 py-3.5 font-semibold text-[14px]">
                       {cell}
                     </th>
                   ))}
@@ -152,7 +152,7 @@ export default function GuideBlock({ block }: { block: Block }) {
                     {row.map((cell, index) => (
                       <td
                         key={index}
-                        className={`px-5 py-3.5 align-top text-[13px] leading-relaxed ${
+                        className={`px-5 py-3.5 align-top text-[14px] leading-relaxed ${
                           index === 0 ? "text-white/85 font-medium" : "text-white/55"
                         }`}
                       >
@@ -174,8 +174,8 @@ export default function GuideBlock({ block }: { block: Block }) {
           <div className="grid md:grid-cols-2 gap-3">
             {block.tips.map((tip) => (
               <div key={tip.title} className="rounded-2xl border border-white/10 bg-white/3 p-4">
-                <div className="font-semibold text-[13px] mb-1.5 leading-snug">{tip.title}</div>
-                <p className="text-[12.5px] leading-relaxed text-white/50">{tip.body}</p>
+                <div className="font-semibold text-[14px] mb-1.5 leading-snug">{tip.title}</div>
+                <p className="text-[13px] leading-relaxed text-white/50">{tip.body}</p>
               </div>
             ))}
           </div>

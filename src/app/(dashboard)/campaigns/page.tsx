@@ -183,12 +183,12 @@ export default async function CampaignsPage({
                 <Td>
                   <span className="font-medium">{campaign.name ?? "Untitled"}</span>
                   {campaign.is_drip && (
-                    <span className="ml-2 text-[10px] uppercase tracking-widest text-white/35">
+                    <span className="ml-2 text-[11px] uppercase tracking-widest text-white/35">
                       drip
                     </span>
                   )}
                   {campaign.last_error && (
-                    <div className="text-[11px] text-[#F87171] mt-1 max-w-xs">
+                    <div className="text-[12px] text-[#F87171] mt-1 max-w-xs">
                       {campaign.last_error}
                     </div>
                   )}
@@ -196,12 +196,12 @@ export default async function CampaignsPage({
                   {reasons.length > 0 && (
                     <div className="mt-2 max-w-md space-y-1.5">
                       {outcome && (
-                        <p className="text-[11px] text-white/50 leading-relaxed">{outcome}</p>
+                        <p className="text-[12px] text-white/50 leading-relaxed">{outcome}</p>
                       )}
                       {reasons.map((entry) => (
                         <p
                           key={entry.reason}
-                          className={`text-[11px] leading-relaxed ${
+                          className={`text-[12px] leading-relaxed ${
                             isAccountWide(entry.reason) ? "text-[#FACC15]" : "text-[#F87171]"
                           }`}
                         >
@@ -221,7 +221,7 @@ export default async function CampaignsPage({
                       {/* A campaign sitting at nought sent with nothing on
                           screen explaining why reads as broken. */}
                       {templateReadiness(template.status) !== "ready" && (
-                        <div className="text-[11px] text-[#FACC15] mt-1 max-w-xs leading-relaxed">
+                        <div className="text-[12px] text-[#FACC15] mt-1 max-w-xs leading-relaxed">
                           {describeReadiness(template.status)}
                         </div>
                       )}
@@ -277,7 +277,7 @@ function ProgressBar({ sent, failed, total }: { sent: number; failed: number; to
         <div className="bg-accent" style={{ width: percent(sent) }} />
         <div className="bg-[#F87171]" style={{ width: percent(failed) }} />
       </div>
-      <div className="text-[11px] text-white/45 mt-1.5 tabular-nums">
+      <div className="text-[12px] text-white/45 mt-1.5 tabular-nums">
         {sent.toLocaleString()} / {total.toLocaleString()}
         {failed > 0 && <span className="text-[#F87171]"> · {failed} failed</span>}
       </div>

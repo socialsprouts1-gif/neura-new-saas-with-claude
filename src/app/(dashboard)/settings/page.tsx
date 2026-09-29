@@ -173,7 +173,7 @@ export default async function SettingsPage() {
 
           {tickets && tickets.length > 0 && (
             <div className="mt-6 pt-5 border-t border-white/8 space-y-2">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-2">
+              <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-2">
                 Recent tickets
               </div>
               {tickets.map((t) => (

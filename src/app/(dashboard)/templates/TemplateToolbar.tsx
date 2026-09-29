@@ -73,14 +73,14 @@ export function DeleteTemplateButton({ id, name }: { id: string; name: string })
               router.refresh();
             })
           }
-          className="text-[11px] px-2 py-1 rounded-lg bg-[#F87171]/12 text-[#F87171] border border-[#F87171]/25"
+          className="text-[12px] px-2 py-1 rounded-lg bg-[#F87171]/12 text-[#F87171] border border-[#F87171]/25"
         >
           {pending ? "Deleting…" : "Delete"}
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="text-[11px] px-2 py-1 rounded-lg text-white/45 hover:text-white"
+          className="text-[12px] px-2 py-1 rounded-lg text-white/45 hover:text-white"
         >
           Cancel
         </button>

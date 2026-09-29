@@ -160,7 +160,7 @@ export default function KnowledgeTab({
           >
             Click to upload, or drag and drop
           </button>
-          <p className="text-[11px] text-white/35 mt-1.5">
+          <p className="text-[12px] text-white/35 mt-1.5">
             .txt, .md, .csv or .json — up to 1MB each
           </p>
           <button
@@ -354,11 +354,11 @@ function KnowledgeRow({
               className={`w-3.5 h-3.5 text-white/30 transition-transform ${open ? "rotate-180" : ""}`}
             />
           </div>
-          <div className="text-[11px] text-white/40 mt-0.5">
+          <div className="text-[12px] text-white/40 mt-0.5">
             {entry.content.length.toLocaleString()} characters
             {entry.assistant_id === null && " · shared with every assistant"}
           </div>
-          {!open && <p className="text-[11px] text-white/35 mt-1 line-clamp-1">{entry.content}</p>}
+          {!open && <p className="text-[12px] text-white/35 mt-1 line-clamp-1">{entry.content}</p>}
         </button>
 
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -367,7 +367,7 @@ function KnowledgeRow({
             type="button"
             onClick={() => run(toggleKnowledgeEntry)}
             disabled={pending}
-            className="text-[11px] px-2.5 py-1 rounded-lg border border-white/12 text-white/55 hover:text-white hover:border-white/25 transition-colors disabled:opacity-50"
+            className="text-[12px] px-2.5 py-1 rounded-lg border border-white/12 text-white/55 hover:text-white hover:border-white/25 transition-colors disabled:opacity-50"
           >
             {entry.is_active ? "Disable" : "Enable"}
           </button>
@@ -385,7 +385,7 @@ function KnowledgeRow({
 
       {open && (
         <div className="px-3.5 pb-3.5 -mt-1">
-          <pre className="text-[11px] text-white/60 whitespace-pre-wrap leading-relaxed bg-white/3 border border-white/8 rounded-lg p-3 max-h-72 overflow-y-auto font-sans">
+          <pre className="text-[12px] text-white/60 whitespace-pre-wrap leading-relaxed bg-white/3 border border-white/8 rounded-lg p-3 max-h-72 overflow-y-auto font-sans">
             {entry.content}
           </pre>
           {entry.source_url && (
@@ -393,7 +393,7 @@ function KnowledgeRow({
               href={entry.source_url}
               target="_blank"
               rel="noreferrer"
-              className="text-[11px] text-accent2-ink hover:underline inline-flex items-center gap-1 mt-2"
+              className="text-[12px] text-accent2-ink hover:underline inline-flex items-center gap-1 mt-2"
             >
               {entry.source_url}
             </a>

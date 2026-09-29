@@ -39,7 +39,7 @@ export default function BroadcastFields({
       </label>
 
       <p
-        className={`text-[11px] mt-1.5 leading-relaxed ${
+        className={`text-[12px] mt-1.5 leading-relaxed ${
           audience === "admins" && admins === 0 ? "text-amber-300/80" : "text-white/40"
         }`}
       >

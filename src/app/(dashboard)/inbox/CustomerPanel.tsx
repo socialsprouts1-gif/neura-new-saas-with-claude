@@ -74,7 +74,7 @@ export default function CustomerPanel({
   return (
     <aside className="w-80 border-l border-white/8 flex flex-col flex-shrink-0 min-h-0 bg-[var(--surface-1)]/40">
       <div className="px-4 py-3.5 border-b border-white/8 flex items-center gap-2 flex-shrink-0">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
+        <span className="text-[12px] font-semibold uppercase tracking-widest text-white/40">
           Customer
         </span>
         {onClose && (
@@ -142,7 +142,7 @@ export default function CustomerPanel({
           {showScore && data.scoreReasons.length > 0 && (
             <ul className="mt-2 space-y-0.5">
               {data.scoreReasons.map((reason) => (
-                <li key={reason} className="text-[11px] text-white/50">
+                <li key={reason} className="text-[12px] text-white/50">
                   + {reason}
                 </li>
               ))}
@@ -156,7 +156,7 @@ export default function CustomerPanel({
           )}
 
           <label className="block mt-3">
-            <span className="text-[11px] text-white/45">Stage</span>
+            <span className="text-[12px] text-white/45">Stage</span>
             <select
               value={data.stage}
               disabled={pending}
@@ -176,7 +176,7 @@ export default function CustomerPanel({
               {data.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-[11px] px-2 py-0.5 rounded-lg bg-accent/10 text-accent-ink border border-accent/20"
+                  className="text-[12px] px-2 py-0.5 rounded-lg bg-accent/10 text-accent-ink border border-accent/20"
                 >
                   {tag}
                 </span>
@@ -185,7 +185,7 @@ export default function CustomerPanel({
           )}
 
           {error && (
-            <p className="text-[11px] text-red-400 mt-2" role="alert">
+            <p className="text-[12px] text-red-400 mt-2" role="alert">
               {error}
             </p>
           )}
@@ -199,7 +199,7 @@ export default function CustomerPanel({
               </p>
               {data.nextAction && (
                 <div className="mt-3 rounded-lg border border-accent/25 bg-accent/8 px-3 py-2">
-                  <div className="text-[10px] uppercase tracking-widest text-white/40 mb-0.5">
+                  <div className="text-[11px] uppercase tracking-widest text-white/40 mb-0.5">
                     Next best action
                   </div>
                   <div className="text-xs text-accent-ink font-medium">{data.nextAction}</div>
@@ -209,7 +209,7 @@ export default function CustomerPanel({
                 type="button"
                 onClick={analyze}
                 disabled={pending}
-                className="text-[11px] text-white/45 hover:text-white mt-2.5 inline-flex items-center gap-1.5 disabled:opacity-50"
+                className="text-[12px] text-white/45 hover:text-white mt-2.5 inline-flex items-center gap-1.5 disabled:opacity-50"
               >
                 {pending && <Loader2 className="w-3 h-3 animate-spin" />}
                 Re-analyse
@@ -259,7 +259,7 @@ export default function CustomerPanel({
 
         <Section title={`Notes${data.notes.length ? ` (${data.notes.length})` : ""}`}>
           {data.notes.length === 0 ? (
-            <p className="text-[11px] text-white/40 leading-relaxed">
+            <p className="text-[12px] text-white/40 leading-relaxed">
               Nothing yet. Add one from the + menu beside the composer — only your team sees it.
             </p>
           ) : (
@@ -270,7 +270,7 @@ export default function CustomerPanel({
                     {note.body}
                   </p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] text-white/35">
+                    <span className="text-[11px] text-white/35">
                       {note.author} · {relative(note.createdAt)}
                     </span>
                     <button
@@ -294,7 +294,7 @@ export default function CustomerPanel({
 
         <Section title="Activity">
           {data.events.length === 0 ? (
-            <p className="text-[11px] text-white/40">Nothing recorded yet.</p>
+            <p className="text-[12px] text-white/40">Nothing recorded yet.</p>
           ) : (
             <ul className="space-y-2.5">
               {data.events.map((event) => (
@@ -302,7 +302,7 @@ export default function CustomerPanel({
                   <span className="w-1.5 h-1.5 rounded-full bg-white/25 mt-1.5 flex-shrink-0" />
                   <div className="min-w-0">
                     <div className="text-xs text-white/65 leading-snug">{event.label}</div>
-                    <div className="text-[10px] text-white/30">{relative(event.createdAt)}</div>
+                    <div className="text-[11px] text-white/30">{relative(event.createdAt)}</div>
                   </div>
                 </li>
               ))}
@@ -356,7 +356,7 @@ function Section({
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-3 py-1">
-      <span className="text-[11px] text-white/40 w-24 flex-shrink-0">{label}</span>
+      <span className="text-[12px] text-white/40 w-24 flex-shrink-0">{label}</span>
       <span className="text-xs text-white/70 truncate">{value}</span>
     </div>
   );
@@ -388,7 +388,7 @@ function EditableField({
 
   return (
     <div className="py-1.5">
-      <span className="block text-[11px] text-white/40 mb-1">{label}</span>
+      <span className="block text-[12px] text-white/40 mb-1">{label}</span>
       {editing ? (
         <input
           value={draft}

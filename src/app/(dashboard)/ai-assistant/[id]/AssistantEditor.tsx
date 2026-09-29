@@ -104,7 +104,7 @@ export default function AssistantEditor({
           >
             {option}
             {option === "Knowledge Base" && knowledge.length > 0 && (
-              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md bg-white/8 text-white/50">
+              <span className="ml-2 text-[11px] px-1.5 py-0.5 rounded-md bg-white/8 text-white/50">
                 {knowledge.length}
               </span>
             )}

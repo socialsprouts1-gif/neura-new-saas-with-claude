@@ -39,7 +39,7 @@ export default async function AdminPlansPage() {
           other. This writes a parallel set: every tier answers the same questions, in the same
           order, so the only thing that moves between the cards is what actually differs.
         </p>
-        <p className="text-[11px] text-white/35 mb-4 leading-relaxed">
+        <p className="text-[12px] text-white/35 mb-4 leading-relaxed">
           Prices, limits and whether a plan is active are never touched. Wording you have already
           written is left alone unless you tick the box.
         </p>
@@ -52,7 +52,7 @@ export default async function AdminPlansPage() {
             />
             <span className="text-sm text-white/75">
               Replace wording that is already there
-              <span className="block text-[11px] text-white/40">
+              <span className="block text-[12px] text-white/40">
                 Off by default, so this cannot overwrite copy somebody wrote on purpose.
               </span>
             </span>
@@ -86,7 +86,7 @@ export default async function AdminPlansPage() {
                 <tr key={p.id} className="hover:bg-white/3 transition-colors">
                   <Td>
                     <div className="font-medium">{p.name}</div>
-                    <div className="font-mono text-[10px] text-white/30">{p.slug}</div>
+                    <div className="font-mono text-[11px] text-white/30">{p.slug}</div>
                   </Td>
                   <Td className="tabular-nums whitespace-nowrap">
                     {formatMoney(p.price_cents, p.currency)}

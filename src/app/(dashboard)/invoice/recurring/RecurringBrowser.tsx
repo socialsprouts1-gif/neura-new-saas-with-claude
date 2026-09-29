@@ -163,7 +163,7 @@ export default function RecurringBrowser({
                     <div className="text-base font-bold tabular-nums">
                       {formatInvoiceAmount(schedule.estimatedTotalCents, currency)}
                     </div>
-                    <div className="text-[11px] text-white/35">each time</div>
+                    <div className="text-[12px] text-white/35">each time</div>
                   </div>
                 </div>
 
@@ -245,7 +245,7 @@ export default function RecurringBrowser({
                   } due. Running raises the invoices — and sends the ones set to send themselves.`}
             </p>
             <ActionForm action={runRecurringNow} submitLabel="Run now" compact>
-              <p className="text-[11px] text-white/35 leading-relaxed">
+              <p className="text-[12px] text-white/35 leading-relaxed">
                 This project has no scheduler, so point one at{" "}
                 <code className="text-white/55 break-all">/api/cron/recurring-invoices</code> to
                 have it run on its own. Until then, this button is the only thing that fires them.
@@ -359,7 +359,7 @@ function ScheduleForm({
             onChange={(event) => setStartOn(event.target.value)}
             className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-all"
           />
-          <span className="block text-[11px] text-white/35 mt-1">
+          <span className="block text-[12px] text-white/35 mt-1">
             Then {preview.slice(1).join(", ")}
           </span>
         </label>
@@ -453,7 +453,7 @@ function ScheduleForm({
                 },
               ])
             }
-            className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-white/50 hover:text-white hover:bg-white/8 transition-colors"
+            className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] text-white/50 hover:text-white hover:bg-white/8 transition-colors"
           >
             <Plus className="w-3 h-3" />
             Add a line
@@ -476,7 +476,7 @@ function ScheduleForm({
           />
           <span className="text-sm text-white/75">
             Issue and send it automatically
-            <span className="block text-[11px] text-white/40">
+            <span className="block text-[12px] text-white/40">
               Off, it raises a draft for you to look at first. On, it takes its number, gets a
               payment link and goes out on WhatsApp — which needs the customer to have messaged
               you in the last 24 hours.
@@ -513,7 +513,7 @@ function MiniInput({
 }) {
   return (
     <label className="block">
-      <span className="block text-[10px] uppercase tracking-wider text-white/35 mb-0.5">
+      <span className="block text-[11px] uppercase tracking-wider text-white/35 mb-0.5">
         {label}
       </span>
       <input
@@ -546,7 +546,7 @@ function DeleteSchedule({ id, title }: { id: string; title: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] text-white/50 hidden sm:inline">Delete “{title}”?</span>
+      <span className="text-[12px] text-white/50 hidden sm:inline">Delete “{title}”?</span>
       <ActionForm action={deleteRecurringInvoice} submitLabel="Yes, delete" compact>
         <input type="hidden" name="id" value={id} />
       </ActionForm>

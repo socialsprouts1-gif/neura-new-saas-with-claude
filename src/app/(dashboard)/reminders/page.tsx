@@ -67,7 +67,7 @@ export default async function RemindersPage() {
                     <Td>
                       <div className="font-medium">{r.title}</div>
                       {r.body && (
-                        <div className="text-[11px] text-white/40 mt-0.5 max-w-xs line-clamp-2">
+                        <div className="text-[12px] text-white/40 mt-0.5 max-w-xs line-clamp-2">
                           {r.body}
                         </div>
                       )}

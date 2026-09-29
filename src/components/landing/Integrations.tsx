@@ -59,7 +59,7 @@ export default function Integrations() {
               className="glass-card p-3 flex flex-col items-center gap-2 cursor-pointer hover:border-white/25 transition-all duration-200 aspect-square justify-center"
             >
               <span className="text-2xl">{intg.icon}</span>
-              <span className="text-[10px] text-white/60 text-center leading-tight font-medium">
+              <span className="text-[11px] text-white/60 text-center leading-tight font-medium">
                 {intg.name}
               </span>
             </motion.div>

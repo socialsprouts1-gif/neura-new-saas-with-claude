@@ -112,7 +112,7 @@ function AssistantRowView({
           {assistant.name}
         </Link>
         {!assistant.is_active && (
-          <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md bg-white/8 text-white/45">
+          <span className="ml-2 text-[11px] px-1.5 py-0.5 rounded-md bg-white/8 text-white/45">
             paused
           </span>
         )}
@@ -132,7 +132,7 @@ function AssistantRowView({
           />
           <div className="min-w-0">
             <code className="block text-xs text-accent2-ink truncate">{assistant.model}</code>
-            <span className="text-[11px] text-white/35">
+            <span className="text-[12px] text-white/35">
               {providerById(assistant.provider)?.name ?? assistant.provider}
             </span>
           </div>
@@ -155,19 +155,19 @@ function AssistantRowView({
         <div className="flex items-center justify-end gap-1.5">
           {confirming ? (
             <>
-              <span className="text-[11px] text-white/50 mr-1">Delete this assistant?</span>
+              <span className="text-[12px] text-white/50 mr-1">Delete this assistant?</span>
               <button
                 type="button"
                 onClick={remove}
                 disabled={pending}
-                className="text-[11px] px-2.5 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                className="text-[12px] px-2.5 py-1.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-300 hover:bg-red-500/25 transition-colors disabled:opacity-50"
               >
                 {pending ? "Deleting…" : "Delete"}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirming(false)}
-                className="text-[11px] px-2.5 py-1.5 rounded-lg border border-white/12 text-white/60 hover:bg-white/6 transition-colors"
+                className="text-[12px] px-2.5 py-1.5 rounded-lg border border-white/12 text-white/60 hover:bg-white/6 transition-colors"
               >
                 Cancel
               </button>

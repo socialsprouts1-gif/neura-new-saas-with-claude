@@ -132,7 +132,7 @@ export default function Thread({
                 <div key={message.id}>
                   {showDate && (
                     <div className="flex justify-center my-4">
-                      <span className="px-3 py-1 rounded-full bg-white/6 border border-white/8 text-[11px] text-white/50">
+                      <span className="px-3 py-1 rounded-full bg-white/6 border border-white/8 text-[12px] text-white/50">
                         {dayLabel(message.createdAt)}
                       </span>
                     </div>
@@ -142,7 +142,7 @@ export default function Thread({
                     <div className="w-8 flex-shrink-0">
                       {showAuthor && (
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold ${
                             outbound
                               ? "bg-accent/20 text-accent-ink"
                               : "bg-gradient-to-br from-accent/30 to-accent2/25"
@@ -170,7 +170,7 @@ export default function Thread({
                             {message.buttons.map((label) => (
                               <span
                                 key={label}
-                                className="px-2.5 py-1 rounded-lg border border-accent2/25 bg-accent2/8 text-accent2-ink text-[11px] font-medium"
+                                className="px-2.5 py-1 rounded-lg border border-accent2/25 bg-accent2/8 text-accent2-ink text-[12px] font-medium"
                               >
                                 {label}
                               </span>
@@ -181,7 +181,7 @@ export default function Thread({
                         <div
                           className={`flex items-center gap-2 mt-1 ${outbound ? "justify-end" : ""}`}
                         >
-                          <span className="text-[10px] text-white/35">
+                          <span className="text-[11px] text-white/35">
                             {new Date(message.createdAt).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -189,7 +189,7 @@ export default function Thread({
                           </span>
                           {outbound && (
                             <span
-                              className={`text-[10px] ${
+                              className={`text-[11px] ${
                                 message.status === "failed" ? "text-red-400" : "text-white/35"
                               }`}
                             >

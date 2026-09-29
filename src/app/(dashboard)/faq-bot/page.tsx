@@ -86,7 +86,7 @@ export default async function FaqBotPage() {
               <ActionForm action={addFaqStarters} submitLabel="Add 6 starter questions" compact>
                 <input type="hidden" name="_" value="" />
               </ActionForm>
-              <p className="text-[11px] text-white/35 mt-3 leading-relaxed">
+              <p className="text-[12px] text-white/35 mt-3 leading-relaxed">
                 Or write your own on the right. Nothing is sent to a customer until a question
                 is active and its keywords match what they typed.
               </p>

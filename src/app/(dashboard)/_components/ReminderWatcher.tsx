@@ -122,7 +122,7 @@ export default function ReminderWatcher() {
 
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium leading-snug">{reminder.title}</div>
-              <div className="text-[11px] text-white/40 mt-0.5">
+              <div className="text-[12px] text-white/40 mt-0.5">
                 {reminder.contactName ? `${reminder.contactName} · ` : ""}
                 due {describeLateness(reminder.remind_at, new Date())}
               </div>

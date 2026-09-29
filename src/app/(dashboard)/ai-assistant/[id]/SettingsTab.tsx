@@ -144,7 +144,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
                     }`}
                   >
                     <div className="text-sm font-medium">{option.label}</div>
-                    <div className="text-[11px] text-white/45 mt-0.5">{option.description}</div>
+                    <div className="text-[12px] text-white/45 mt-0.5">{option.description}</div>
                   </button>
                 ))}
               </div>
@@ -173,7 +173,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
             placeholder="You are the support agent for a fashion brand. Be warm and concise. Never promise delivery dates. If asked about refunds, hand off to a human."
             className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y leading-relaxed font-mono"
           />
-          <span className="block text-[11px] text-white/35 mt-1">
+          <span className="block text-[12px] text-white/35 mt-1">
             {prompt.length} characters. Start with a predefined prompt and customize it to fit
             your specific needs — editing makes it custom.
           </span>
@@ -197,7 +197,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
                   </option>
                 ))}
               </select>
-              <span className="block text-[11px] text-white/35 mt-1">{provider.blurb}</span>
+              <span className="block text-[12px] text-white/35 mt-1">{provider.blurb}</span>
             </label>
 
             {provider.models.length > 0 ? (
@@ -215,7 +215,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
                     </option>
                   ))}
                 </select>
-                <span className="block text-[11px] text-white/35 mt-1">
+                <span className="block text-[12px] text-white/35 mt-1">
                   Every reply on this assistant goes to this model.
                 </span>
               </label>
@@ -252,7 +252,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
                 <button
                   type="button"
                   onClick={() => setRemoveKey(true)}
-                  className="text-[11px] text-red-400 hover:underline"
+                  className="text-[12px] text-red-400 hover:underline"
                 >
                   Remove stored key
                 </button>
@@ -297,7 +297,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
                   </button>
                 </div>
 
-                <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
+                <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
                   Encrypted before it is stored and never shown again — not to you, not to us. The
                   assistant will not reply until a key is set.
                   {provider.envVar && !hasStoredKey
@@ -341,7 +341,7 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
               scale={["a few lines", "several paragraphs"]}
             />
           </div>
-          <p className="text-[11px] text-white/35 mt-3">
+          <p className="text-[12px] text-white/35 mt-3">
             WhatsApp cuts a text message at 4096 characters, so replies are trimmed to that
             regardless of the limit set here.
           </p>
@@ -440,7 +440,7 @@ function InstructionBuilder({
           />
         </label>
 
-        <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
+        <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
           Say what the business is, what the assistant should answer, and what it must never
           decide on its own. Facts it will need but you don&apos;t give are written as
           placeholders for you to fill in.
@@ -453,7 +453,7 @@ function InstructionBuilder({
         )}
 
         <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t border-white/8">
-          <span className="text-[11px] text-white/35 mr-auto">
+          <span className="text-[12px] text-white/35 mr-auto">
             Runs on your own AI key if you have one saved, otherwise the platform&apos;s.
           </span>
           <button

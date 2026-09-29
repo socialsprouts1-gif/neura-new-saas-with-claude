@@ -218,7 +218,7 @@ export default function FlowBuilder({
           {numbers.length > 0 && (
             locked ? (
               <span
-                className="text-[11px] text-white/40 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/3"
+                className="text-[12px] text-white/40 px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/3"
                 title="A Flow cannot move between accounts once Meta has created it."
               >
                 on {liveOn?.label ?? `account ${wabaId}`}
@@ -308,7 +308,7 @@ export default function FlowBuilder({
                 }`}
               >
                 <div className="font-medium text-sm truncate">{screen.title || "Untitled"}</div>
-                <div className="text-[11px] text-white/40 mt-0.5">
+                <div className="text-[12px] text-white/40 mt-0.5">
                   {screen.fields.length} field{screen.fields.length === 1 ? "" : "s"}
                 </div>
               </button>
@@ -326,7 +326,7 @@ export default function FlowBuilder({
             <button
               type="button"
               onClick={() => removeScreen(active.key)}
-              className="w-full text-center text-[11px] text-white/35 hover:text-[#F87171] mt-3 transition-colors"
+              className="w-full text-center text-[12px] text-white/35 hover:text-[#F87171] mt-3 transition-colors"
             >
               Remove this screen
             </button>
@@ -386,7 +386,7 @@ export default function FlowBuilder({
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Fix before publishing
               </div>
-              <ul className="text-[11px] text-white/60 space-y-1 list-disc list-inside">
+              <ul className="text-[12px] text-white/60 space-y-1 list-disc list-inside">
                 {validation.errors.slice(0, 5).map((error) => (
                   <li key={error}>{error}</li>
                 ))}
@@ -401,7 +401,7 @@ export default function FlowBuilder({
 
           <div>
             <p className="text-xs font-medium text-white/60 mb-2">Preview Notes:</p>
-            <ul className="text-[11px] text-white/40 space-y-1 list-disc list-inside leading-relaxed">
+            <ul className="text-[12px] text-white/40 space-y-1 list-disc list-inside leading-relaxed">
               <li>Rendering may vary on different devices</li>
               <li>Interactions are disabled in preview mode</li>
               <li>Actual WhatsApp styling may differ slightly</li>
@@ -606,13 +606,13 @@ function FieldEditor({
           Required
         </label>
 
-        <div className="flex items-center gap-2 text-[11px] text-white/35">
+        <div className="flex items-center gap-2 text-[12px] text-white/35">
           <span>Answer key</span>
           <input
             value={field.name}
             onChange={(event) => onChange({ name: event.target.value })}
             onBlur={(event) => onChange({ name: normaliseFieldName(event.target.value) })}
-            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 font-mono text-[11px] w-40 focus:outline-none focus:border-accent/40"
+            className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 font-mono text-[12px] w-40 focus:outline-none focus:border-accent/40"
           />
         </div>
       </div>
@@ -647,7 +647,7 @@ function Preview({ screen }: { screen: FormScreen }) {
   return (
     <div className="rounded-2xl bg-white text-[#111B21] overflow-hidden border border-white/10">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-black/8">
-        <span className="grid place-items-center w-6 h-6 rounded-full bg-[#128C7E] text-white text-[11px] font-semibold">
+        <span className="grid place-items-center w-6 h-6 rounded-full bg-[#128C7E] text-white text-[12px] font-semibold">
           ×
         </span>
         <span className="flex-1 text-center text-sm font-semibold truncate">
@@ -669,7 +669,7 @@ function Preview({ screen }: { screen: FormScreen }) {
           {screen.buttonLabel || "Continue"}
         </button>
 
-        <p className="text-[11px] text-black/45 text-center pt-1">
+        <p className="text-[12px] text-black/45 text-center pt-1">
           Managed by the business. <span className="underline">Learn more</span>
         </p>
       </div>
@@ -688,7 +688,7 @@ function PreviewField({ field }: { field: FormField }) {
     case "TextBody":
       return <p className="text-sm text-black/75 whitespace-pre-wrap">{field.text}</p>;
     case "TextCaption":
-      return <p className="text-[11px] text-black/50 whitespace-pre-wrap">{field.text}</p>;
+      return <p className="text-[12px] text-black/50 whitespace-pre-wrap">{field.text}</p>;
 
     case "TextInput":
     case "TextArea":
@@ -707,7 +707,7 @@ function PreviewField({ field }: { field: FormField }) {
             {field.kind === "DatePicker" ? "Select a date" : "Enter text..."}
           </div>
           {field.helperText && (
-            <div className="text-[11px] text-black/45 mt-1">{field.helperText}</div>
+            <div className="text-[12px] text-black/45 mt-1">{field.helperText}</div>
           )}
         </div>
       );
@@ -808,7 +808,7 @@ function PreviewLink({
           Get preview link
         </button>
       )}
-      {problem && <p className="text-[11px] text-[#F87171] mt-2">{problem}</p>}
+      {problem && <p className="text-[12px] text-[#F87171] mt-2">{problem}</p>}
     </div>
   );
 }
@@ -957,7 +957,7 @@ function Field({
     <div>
       <span className="block text-xs font-medium text-white/70 mb-1.5">{label}</span>
       {children}
-      {hint && <span className="block text-[11px] text-white/35 mt-1">{hint}</span>}
+      {hint && <span className="block text-[12px] text-white/35 mt-1">{hint}</span>}
     </div>
   );
 }
@@ -976,7 +976,7 @@ function Counted({
     <div>
       {children}
       <span
-        className={`block text-[11px] mt-1 ${
+        className={`block text-[12px] mt-1 ${
           value.length > limit ? "text-[#F87171]" : "text-white/35"
         }`}
       >
@@ -995,7 +995,7 @@ function StatusPill({ status }: { status: string }) {
         : "bg-white/5 text-white/50 border-white/10";
 
   return (
-    <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-medium border ${tone}`}>
+    <span className={`px-2.5 py-0.5 rounded-lg text-[12px] font-medium border ${tone}`}>
       {status}
     </span>
   );
@@ -1099,7 +1099,7 @@ function DeliveryCard({
             placeholder="When the customer wants to book a time with us."
             className={input}
           />
-          <p className="text-[11px] text-white/35 mt-1.5 leading-relaxed">
+          <p className="text-[12px] text-white/35 mt-1.5 leading-relaxed">
             One line. The assistant sees this next to the form&rsquo;s name and uses it to decide
             when the form is the right answer — without it, it only has the name to go on.
           </p>

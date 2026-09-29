@@ -109,7 +109,7 @@ export function StatCard({
       <div className="flex items-start justify-between gap-3">
         {/* Wraps rather than truncating: two of these sit side by side on a
             phone, and half a word is worse than two lines. */}
-        <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider sm:tracking-widest text-white/40 leading-tight">
+        <div className="text-[11px] sm:text-[12px] font-semibold uppercase tracking-wider sm:tracking-widest text-white/40 leading-tight">
           {label}
         </div>
         {Icon && <Icon className="w-4 h-4 text-white/25 flex-shrink-0" />}
@@ -170,7 +170,7 @@ export type Tone = keyof typeof TONES;
 export function Badge({ children, tone = "grey" }: { children: ReactNode; tone?: Tone }) {
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[11px] font-medium border ${TONES[tone]}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-[12px] font-medium border ${TONES[tone]}`}
     >
       {children}
     </span>
@@ -219,7 +219,7 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
               {head.map((h) => (
                 <th
                   key={h}
-                  className="text-left px-4 sm:px-5 py-3 text-[11px] font-semibold uppercase tracking-widest text-white/40 whitespace-nowrap"
+                  className="text-left px-4 sm:px-5 py-3 text-[12px] font-semibold uppercase tracking-widest text-white/40 whitespace-nowrap"
                 >
                   {h}
                 </th>

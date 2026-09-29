@@ -104,7 +104,7 @@ export default function RulesTab({
               hint="Number of back-and-forth messages the AI remembers"
             />
           </div>
-          <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
+          <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
             Every remembered message is sent again with each reply, so a deeper memory costs more
             per answer. Twenty is enough for almost every support conversation.
           </p>
@@ -162,17 +162,17 @@ export default function RulesTab({
                         <span className="flex items-center gap-2">
                           <span className="text-sm font-medium">{form.name}</span>
                           {form.status !== "published" && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15]">
+                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-[#FACC15]/12 text-[#FACC15]">
                               draft
                             </span>
                           )}
                           {form.numberLabel && (
-                            <span className="text-[10px] text-white/35 tabular-nums">
+                            <span className="text-[11px] text-white/35 tabular-nums">
                               on {form.numberLabel}
                             </span>
                           )}
                         </span>
-                        <span className="block text-[11px] text-white/45 leading-relaxed mt-0.5">
+                        <span className="block text-[12px] text-white/45 leading-relaxed mt-0.5">
                           {form.description?.trim() ||
                             "No description — the assistant only has the name to go on. Add one on the form so it knows when to offer it."}
                         </span>
@@ -181,7 +181,7 @@ export default function RulesTab({
                   );
                 })}
               </div>
-              <p className="text-[11px] text-white/35 leading-relaxed mt-3">
+              <p className="text-[12px] text-white/35 leading-relaxed mt-3">
                 The assistant decides when to send one, and can only ever send a form ticked here.
                 A draft form opens for numbers on your own WhatsApp account only, so it is safe to
                 tick one while you are still testing.
@@ -318,7 +318,7 @@ export default function RulesTab({
             </div>
           </fieldset>
 
-          <p className="text-[11px] text-white/35 mt-4 leading-relaxed">
+          <p className="text-[12px] text-white/35 mt-4 leading-relaxed">
             Saved and ready, but not yet sending: follow-ups need the scheduled job runner, which
             is the next thing being built. Nothing goes out until then.
           </p>

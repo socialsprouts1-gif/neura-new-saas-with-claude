@@ -65,7 +65,7 @@ export default function BookingList({
                 .format(new Date(booking.startsAt))
                 .toLowerCase()}
             </div>
-            <div className="text-[11px] text-white/40">
+            <div className="text-[12px] text-white/40">
               {durationLabel(booking.durationMinutes)}
             </div>
           </div>

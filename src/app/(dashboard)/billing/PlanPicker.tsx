@@ -237,7 +237,7 @@ export default function PlanPicker({
               <div className="p-5 flex flex-col h-full">
               {(plan.isCurrent || featured) && (
                 <span
-                  className={`absolute -top-2.5 left-5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                  className={`absolute -top-2.5 left-5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
                     plan.isCurrent
                       ? "bg-accent text-black"
                       : "bg-accent/15 text-accent-ink border border-accent/30"
@@ -284,12 +284,12 @@ export default function PlanPicker({
                   </span>
                 </div>
                 {saving !== null && (
-                  <p className="text-[11px] text-accent-ink mt-1.5">
+                  <p className="text-[12px] text-accent-ink mt-1.5">
                     Save {saving}% against paying monthly
                   </p>
                 )}
                 {interval === "yearly" && !tier.yearly && (
-                  <p className="text-[11px] text-white/35 mt-1.5">
+                  <p className="text-[12px] text-white/35 mt-1.5">
                     Only sold monthly.
                   </p>
                 )}
@@ -347,7 +347,7 @@ export default function PlanPicker({
       )}
 
       {!canManage && (
-        <p className="text-[11px] text-white/35 leading-relaxed">
+        <p className="text-[12px] text-white/35 leading-relaxed">
           Only an owner or an admin can change the plan.
         </p>
       )}
@@ -363,14 +363,14 @@ export default function PlanPicker({
               if (result.ok) router.refresh();
             })
           }
-          className="text-[11px] text-white/35 hover:text-[#F87171] transition-colors"
+          className="text-[12px] text-white/35 hover:text-[#F87171] transition-colors"
         >
           Cancel the plan
         </button>
       )}
 
       {cancelling && (
-        <p className="text-[11px] text-[#FACC15] leading-relaxed">
+        <p className="text-[12px] text-[#FACC15] leading-relaxed">
           This plan is set to end when the current period closes. Choose a plan above to carry on.
         </p>
       )}

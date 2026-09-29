@@ -85,7 +85,7 @@ export default function ChargeForm({
             className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
           />
           {taxPercent > 0 && base > 0 && (
-            <span className="block text-[11px] text-white/45 mt-1.5">
+            <span className="block text-[12px] text-white/45 mt-1.5">
               Plus {taxPercent}% tax ({formatAmount(tax)}) —{" "}
               <span className="text-white/70 font-medium">
                 {formatAmount(base + tax)} to pay
@@ -93,7 +93,7 @@ export default function ChargeForm({
             </span>
           )}
           {taxPercent === 0 && (
-            <span className="block text-[11px] text-white/35 mt-1.5">
+            <span className="block text-[12px] text-white/35 mt-1.5">
               No tax configured. Set one under Commerce → Payments if you need it.
             </span>
           )}

@@ -46,10 +46,10 @@ export default function WebhooksPanel({
               </div>
 
               <div className="mt-3.5 pt-3.5 border-t border-white/8">
-                <div className="text-[11px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
+                <div className="text-[12px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">
                   Signing secret
                 </div>
-                <code className="text-[11px] text-white/50 break-all">{webhook.secret}</code>
+                <code className="text-[12px] text-white/50 break-all">{webhook.secret}</code>
               </div>
             </div>
           ))}

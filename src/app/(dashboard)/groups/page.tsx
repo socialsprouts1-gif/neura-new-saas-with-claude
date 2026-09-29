@@ -139,7 +139,7 @@ export default async function GroupsPage() {
                         </p>
                       )}
 
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-white/35">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[12px] text-white/35">
                         <span className="tabular-nums">
                           {tally.total} contact{tally.total === 1 ? "" : "s"}
                         </span>
@@ -237,7 +237,7 @@ export default async function GroupsPage() {
           </ActionForm>
 
           {active.length === 0 && (
-            <p className="text-[11px] text-white/35 mt-4 leading-relaxed">
+            <p className="text-[12px] text-white/35 mt-4 leading-relaxed">
               No WhatsApp number is connected yet, so there is nothing to pick. Connect one on{" "}
               <Link href="/numbers" className="text-accent-ink hover:underline">
                 Numbers
@@ -249,7 +249,7 @@ export default async function GroupsPage() {
       </div>
 
       {all.length > 0 && (
-        <p className="text-[11px] text-white/30 mt-6">
+        <p className="text-[12px] text-white/30 mt-6">
           Open a group to change its picture, add or remove people, mark key contacts, or send to
           it. <Badge tone="grey">Deleting</Badge> a group is on its own page too — it only removes
           the list, never the contacts.
