@@ -27,6 +27,11 @@ import {
   type ButtonSpec,
   type TemplateSpec,
 } from "@/lib/template-spec";
+import {
+  templateFieldsFromComponents,
+  needsUnpacking,
+  storableHeaderFormat,
+} from "@/lib/template-unpack";
 import { normaliseWaId } from "@/lib/audience";
 import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
 import type { ActionResult } from "./actions";
@@ -486,8 +491,33 @@ export async function syncTemplates(): Promise<ActionResult & { synced?: number 
   const now = new Date().toISOString();
   let synced = 0;
 
+  // What is already stored, so Meta's copy fills gaps rather than
+  // overwriting wording somebody edited here.
+  const { data: existing } = await supabase
+    .from("message_templates")
+    .select("name, language, body_text, header_format")
+    .eq("org_id", orgId);
+
+  const storedBy = new Map(
+    (existing ?? []).map((row) => [`${row.name}:${row.language}`, row] as const)
+  );
+
   for (const { waba, template } of remote) {
     const status = template.status?.toLowerCase() ?? "pending";
+
+    // Unpacked into the columns that actually send.
+    //
+    // Sync stored the whole component array and nothing else, and every
+    // sender reads body_text and header_format. With those empty the
+    // campaign validator counted zero variables, the dispatcher sent
+    // zero parameters, and Meta refused every recipient with 132000 —
+    // "number of localizable_params (0) does not match the expected
+    // number of params (1)". A template made in WhatsApp Manager could
+    // therefore never be campaigned against.
+    const fields = templateFieldsFromComponents(template.components);
+    const stored = storedBy.get(`${template.name}:${template.language}`);
+    const fill = !stored || needsUnpacking(stored, fields);
+
     const saved = await upsertTemplate(supabase, waba, {
       org_id: orgId,
       name: template.name,
@@ -499,6 +529,13 @@ export async function syncTemplates(): Promise<ActionResult & { synced?: number 
       waba_template_id: template.id,
       rejected_reason: template.rejected_reason ?? null,
       components_json: template.components ?? [],
+      ...(fill
+        ? {
+            body_text: fields.bodyText,
+            header_format: storableHeaderFormat(fields.headerFormat),
+            header_text: fields.headerText ?? undefined,
+          }
+        : {}),
       last_synced_at: now,
       updated_at: now,
     });
