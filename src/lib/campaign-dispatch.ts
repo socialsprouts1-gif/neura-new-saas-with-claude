@@ -3,6 +3,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rollUpFailure } from "@/lib/campaign-failures";
 import { buildTemplateComponents } from "@/lib/template-components";
+import { resolveTemplateShape } from "@/lib/template-unpack";
 import { resolveConnection } from "@/lib/connections";
 import {
   sendTemplateMessage,
@@ -175,7 +176,9 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
 
   const { data: template } = await supabase
     .from("message_templates")
-    .select("name, language, status, body_text, header_format, header_text, header_media_url")
+    .select(
+      "name, language, status, body_text, header_format, header_text, header_media_url, components_json"
+    )
     .eq("id", templateId)
     .maybeSingle();
 
@@ -227,15 +230,16 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
   // nothing else. Meta refuses that whole message, every time, for every
   // recipient — which is how a campaign against a perfectly healthy
   // account reads "0 sent, 5 failed".
-  const built = buildTemplateComponents(
-    {
-      bodyText: template.body_text ?? "",
-      headerFormat: template.header_format,
-      headerText: template.header_text,
-      headerMediaUrl: template.header_media_url,
-    },
-    variables
-  );
+  // Resolved against Meta's own copy, not just our columns.
+  //
+  // header_format was read here and thrown away once, so a template with
+  // an image header went out with a body and nothing else. This is the
+  // same failure one layer down: sync wrote components_json and left
+  // body_text empty, so a template declaring one variable was counted as
+  // declaring none and sent no parameters — Meta refused every recipient
+  // with 132000. Reading what Meta returned means that is right whether
+  // or not the columns have been repaired.
+  const built = buildTemplateComponents(resolveTemplateShape(template), variables);
 
   // Stopped before a single recipient is touched. campaign_recipients has
   // no un-fail, so burning the audience on a fault that is the same for

@@ -122,3 +122,61 @@ export function needsUnpacking(
   if (!storedHeader && fields.headerFormat !== "NONE") return true;
   return false;
 }
+
+export interface StoredTemplateRow {
+  body_text?: string | null;
+  header_format?: string | null;
+  header_text?: string | null;
+  header_media_url?: string | null;
+  /** What Meta returned for this template, stored verbatim on sync. */
+  components_json?: unknown;
+}
+
+export interface ResolvedShape {
+  bodyText: string;
+  headerFormat: string | null;
+  headerText: string | null;
+  headerMediaUrl: string | null;
+}
+
+/**
+ * The shape to send, taking Meta's own copy over ours.
+ *
+ * The send has to match what Meta holds exactly — one declared body
+ * variable must be sent one parameter — so where the two disagree, Meta
+ * is right by definition. components_json is what Meta returned; the
+ * body_text column is a local convenience that several paths write and
+ * one path (sync, until recently) did not.
+ *
+ * Reading the authoritative column directly is what makes this fix work
+ * on rows that already exist. Filling body_text in on the next sync
+ * repairs the data; this repairs the send, now, whether or not anybody
+ * presses Sync — which matters because until they do, every campaign
+ * against a template made in WhatsApp Manager fails for every recipient.
+ *
+ * header_media_url has no counterpart at Meta — the URL of the image to
+ * send is ours, and Meta only reports that a header exists — so it is
+ * always taken from the row.
+ */
+export function resolveTemplateShape(row: StoredTemplateRow): ResolvedShape {
+  const stored = {
+    bodyText: (row.body_text ?? "").trim(),
+    headerFormat: row.header_format ?? null,
+    headerText: row.header_text ?? null,
+    headerMediaUrl: row.header_media_url ?? null,
+  };
+
+  const fromMeta = templateFieldsFromComponents(row.components_json);
+
+  // Nothing came back from Meta for this template — one created in this
+  // app, or a row from before components were stored. Ours is all there is.
+  if (!fromMeta.bodyText && fromMeta.headerFormat === "NONE") return stored;
+
+  return {
+    bodyText: fromMeta.bodyText || stored.bodyText,
+    headerFormat:
+      fromMeta.headerFormat === "NONE" ? stored.headerFormat : fromMeta.headerFormat,
+    headerText: fromMeta.headerFormat === "TEXT" ? fromMeta.headerText : stored.headerText,
+    headerMediaUrl: stored.headerMediaUrl,
+  };
+}

@@ -31,6 +31,7 @@ import {
   templateFieldsFromComponents,
   needsUnpacking,
   storableHeaderFormat,
+  resolveTemplateShape,
 } from "@/lib/template-unpack";
 import { normaliseWaId } from "@/lib/audience";
 import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
@@ -639,7 +640,9 @@ export async function createCampaign(input: {
 
   const { data: template } = await supabase
     .from("message_templates")
-    .select("id, name, status, body_text, header_format, header_text, header_media_url")
+    .select(
+      "id, name, status, body_text, header_format, header_text, header_media_url, components_json"
+    )
     .eq("id", input.templateId)
     .eq("org_id", orgId)
     .maybeSingle();
@@ -654,7 +657,12 @@ export async function createCampaign(input: {
     return { ok: false, error: describeReadiness(template.status)! };
   }
 
-  const needed = variablesIn(template.body_text ?? "").length;
+  // Counted from Meta's own copy where there is one, so the builder asks
+  // for the values the send will actually need. Reading our column alone
+  // counted zero on a template synced from WhatsApp Manager, so nobody
+  // was ever asked — and the send then failed for every recipient.
+  const shape = resolveTemplateShape(template);
+  const needed = variablesIn(shape.bodyText).length;
   const filled = input.variables.filter((value) => value.trim()).length;
   if (filled < needed) {
     return { ok: false, error: `This template needs ${needed} variable value(s).` };
@@ -663,12 +671,7 @@ export async function createCampaign(input: {
   // A template with a media header and no media saved against it cannot
   // be sent to anybody, so it is refused before an audience is queued
   // rather than after every recipient has been marked failed.
-  const unsendable = templateSendable({
-    bodyText: template.body_text ?? "",
-    headerFormat: template.header_format,
-    headerText: template.header_text,
-    headerMediaUrl: template.header_media_url,
-  });
+  const unsendable = templateSendable(shape);
   if (unsendable) return { ok: false, error: unsendable };
 
   // An uploaded contacts sheet becomes contacts first, so resolveAudience

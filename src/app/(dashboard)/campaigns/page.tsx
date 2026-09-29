@@ -11,6 +11,7 @@ import {
   statusTone,
 } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
+import { resolveTemplateShape } from "@/lib/template-unpack";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 import {
   summariseFailures,
@@ -57,7 +58,9 @@ export default async function CampaignsPage({
       // sendable on their own.
       supabase
         .from("message_templates")
-        .select("id, name, language, category, status, body_text, header_text, footer_text")
+        .select(
+          "id, name, language, category, status, body_text, header_text, footer_text, components_json"
+        )
         .eq("org_id", orgId)
         .order("name"),
       // Tags live on the contact rows, so the list of them is derived here
@@ -109,9 +112,23 @@ export default async function CampaignsPage({
     ...new Set((contacts ?? []).flatMap((contact) => contact.tags ?? []).filter(Boolean)),
   ].sort();
 
-  const usable = ((templates ?? []) as TemplateOption[]).filter(
-    (template) => templateReadiness(template.status) !== "blocked"
-  );
+  // Resolved against Meta's own copy before it reaches the builder.
+  //
+  // The builder counts the body's {{1}}s to decide which value boxes to
+  // show. Reading our column alone counted none on a template synced
+  // from WhatsApp Manager — so it asked for nothing, the campaign went
+  // out with no parameters, and Meta refused every recipient. Doing it
+  // here means the preview is right too.
+  const usable = ((templates ?? []) as Array<TemplateOption & { components_json?: unknown }>)
+    .filter((template) => templateReadiness(template.status) !== "blocked")
+    .map((template) => {
+      const shape = resolveTemplateShape(template);
+      return {
+        ...template,
+        body_text: shape.bodyText,
+        header_text: shape.headerText,
+      } as TemplateOption;
+    });
   // Approved first: the ones that send today should not be buried under
   // the ones that send tomorrow.
   const options: TemplateOption[] = [
