@@ -92,6 +92,48 @@ test("reading time is honest enough to add up", () => {
   assert.ok(totalMinutes() > 0);
 });
 
+test("every flow mark is one the page knows how to draw", () => {
+  // A lane asking for a mark that has no glyph renders as a blank box —
+  // the kind of thing a proofread misses and a reader notices.
+  const known = new Set([
+    "whatsapp",
+    "inbox",
+    "bot",
+    "sparkles",
+    "clock",
+    "lock",
+    "send",
+    "check",
+    "ban",
+    "question",
+  ]);
+  for (const guide of GUIDES) {
+    for (const block of guide.blocks) {
+      if (block.kind !== "flow") continue;
+      for (const lane of block.lanes) {
+        if (lane.mark) {
+          assert.ok(known.has(lane.mark), `${guide.slug} asks for mark "${lane.mark}"`);
+        }
+      }
+    }
+  }
+});
+
+test("the two guides people start with carry marks, not bare dots", () => {
+  for (const slug of ["how-it-works", "the-24-hour-rule"]) {
+    const guide = guideBySlug(slug);
+    assert.ok(guide, slug);
+    const flows = guide.blocks.filter((block) => block.kind === "flow");
+    assert.ok(flows.length > 0, `${slug} has no diagram`);
+    for (const flow of flows) {
+      assert.ok(
+        flow.kind === "flow" && flow.lanes.every((lane) => lane.mark),
+        `${slug} has a box with no mark`
+      );
+    }
+  }
+});
+
 test("every icon is one the page knows how to render", () => {
   const known = new Set(["map", "clock", "split", "rocket", "lightbulb", "inbox", "bot"]);
   for (const guide of GUIDES) {

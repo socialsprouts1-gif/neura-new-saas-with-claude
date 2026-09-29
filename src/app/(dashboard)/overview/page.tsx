@@ -1,12 +1,29 @@
 import Link from "next/link";
-import { ArrowRight, Lock, Send, Inbox as InboxIcon, Users, Bot } from "lucide-react";
+import {
+  ArrowRight,
+  Bell,
+  Bot,
+  CalendarCheck,
+  Inbox as InboxIcon,
+  Lock,
+  Send,
+  Users,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { featureDef } from "@/lib/features";
 import { Card, Badge } from "@/components/ui/primitives";
 import { formatDateTime } from "@/types/admin";
+import { upcoming, whenDue, answerRate, topAnswers } from "@/lib/dashboard-insights";
 
 const DAYS = 14;
+
+/** How each kind of upcoming thing is drawn. */
+const UPCOMING_LOOK = {
+  reminder: { icon: Bell, accent: "#FACC15", label: "Reminder" },
+  scheduled: { icon: Send, accent: "#00FF87", label: "Scheduled message" },
+  appointment: { icon: CalendarCheck, accent: "#00D4FF", label: "Appointment" },
+} as const;
 
 function startOfDay(offsetDays: number): Date {
   const date = new Date();
@@ -41,6 +58,10 @@ export default async function DashboardPage({
     { data: runs },
     { data: connections },
     { data: assistants },
+    { data: reminderRows },
+    { data: scheduledRows },
+    { data: meetingRows },
+    { data: runWindow },
   ] = await Promise.all([
     supabase
       .from("messages")
@@ -66,6 +87,42 @@ export default async function DashboardPage({
       .limit(6),
     supabase.from("waba_connections").select("id, status").eq("org_id", orgId),
     supabase.from("ai_assistants").select("id").eq("org_id", orgId).eq("is_active", true),
+    // What is about to happen. Three tables, one list on screen — the
+    // question somebody opening this page has is "what is coming", not
+    // which feature happens to own it.
+    supabase
+      .from("reminders")
+      .select("id, title, remind_at")
+      .eq("org_id", orgId)
+      .eq("status", "pending")
+      .gte("remind_at", new Date().toISOString())
+      .order("remind_at")
+      .limit(8),
+    supabase
+      .from("scheduled_messages")
+      .select("id, body, send_at, wa_id")
+      .eq("org_id", orgId)
+      .eq("status", "pending")
+      .gte("send_at", new Date().toISOString())
+      .order("send_at")
+      .limit(8),
+    supabase
+      .from("meetings")
+      .select("id, title, starts_at, location")
+      .eq("org_id", orgId)
+      .eq("status", "scheduled")
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at")
+      .limit(8),
+    // A fortnight of runs, for the answer rate and the answers doing the
+    // work. Separate from the six shown in the activity list, which are
+    // the newest rather than a sample worth dividing.
+    supabase
+      .from("bot_runs")
+      .select("outcome, matched_kind, matched_label")
+      .eq("org_id", orgId)
+      .gte("created_at", windowStart)
+      .limit(2000),
   ]);
 
   const messages = recentMessages ?? [];
@@ -82,6 +139,34 @@ export default async function DashboardPage({
   const convos = conversations ?? [];
   const open = convos.filter((c) => c.status === "open").length;
   const needsHuman = convos.filter((c) => c.status === "pending" || !c.bot_enabled).length;
+
+  // Merged and sorted here rather than on screen, so the three kinds
+  // cannot disagree about what "next" means.
+  const soon = upcoming([
+    ...(reminderRows ?? []).map((row) => ({
+      id: `reminder-${row.id}`,
+      kind: "reminder" as const,
+      title: row.title,
+      at: row.remind_at,
+    })),
+    ...(scheduledRows ?? []).map((row) => ({
+      id: `scheduled-${row.id}`,
+      kind: "scheduled" as const,
+      title: row.body.slice(0, 70),
+      at: row.send_at,
+      who: row.wa_id,
+    })),
+    ...(meetingRows ?? []).map((row) => ({
+      id: `meeting-${row.id}`,
+      kind: "appointment" as const,
+      title: row.title ?? "Appointment",
+      at: row.starts_at,
+      who: row.location,
+    })),
+  ]);
+
+  const answers = answerRate(runWindow ?? []);
+  const best = topAnswers(runWindow ?? []);
 
   const activeBots = (bots ?? []).filter((b) => b.is_active).length;
   const connected = (connections ?? []).some((c) => c.status === "active");
@@ -303,6 +388,159 @@ export default async function DashboardPage({
           )}
         </Card>
 
+        {/* Coming up.
+            ------------------------------------------------------------
+            Reminders, scheduled messages and appointments in one list.
+            The dashboard showed none of the three, which meant the one
+            question somebody opens it with — what is about to happen —
+            was the one it could not answer. */}
+        <Card>
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <h2 className="font-semibold">Coming up</h2>
+            <Link href="/reminders" className="text-sm text-accent-ink hover:underline">
+              Reminders
+            </Link>
+          </div>
+          <p className="text-sm text-white/40 mb-5">
+            Reminders, scheduled messages and appointments, soonest first
+          </p>
+
+          {soon.length === 0 ? (
+            <p className="text-sm text-white/40 leading-relaxed">
+              Nothing scheduled. Reminders and scheduled messages both show up here once you
+              set one.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {soon.map((entry) => {
+                const look = UPCOMING_LOOK[entry.kind];
+                const Icon = look.icon;
+                return (
+                  <div key={entry.id} className="flex items-start gap-3">
+                    <span
+                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: `${look.accent}14`, border: `1px solid ${look.accent}2A` }}
+                    >
+                      <Icon className="w-4 h-4" style={{ color: look.accent }} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm truncate">{entry.title}</div>
+                      <div className="text-[12px] text-white/35 mt-0.5">
+                        {look.label}
+                        {entry.who ? ` · ${entry.who}` : ""}
+                      </div>
+                    </div>
+                    <span className="text-[12px] text-white/45 flex-shrink-0 mt-0.5">
+                      {whenDue(entry.at)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr_1.6fr] gap-6 items-start mb-6">
+        {/* How much the automation is carrying.
+            ------------------------------------------------------------
+            One number worth acting on: a low rate is a list of answers
+            that do not exist yet, and failures are counted apart because
+            a miss and a break need different fixes. */}
+        <Card>
+          <h2 className="font-semibold mb-1">Answered automatically</h2>
+          <p className="text-sm text-white/40 mb-5">Of everything the automation looked at, {DAYS} days</p>
+
+          {answers.rate === null ? (
+            <p className="text-sm text-white/40 leading-relaxed">
+              No inbound messages yet, so there is nothing to measure. This fills in as soon as
+              customers start writing.
+            </p>
+          ) : (
+            <>
+              <div className="text-3xl font-bold">{Math.round(answers.rate * 100)}%</div>
+              <div
+                className="mt-4 h-2 rounded-full overflow-hidden"
+                style={{ background: "color-mix(in oklab, var(--color-white) 10%, transparent)" }}
+                role="img"
+                aria-label={`${answers.answered} of ${answers.total} answered`}
+              >
+                <div
+                  className="h-full rounded-full bg-accent"
+                  style={{ width: `${answers.rate * 100}%` }}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mt-5">
+                {[
+                  { label: "Answered", value: answers.answered, tint: "var(--accent)" },
+                  { label: "Nothing matched", value: answers.unanswered, tint: "rgba(255,255,255,.45)" },
+                  { label: "Failed", value: answers.failed, tint: "#F87171" },
+                ].map((cell) => (
+                  <div key={cell.label}>
+                    <div className="text-lg font-bold" style={{ color: cell.tint }}>
+                      {cell.value}
+                    </div>
+                    <div className="text-[12px] text-white/35 leading-tight mt-0.5">
+                      {cell.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {answers.unanswered > 0 && (
+                <p className="text-[12px] text-white/35 mt-5 leading-relaxed">
+                  Every &ldquo;nothing matched&rdquo; is a question with no answer written yet.{" "}
+                  <Link href="/faq-bot" className="text-accent-ink hover:underline">
+                    Add one to the FAQ bot
+                  </Link>
+                  .
+                </p>
+              )}
+            </>
+          )}
+        </Card>
+
+        {/* Which answers are doing the work */}
+        <Card>
+          <h2 className="font-semibold mb-1">Answers doing the work</h2>
+          <p className="text-sm text-white/40 mb-5">
+            Most used over {DAYS} days — the busiest one is the one worth making better
+          </p>
+
+          {best.length === 0 ? (
+            <p className="text-sm text-white/40 leading-relaxed">
+              Nothing has answered yet. Once a bot or an FAQ replies, the ones carrying the most
+              traffic show up here.
+            </p>
+          ) : (
+            <div className="space-y-3.5">
+              {best.map((entry) => (
+                <div key={`${entry.kind}:${entry.label}`}>
+                  <div className="flex items-baseline justify-between gap-3 mb-1.5">
+                    <span className="text-sm truncate">{entry.label}</span>
+                    <span className="text-sm text-white/45 flex-shrink-0 tabular-nums">
+                      {entry.count}
+                    </span>
+                  </div>
+                  <div
+                    className="h-1.5 rounded-full overflow-hidden"
+                    style={{ background: "color-mix(in oklab, var(--color-white) 10%, transparent)" }}
+                  >
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{ width: `${(entry.count / best[0].count) * 100}%` }}
+                    />
+                  </div>
+                  <div className="text-[12px] text-white/30 mt-1">{entry.kind}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid lg:grid-cols-[1.6fr_1fr] gap-6 items-start mb-6">
         {/* Recent bot activity */}
         <Card>
           <div className="flex items-center justify-between gap-3 mb-1">

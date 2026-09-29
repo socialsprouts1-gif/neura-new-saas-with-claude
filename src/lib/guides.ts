@@ -11,6 +11,19 @@
 // want to become a programmer. Short sentences. The thing that goes
 // wrong, named. No jargon that is not explained in the same breath.
 
+/** The marks a flow box can wear. Rendered by the guide page. */
+export type LaneMark =
+  | "whatsapp"
+  | "inbox"
+  | "bot"
+  | "sparkles"
+  | "clock"
+  | "lock"
+  | "send"
+  | "check"
+  | "ban"
+  | "question";
+
 export type Block =
   /** Plain prose. One idea per paragraph. */
   | { kind: "text"; body: string }
@@ -18,7 +31,17 @@ export type Block =
   | {
       kind: "flow";
       caption?: string;
-      lanes: Array<{ label: string; detail?: string; tone?: "neutral" | "good" | "bad" | "accent" }>;
+      lanes: Array<{
+        label: string;
+        detail?: string;
+        tone?: "neutral" | "good" | "bad" | "accent";
+        /**
+         * A mark for the box. "whatsapp" draws the real logo; the rest
+         * are glyphs. Named rather than imported so this module stays
+         * plain data a test can walk.
+         */
+        mark?: LaneMark;
+      }>;
     }
   /** Numbered things to do, in order. */
   | { kind: "steps"; title?: string; steps: Array<{ title: string; body: string }> }
@@ -67,10 +90,10 @@ export const GUIDES: Guide[] = [
         kind: "flow",
         caption: "A customer messages you. This is what happens, in order, in about two seconds.",
         lanes: [
-          { label: "Customer writes", detail: "On WhatsApp, to your business number.", tone: "neutral" },
-          { label: "It arrives here", detail: "Lands in your Inbox and opens a 24-hour window.", tone: "accent" },
-          { label: "Automations try", detail: "Booking, then Chatbot, then FAQ, then AI Assistant.", tone: "accent" },
-          { label: "Reply goes out", detail: "Or nothing matches and it waits for a human.", tone: "good" },
+          { label: "Customer writes", detail: "On WhatsApp, to your business number.", tone: "neutral", mark: "whatsapp" },
+          { label: "It arrives here", detail: "Lands in your Inbox and opens a 24-hour window.", tone: "accent", mark: "inbox" },
+          { label: "Automations try", detail: "Booking, then Chatbot, then FAQ, then AI Assistant.", tone: "accent", mark: "bot" },
+          { label: "Reply goes out", detail: "Or nothing matches and it waits for a human.", tone: "good", mark: "send" },
         ],
       },
       {
@@ -81,9 +104,9 @@ export const GUIDES: Guide[] = [
         kind: "flow",
         caption: "You message a customer. This is the other direction, and it has one hard rule in it.",
         lanes: [
-          { label: "Did they write first?", detail: "In the last 24 hours.", tone: "neutral" },
-          { label: "Yes — say anything", detail: "Text, buttons, products, invoices, payment requests.", tone: "good" },
-          { label: "No — template only", detail: "A message Meta approved in advance. Nothing else gets through.", tone: "bad" },
+          { label: "Did they write first?", detail: "In the last 24 hours.", tone: "neutral", mark: "question" },
+          { label: "Yes — say anything", detail: "Text, buttons, products, invoices, payment requests.", tone: "good", mark: "check" },
+          { label: "No — template only", detail: "A message Meta approved in advance. Nothing else gets through.", tone: "bad", mark: "lock" },
         ],
       },
       {
@@ -123,10 +146,10 @@ export const GUIDES: Guide[] = [
         kind: "flow",
         caption: "The clock starts when the customer writes to you — and only then.",
         lanes: [
-          { label: "Customer messages you", detail: "The window opens.", tone: "good" },
-          { label: "Next 24 hours", detail: "You can send anything at all.", tone: "good" },
-          { label: "After 24 hours", detail: "Only an approved template gets through.", tone: "bad" },
-          { label: "They reply again", detail: "A fresh 24 hours starts.", tone: "good" },
+          { label: "Customer messages you", detail: "The window opens.", tone: "good", mark: "whatsapp" },
+          { label: "Next 24 hours", detail: "You can send anything at all.", tone: "good", mark: "clock" },
+          { label: "After 24 hours", detail: "Only an approved template gets through.", tone: "bad", mark: "ban" },
+          { label: "They reply again", detail: "A fresh 24 hours starts.", tone: "good", mark: "whatsapp" },
         ],
       },
       {
@@ -203,10 +226,10 @@ export const GUIDES: Guide[] = [
         kind: "flow",
         caption: "The order they are tried in. The first one that matches answers, and the rest never run.",
         lanes: [
-          { label: "1. Appointments", detail: "If the customer is mid-booking.", tone: "neutral" },
-          { label: "2. Chatbot", detail: "If a trigger word matches.", tone: "neutral" },
-          { label: "3. FAQ Bot", detail: "If a keyword matches.", tone: "neutral" },
-          { label: "4. AI Assistant", detail: "If nothing above did.", tone: "accent" },
+          { label: "1. Appointments", detail: "If the customer is mid-booking.", tone: "neutral", mark: "clock" },
+          { label: "2. Chatbot", detail: "If a trigger word matches.", tone: "neutral", mark: "bot" },
+          { label: "3. FAQ Bot", detail: "If a keyword matches.", tone: "neutral", mark: "question" },
+          { label: "4. AI Assistant", detail: "If nothing above did.", tone: "accent", mark: "sparkles" },
         ],
       },
       {

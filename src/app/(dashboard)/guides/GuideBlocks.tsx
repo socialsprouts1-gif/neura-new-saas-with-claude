@@ -1,5 +1,53 @@
-import { AlertTriangle, ArrowRight, Check, X } from "lucide-react";
-import type { Block } from "@/lib/guides";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Ban,
+  Bot,
+  Check,
+  CircleHelp,
+  Clock,
+  Inbox,
+  Lock,
+  Send,
+  Sparkles,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import BrandLogo from "@/components/ui/BrandLogo";
+import type { Block, LaneMark } from "@/lib/guides";
+
+/**
+ * The glyph a flow box wears.
+ *
+ * WhatsApp is the real mark in its own green, not a generic speech
+ * bubble — half of what these diagrams explain is a WhatsApp rule, and
+ * the box that says "the customer writes to you" should look like the
+ * app they write from.
+ */
+const LANE_ICONS: Record<Exclude<LaneMark, "whatsapp">, LucideIcon> = {
+  inbox: Inbox,
+  bot: Bot,
+  sparkles: Sparkles,
+  clock: Clock,
+  lock: Lock,
+  send: Send,
+  check: Check,
+  ban: Ban,
+  question: CircleHelp,
+};
+
+function LaneMarkIcon({ mark, tint }: { mark: LaneMark; tint: string }) {
+  if (mark === "whatsapp") return <BrandLogo slug="whatsapp" brand="#25D366" size={22} />;
+  const Icon = LANE_ICONS[mark];
+  return (
+    <span
+      className="w-[22px] h-[22px] rounded-md flex items-center justify-center flex-shrink-0"
+      style={{ background: `color-mix(in oklab, ${tint} 16%, transparent)` }}
+    >
+      <Icon className="w-3.5 h-3.5" style={{ color: tint }} />
+    </span>
+  );
+}
 
 // How a guide renders.
 //
@@ -14,11 +62,31 @@ import type { Block } from "@/lib/guides";
 // runtime would — and they stay legible when the page is printed or the
 // browser text is scaled up.
 
-const TONE: Record<string, { ring: string; text: string; dot: string }> = {
-  neutral: { ring: "border-white/12 bg-white/4", text: "text-white/80", dot: "bg-white/25" },
-  accent: { ring: "border-accent/30 bg-accent/8", text: "text-white", dot: "bg-accent" },
-  good: { ring: "border-accent/30 bg-accent/8", text: "text-white", dot: "bg-accent" },
-  bad: { ring: "border-red-400/30 bg-red-500/8", text: "text-white", dot: "bg-red-400" },
+const TONE: Record<string, { ring: string; text: string; dot: string; tint: string }> = {
+  neutral: {
+    ring: "border-white/12 bg-white/4",
+    text: "text-white/80",
+    dot: "bg-white/25",
+    tint: "var(--color-white)",
+  },
+  accent: {
+    ring: "border-accent/30 bg-accent/8",
+    text: "text-white",
+    dot: "bg-accent",
+    tint: "var(--accent)",
+  },
+  good: {
+    ring: "border-accent/30 bg-accent/8",
+    text: "text-white",
+    dot: "bg-accent",
+    tint: "var(--accent)",
+  },
+  bad: {
+    ring: "border-red-400/30 bg-red-500/8",
+    text: "text-white",
+    dot: "bg-red-400",
+    tint: "#F87171",
+  },
 };
 
 export default function GuideBlock({ block }: { block: Block }) {
@@ -47,8 +115,12 @@ export default function GuideBlock({ block }: { block: Block }) {
                   <div
                     className={`flex-1 min-w-0 rounded-2xl border p-4 ${tone.ring}`}
                   >
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tone.dot}`} />
+                    <div className="flex items-center gap-2.5 mb-2">
+                      {lane.mark ? (
+                        <LaneMarkIcon mark={lane.mark} tint={tone.tint} />
+                      ) : (
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${tone.dot}`} />
+                      )}
                       <span className={`text-[14px] font-semibold leading-snug ${tone.text}`}>
                         {lane.label}
                       </span>
