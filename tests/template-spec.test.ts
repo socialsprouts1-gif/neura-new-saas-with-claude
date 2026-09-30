@@ -7,6 +7,7 @@ import {
   normaliseName,
   validateTemplate,
   variablesIn,
+  namedVariablesIn,
   type TemplateSpec,
 } from "../src/lib/template-spec.ts";
 
@@ -264,4 +265,34 @@ test("specFromRow falls back when the stored header format is junk", () => {
 
   assert.equal(restored.headerFormat, "NONE");
   assert.equal(restored.category, "UTILITY");
+});
+
+// --- named variables -------------------------------------------------------
+// This builder submits positional examples only. A name typed in by hand
+// would go to Meta undeclared and come back as a bare "Invalid parameter".
+
+test("namedVariablesIn picks out the placeholders that are not numbers", () => {
+  assert.deepEqual(namedVariablesIn("Hi {{customer_name}} and {{1}}"), ["customer_name"]);
+  assert.deepEqual(namedVariablesIn("{{1}} {{2}}"), []);
+  assert.deepEqual(namedVariablesIn("{{a}}", "{{b}}", undefined), ["a", "b"]);
+  assert.deepEqual(namedVariablesIn("{{a}} then {{a}}"), ["a"]);
+  assert.deepEqual(namedVariablesIn("{{}} {{   }}"), []);
+});
+
+test("a named variable typed into the builder is refused by name, not by Meta", () => {
+  const errors = errorsFor({ body: "Hi {{customer_name}}, welcome.", samples: ["Vivek"] });
+  assert.match(errors.join(" "), /customer_name/);
+  assert.match(errors.join(" "), /numbered/i);
+});
+
+test("a named variable in the header or footer is caught too", () => {
+  assert.match(
+    errorsFor({ headerFormat: "TEXT", headerText: "Order {{order_id}}" }).join(" "),
+    /order_id/
+  );
+  assert.match(errorsFor({ footer: "Bye {{name}}" }).join(" "), /name/);
+});
+
+test("an ordinary numbered template is not caught by the named check", () => {
+  assert.equal(validateTemplate(spec()).ok, true);
 });

@@ -54,6 +54,25 @@ export function variablesIn(text: string): number[] {
 }
 
 /**
+ * The placeholders here that are not numbers.
+ *
+ * Meta supports named variables, but declaring them at creation takes a
+ * different example shape (bodyTextNamedParams) than this builder sends.
+ * Rather than half-support them, they are caught and named.
+ */
+export function namedVariablesIn(...texts: (string | undefined)[]): string[] {
+  const found: string[] = [];
+  for (const text of texts) {
+    for (const match of (text ?? "").matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)) {
+      const token = match[1].trim();
+      if (!token || /^\d+$/.test(token) || found.includes(token)) continue;
+      found.push(token);
+    }
+  }
+  return found;
+}
+
+/**
  * A template name Meta will take: lowercase, digits and underscores only.
  *
  * Normalising rather than refusing, because "Order Update" is what a person
@@ -99,6 +118,18 @@ export function validateTemplate(spec: TemplateSpec): Validation {
   // rejects it every time.
   if (body && body.replace(/\{\{\s*\d+\s*\}\}/g, "").trim().length === 0) {
     errors.push("The body cannot be only variables — it needs words around them.");
+  }
+
+  // This builder submits positional variables — {{1}}, {{2}} — and
+  // declares its examples in that shape. A named one typed in by hand
+  // ({{customer_name}}, which is what WhatsApp Manager offers) would be
+  // submitted with no example against it and refused by Meta with a bare
+  // "Invalid parameter" that names nothing. Say which word is the problem
+  // instead.
+  for (const named of namedVariablesIn(body, spec.headerText, spec.footer)) {
+    errors.push(
+      `Use a numbered variable rather than {{${named}}} — press Add variable and this builder inserts {{1}}, {{2}} in order. Templates written in WhatsApp Manager can use names; ones created here cannot.`
+    );
   }
 
   const bodyVariables = variablesIn(body);

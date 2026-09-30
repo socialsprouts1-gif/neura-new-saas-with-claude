@@ -23,7 +23,6 @@ import {
   buildComponents,
   normaliseName,
   validateTemplate,
-  variablesIn,
   type ButtonSpec,
   type TemplateSpec,
 } from "@/lib/template-spec";
@@ -33,6 +32,7 @@ import {
   storableHeaderFormat,
   resolveTemplateShape,
 } from "@/lib/template-unpack";
+import { variableCount } from "@/lib/template-variables";
 import { normaliseWaId } from "@/lib/audience";
 import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
 import type { ActionResult } from "./actions";
@@ -662,7 +662,7 @@ export async function createCampaign(input: {
   // counted zero on a template synced from WhatsApp Manager, so nobody
   // was ever asked — and the send then failed for every recipient.
   const shape = resolveTemplateShape(template);
-  const needed = variablesIn(shape.bodyText).length;
+  const needed = variableCount(shape.bodyText);
   const filled = input.variables.filter((value) => value.trim()).length;
   if (filled < needed) {
     return { ok: false, error: `This template needs ${needed} variable value(s).` };

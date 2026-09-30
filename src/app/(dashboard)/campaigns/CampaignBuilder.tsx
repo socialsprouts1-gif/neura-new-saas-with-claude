@@ -23,7 +23,7 @@ import {
   syncTemplates,
   type Audience,
 } from "@/app/(dashboard)/campaign-actions";
-import { fillVariables, variablesIn } from "@/lib/template-spec";
+import { templateVariables, fillTemplateText } from "@/lib/template-variables";
 import {
   parseCsv,
   parseNumberList,
@@ -107,7 +107,11 @@ export default function CampaignBuilder({
   >([]);
 
   const template = templates.find((option) => option.id === templateId) ?? null;
-  const slots = useMemo(() => variablesIn(template?.body_text ?? ""), [template]);
+  // Named as well as positional. Counting only digits showed no boxes at
+  // all for a template written as "Hi {{customer_name}}", so the campaign
+  // could not be filled in correctly even by somebody who knew it needed
+  // a value — and then failed for every recipient.
+  const slots = useMemo(() => templateVariables(template?.body_text ?? ""), [template]);
 
   // Meta's review is the normal state of a template someone just made, and
   // a builder that refuses to proceed during it is the reason campaigns
@@ -343,10 +347,19 @@ export default function CampaignBuilder({
                     {slots.length === 1 ? "" : "s"}. Everyone receives the same values.
                   </p>
                   {slots.map((slot, index) => (
-                    <div key={slot} className="flex items-center gap-2">
-                      <span className="text-[12px] font-mono text-accent2-ink w-12 shrink-0">
+                    <div key={slot.token} className="flex items-center gap-2">
+                      {/* A named placeholder needs its whole name shown —
+                          "customer_name" is the label the person filling
+                          this in recognises, and truncating it to the
+                          width of "{{1}}" would hide which is which. */}
+                      <span
+                        className={`text-[12px] font-mono text-accent2-ink shrink-0 ${
+                          slot.named ? "min-w-32 max-w-48 truncate" : "w-12"
+                        }`}
+                        title={`{{${slot.token}}}`}
+                      >
                         {"{{"}
-                        {slot}
+                        {slot.token}
                         {"}}"}
                       </span>
                       <input
@@ -356,7 +369,7 @@ export default function CampaignBuilder({
                           next[index] = event.target.value;
                           setVariables(next);
                         }}
-                        placeholder="Value"
+                        placeholder={slot.named ? slot.token.replace(/_/g, " ") : "Value"}
                         className={input}
                       />
                     </div>
@@ -369,11 +382,11 @@ export default function CampaignBuilder({
                   <div className="rounded-lg bg-[#1F2C34] p-3 max-w-sm">
                     {template.header_text && (
                       <div className="text-sm font-semibold mb-1.5">
-                        {fillVariables(template.header_text, variables)}
+                        {fillTemplateText(template.header_text, variables)}
                       </div>
                     )}
                     <p className="text-sm text-white/90 whitespace-pre-wrap leading-relaxed">
-                      {fillVariables(template.body_text ?? "", variables)}
+                      {fillTemplateText(template.body_text ?? "", variables)}
                     </p>
                     {template.footer_text && (
                       <p className="text-[12px] text-white/40 mt-2">{template.footer_text}</p>

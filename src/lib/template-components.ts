@@ -13,7 +13,7 @@
 // every recipient, which looks from the outside like "campaigns do not
 // work" rather than "this template needs its picture".
 
-import { variablesIn } from "./template-spec.ts";
+import { templateVariables, templateParameter } from "./template-variables.ts";
 import type { MetaTemplateComponent } from "@/lib/meta-whatsapp";
 
 export type HeaderFormat = "NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT";
@@ -79,14 +79,11 @@ export function buildTemplateComponents(
   } else if (format === "TEXT") {
     // A text header may carry one variable. Meta numbers header and body
     // variables separately, so its {{1}} is not the body's {{1}}.
-    const slots = variablesIn(template.headerText ?? "").length;
-    if (slots > 0) {
+    const slots = templateVariables(template.headerText ?? "");
+    if (slots.length > 0) {
       components.push({
         type: "header",
-        parameters: Array.from({ length: slots }, (_, index) => ({
-          type: "text",
-          text: variables[index]?.trim() || " ",
-        })),
+        parameters: slots.map((slot, index) => templateParameter(slot, variables[index])),
       });
     }
   }
@@ -95,14 +92,14 @@ export function buildTemplateComponents(
   // that consumed some would make this wrong, but Meta allows exactly one
   // header variable and the builder stores body values separately, so the
   // list is the body's own.
-  const bodySlots = variablesIn(template.bodyText ?? "").length;
-  if (bodySlots > 0) {
+  // Named or positional, whichever the template declares. Counting only
+  // digits here read "Hi {{customer_name}}" as having no variables, so
+  // no body component was built at all and Meta refused the message.
+  const bodySlots = templateVariables(template.bodyText ?? "");
+  if (bodySlots.length > 0) {
     components.push({
       type: "body",
-      parameters: Array.from({ length: bodySlots }, (_, index) => ({
-        type: "text",
-        text: variables[index]?.trim() || " ",
-      })),
+      parameters: bodySlots.map((slot, index) => templateParameter(slot, variables[index])),
     });
   }
 

@@ -12,7 +12,10 @@ import {
   statusTone,
 } from "@/components/ui/primitives";
 import { formatDate } from "@/types/admin";
-import { variablesIn } from "@/lib/template-spec";
+// Named or positional — a template made in WhatsApp Manager usually uses
+// {{customer_name}}, and counting only digits showed it as having none.
+import { variableCount } from "@/lib/template-variables";
+import { resolveTemplateShape } from "@/lib/template-unpack";
 import { TemplateToolbar, DeleteTemplateButton, EditTemplateButton } from "./TemplateToolbar";
 
 export default async function TemplatesPage() {
@@ -84,7 +87,10 @@ export default async function TemplatesPage() {
       ) : all.length > 0 ? (
         <Table head={["Name", "Account", "Preview", "Category", "Language", "Status", "Created", ""]}>
           {all.map((template) => {
-            const body = template.body_text ?? "";
+            // Meta's own copy first. A template written in WhatsApp
+            // Manager syncs with components_json full and body_text
+            // empty, so reading the column showed the row as blank.
+            const body = resolveTemplateShape(template).bodyText;
             return (
               <tr key={template.id} className="hover:bg-white/3 transition-colors align-top">
                 <Td>
@@ -115,10 +121,10 @@ export default async function TemplatesPage() {
                   <span className="line-clamp-2">
                     {body || <span className="text-white/25">Created in WhatsApp Manager</span>}
                   </span>
-                  {variablesIn(body).length > 0 && (
+                  {variableCount(body) > 0 && (
                     <span className="block text-[12px] text-white/35 mt-1">
-                      {variablesIn(body).length} variable
-                      {variablesIn(body).length === 1 ? "" : "s"}
+                      {variableCount(body)} variable
+                      {variableCount(body) === 1 ? "" : "s"}
                     </span>
                   )}
                 </Td>
