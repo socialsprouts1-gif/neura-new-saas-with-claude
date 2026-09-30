@@ -11,6 +11,8 @@ import {
   MetaApiError,
 } from "@/lib/meta-whatsapp";
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
+import { recordOutboundTemplate } from "@/lib/outbound-log";
+import { fillTemplateText } from "@/lib/template-variables";
 
 // Draining the campaign queue.
 //
@@ -111,6 +113,31 @@ export async function dispatchDueCampaigns(): Promise<DispatchResult> {
           error: null,
         })
         .eq("id", recipient.id);
+
+      // And into the inbox. Until this was here, a campaign to twenty
+      // people wrote twenty rows into campaign_recipients — which only the
+      // Campaigns page reads — and nothing into conversations or messages,
+      // so the inbox showed no trace of any of it. The only threads that
+      // appeared were the ones where somebody wrote back, because an
+      // inbound message goes through the webhook, which does create the
+      // contact and the thread. The product could show you the reply to a
+      // message it could not show you sending.
+      //
+      // After the send, deliberately: the message is already with the
+      // customer, so a logging failure must never be reported as a send
+      // failure or a retry would deliver it to them twice.
+      await recordOutboundTemplate(supabase, {
+        orgId: recipient.org_id,
+        connectionId: context.connectionId,
+        waId,
+        contactName: context.contactNames.get(waId) ?? null,
+        templateName: context.templateName,
+        language: context.language,
+        body: context.previewBody,
+        source: context.campaignName,
+        waMessageId: result.messages[0]?.id ?? null,
+      });
+
       sent += 1;
     } catch (sendError) {
       await markFailed(
@@ -151,7 +178,7 @@ async function markFailed(supabase: Admin, id: string, reason: string) {
 async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: number) {
   const { data: campaign } = await supabase
     .from("campaigns")
-    .select("id, org_id, status, template_id, variables, connection_id")
+    .select("id, name, org_id, status, template_id, variables, connection_id")
     .eq("id", campaignId)
     .maybeSingle();
 
@@ -221,8 +248,11 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
     .map((row) => row.contact_id)
     .filter((id): id is string => Boolean(id));
 
+  // Names come back with the numbers now: a new thread created by a
+  // campaign would otherwise be titled with a bare phone number even when
+  // the imported audience knew who it was.
   const { data: contacts } = contactIds.length
-    ? await supabase.from("contacts").select("id, wa_id").in("id", contactIds)
+    ? await supabase.from("contacts").select("id, wa_id, name").in("id", contactIds)
     : { data: [] };
 
   // header_format was read here and thrown away, so a template with an
@@ -239,7 +269,8 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
   // declaring none and sent no parameters — Meta refused every recipient
   // with 132000. Reading what Meta returned means that is right whether
   // or not the columns have been repaired.
-  const built = buildTemplateComponents(resolveTemplateShape(template), variables);
+  const shape = resolveTemplateShape(template);
+  const built = buildTemplateComponents(shape, variables);
 
   // Stopped before a single recipient is touched. campaign_recipients has
   // no un-fail, so burning the audience on a fault that is the same for
@@ -250,12 +281,23 @@ async function loadSendContext(supabase: Admin, campaignId: string, stepIndex: n
   return {
     ok: true as const,
     campaignStatus: campaign.status,
+    campaignName: campaign.name ?? undefined,
+    connectionId: connection.id,
     phoneNumberId: connection.phoneNumberId,
     accessToken,
     templateName: template.name,
     language: template.language,
     components: built.components,
+    // What the recipient actually reads, variables filled in. Stored with
+    // the message so the inbox can show the sentence months later, when
+    // the template itself may have been edited or deleted.
+    previewBody: fillTemplateText(shape.bodyText, variables),
     contactNumbers: new Map((contacts ?? []).map((contact) => [contact.id, contact.wa_id])),
+    contactNames: new Map(
+      (contacts ?? [])
+        .filter((contact) => contact.name)
+        .map((contact) => [contact.wa_id, contact.name as string])
+    ),
   };
 }
 

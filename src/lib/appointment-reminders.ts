@@ -5,6 +5,7 @@ import { durationLabel, readSettings, zonedDateLabel, zonedTimeLabel } from "@/l
 import { fillTemplate } from "@/lib/booking-dialogue";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { findContactConversation } from "@/lib/contact-conversation";
+import { recordOutboundTemplate } from "@/lib/outbound-log";
 import {
   MetaApiError,
   describeMetaError,
@@ -209,16 +210,22 @@ async function remindOne(
         connection.accessToken
       );
 
-      if (conversation) {
-        await supabase.from("messages").insert({
-          conversation_id: conversation.id,
-          direction: "outbound",
-          type: "template",
-          content: { template: row.reminder_template, parameters: [values.date, values.time] },
-          wa_message_id: sent.messages[0]?.id ?? null,
-          status: "sent",
-        });
-      }
+      // Stored under `template`, which nothing reads — the inbox looks for
+      // `template_name` and showed this as a bare "[template]". And logged
+      // only when a thread already existed, so a reminder to somebody who
+      // has never written in went out and left no trace at all. Both are
+      // the campaign bug in miniature, so both use the same helper.
+      await recordOutboundTemplate(supabase, {
+        orgId: meeting.org_id,
+        connectionId: connection.id,
+        waId: contact.wa_id,
+        contactName: contact.name,
+        templateName: row.reminder_template,
+        language: row.reminder_template_language || "en",
+        body: `Reminder: ${values.service} on ${values.date} at ${values.time}`,
+        source: "Appointment reminder",
+        waMessageId: sent.messages[0]?.id ?? null,
+      });
 
       await stamp(supabase, meeting.id, sent.messages[0]?.id ?? null);
       return { status: "sent", reason: "" };

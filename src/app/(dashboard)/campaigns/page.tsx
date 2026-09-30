@@ -19,7 +19,12 @@ import {
   isAccountWide,
   type FailedRecipient,
 } from "@/lib/campaign-failures";
-import { NewCampaignButton, CampaignRowActions, SendQueuedButton } from "./CampaignToolbar";
+import {
+  NewCampaignButton,
+  CampaignRowActions,
+  SendQueuedButton,
+  BackfillInboxButton,
+} from "./CampaignToolbar";
 import type { TemplateOption } from "./CampaignBuilder";
 
 export default async function CampaignsPage({
@@ -149,6 +154,7 @@ export default async function CampaignsPage({
         subtitle="Send an approved template to a list of people, once or as a drip."
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <BackfillInboxButton />
             <SendQueuedButton />
             <NewCampaignButton
               templates={options}

@@ -9,6 +9,9 @@ import ConversationList, {
 } from "./ConversationList";
 import Thread, { type ThreadMessage } from "./Thread";
 import type { LeadStage } from "@/types/portal";
+// Shared with the copilot, which had its own copy. The two had already
+// drifted — one could read a template message and the other could not.
+import { renderMessageBody, renderButtons } from "@/lib/message-preview";
 
 // WhatsApp only delivers free-form replies within 24 hours of the customer's
 // last inbound message. Outside it, only an approved template goes through.
@@ -20,34 +23,6 @@ function isWindowOpen(lastInboundAt: string | null): boolean {
   return Date.now() - Date.parse(lastInboundAt) < SERVICE_WINDOW_MS;
 }
 
-// The message body is stored as the raw type-specific payload Meta sent, so
-// rendering has to cope with more than plain text.
-function renderBody(type: string, content: Record<string, unknown>): string {
-  if (type === "text") return String(content.body ?? "");
-  if (type === "template") return `Template: ${String(content.template_name ?? "—")}`;
-  if (type === "image" || type === "video" || type === "document" || type === "audio") {
-    const caption = content.caption ? ` — ${String(content.caption)}` : "";
-    return `[${type}]${caption}`;
-  }
-  if (type === "interactive" || type === "button") {
-    const c = content as {
-      body?: string;
-      button_reply?: { title?: string };
-      list_reply?: { title?: string };
-    };
-    // Inbound: the customer tapped a button, so the title is the message.
-    // Outbound: we sent the buttons, so the body is.
-    return String(c.button_reply?.title ?? c.list_reply?.title ?? c.body ?? "[interactive]");
-  }
-  return `[${type}]`;
-}
-
-/** Quick-reply buttons the bot attached, in the {id, title} shape Meta took. */
-function renderButtons(content: Record<string, unknown>): string[] {
-  const buttons = (content as { buttons?: Array<{ title?: string }> }).buttons;
-  if (!Array.isArray(buttons)) return [];
-  return buttons.map((button) => button?.title).filter((title): title is string => Boolean(title));
-}
 
 export default async function InboxPage({
   searchParams,
@@ -126,7 +101,7 @@ export default async function InboxPage({
   const previews = new Map<string, string>();
   for (const message of recent ?? []) {
     if (!previews.has(message.conversation_id)) {
-      previews.set(message.conversation_id, renderBody(message.type, message.content));
+      previews.set(message.conversation_id, renderMessageBody(message.type, message.content));
     }
   }
 
@@ -293,7 +268,7 @@ export default async function InboxPage({
   const threadMessages: ThreadMessage[] = (messages ?? []).map((message) => ({
     id: message.id,
     direction: message.direction as "inbound" | "outbound",
-    body: renderBody(message.type, message.content),
+    body: renderMessageBody(message.type, message.content),
     buttons: message.direction === "outbound" ? renderButtons(message.content) : [],
     status: message.status,
     createdAt: message.created_at,

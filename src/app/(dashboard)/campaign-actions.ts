@@ -35,6 +35,7 @@ import {
 import { variableCount } from "@/lib/template-variables";
 import { normaliseWaId } from "@/lib/audience";
 import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
+import { backfillCampaignInbox } from "@/lib/campaign-backfill";
 import type { ActionResult } from "./actions";
 import type { Database, TemplateCategory, TemplateStatus } from "@/types/database";
 
@@ -1019,5 +1020,46 @@ export async function sendQueuedNow(): Promise<ActionResult & { sent?: number }>
       result.failed > 0
         ? `Sent ${result.sent}, ${result.failed} failed — open the campaign to see why.`
         : `Sent ${result.sent}. Press again if more are queued.`,
+  };
+}
+
+/**
+ * Puts campaigns that already went out into the inbox.
+ *
+ * Sends made before the dispatcher started logging them are in
+ * campaign_recipients and nowhere the inbox reads, so the messages reached
+ * real people and left no thread behind. This recovers them from the
+ * delivery ledger.
+ *
+ * Safe to press twice: a recipient whose Meta message id is already in the
+ * messages table is skipped.
+ */
+export async function addSentCampaignsToInbox(): Promise<ActionResult & { added?: number }> {
+  const { orgId, role } = await requireOrg();
+  if (role !== "owner" && role !== "admin") {
+    return { ok: false, error: "Only owners and admins can rebuild the inbox." };
+  }
+
+  const result = await backfillCampaignInbox(orgId);
+
+  revalidatePath("/campaigns");
+  revalidatePath("/inbox");
+
+  if (result.scanned === 0) {
+    return { ok: true, message: "No campaign has sent anything yet." };
+  }
+
+  if (result.added === 0) {
+    const unmatched =
+      result.unmatchable > 0
+        ? ` ${result.unmatchable} older send${result.unmatchable === 1 ? "" : "s"} had no WhatsApp message id, so ${result.unmatchable === 1 ? "it" : "they"} could not be matched safely.`
+        : "";
+    return { ok: true, message: `Every campaign send is already in the inbox.${unmatched}` };
+  }
+
+  return {
+    ok: true,
+    added: result.added,
+    message: `Added ${result.added} campaign message${result.added === 1 ? "" : "s"} to the inbox.`,
   };
 }

@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Loader2, Play, Plus, Send, Trash2 } from "lucide-react";
+import { Ban, Inbox, Loader2, Play, Plus, Send, Trash2 } from "lucide-react";
 import {
+  addSentCampaignsToInbox,
   deleteCampaign,
   sendQueuedNow,
   setCampaignStatus,
@@ -134,6 +135,43 @@ export function SendQueuedButton() {
       >
         {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         Send queued now
+      </button>
+    </span>
+  );
+}
+
+/**
+ * Puts campaigns that already sent into the inbox.
+ *
+ * Every send from here on writes its own thread. This is for the ones
+ * that went out before it did — they reached real people and left no
+ * record anywhere the inbox reads, which looked exactly like the campaign
+ * never having sent. Quiet, because it is a one-off for most workspaces,
+ * and safe to press twice.
+ */
+export function BackfillInboxButton() {
+  const router = useRouter();
+  const [note, setNote] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      {note && <span className="text-xs text-white/50 max-w-xs">{note}</span>}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await addSentCampaignsToInbox();
+            setNote(result.message ?? result.error ?? null);
+            router.refresh();
+          })
+        }
+        title="Adds campaigns that were sent before the inbox started recording them"
+        className="btn-quiet text-sm"
+      >
+        {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Inbox className="w-4 h-4" />}
+        Add sent to inbox
       </button>
     </span>
   );

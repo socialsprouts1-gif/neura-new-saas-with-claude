@@ -382,7 +382,12 @@ async function executeNode(
         [],
         connection.accessToken
       );
-      await logOutbound(context, "template", { template_name: name, language }, result.messages[0]?.id ?? null);
+      await logOutbound(
+        context,
+        "template",
+        { template_name: name, language, source: "Automation" },
+        result.messages[0]?.id ?? null
+      );
       return { variables, reply: `Template: ${name}` };
     }
 

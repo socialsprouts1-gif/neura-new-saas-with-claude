@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { plainMessageText } from "@/lib/message-preview";
 import { requireOrg } from "@/lib/org";
 import {
   analyzeConversation,
@@ -89,7 +90,7 @@ async function loadContext(
     .reverse()
     .map((message) => ({
       role: message.direction === "inbound" ? ("user" as const) : ("assistant" as const),
-      text: plainText(message.type, message.content),
+      text: plainMessageText(message.type, message.content),
     }))
     .filter((turn) => turn.text.trim());
 
@@ -129,21 +130,6 @@ async function loadContext(
   };
 }
 
-/** Message payloads are type-specific; the copilot only wants the words. */
-function plainText(type: string, content: Record<string, unknown>): string {
-  if (type === "text") return String(content.body ?? "");
-  if (type === "interactive" || type === "button") {
-    const c = content as {
-      body?: string;
-      button_reply?: { title?: string };
-      list_reply?: { title?: string };
-    };
-    return String(c.button_reply?.title ?? c.list_reply?.title ?? c.body ?? "");
-  }
-  if (type === "template") return `(template: ${String(content.template_name ?? "")})`;
-  const caption = content.caption ? String(content.caption) : "";
-  return caption ? `(${type}) ${caption}` : `(${type})`;
-}
 
 // --- copilot --------------------------------------------------------------
 
