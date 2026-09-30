@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
 import { isOrgRole, roleChangeBlocked } from "@/lib/member-role";
+import { readWelcome, welcomeProblem, writeWelcome } from "@/lib/signup-welcome";
 import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -383,6 +384,45 @@ export async function saveSignupRole(formData: FormData): Promise<ActionResult> 
  * kind of loss the raw JSON editor made possible and these forms exist to
  * prevent.
  */
+/**
+ * The WhatsApp welcome every new sign-up gets.
+ *
+ * A template, not free-form text: a person who has just signed up has
+ * never written in, so WhatsApp's 24-hour service window is shut and Meta
+ * refuses anything else. It goes out on the platform's own number,
+ * because at sign-up the customer has not connected one.
+ */
+export async function saveWelcomeMessage(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  // One control, not two dependent ones: the number carries its workspace
+  // with it, so there is no way to pick a number that belongs to a
+  // different workspace than the one selected.
+  const [orgId = "", connectionId = ""] = String(formData.get("sender") ?? "").split("|");
+
+  const settings = readWelcome({
+    enabled: formData.get("enabled") === "on",
+    org_id: orgId.trim(),
+    connection_id: connectionId.trim(),
+    template_name: String(formData.get("template_name") ?? "")
+      .trim()
+      .toLowerCase(),
+    language: String(formData.get("language") ?? "").trim(),
+    uses_name: formData.get("uses_name") === "on",
+  });
+
+  // Refused here rather than once per sign-up: a half-configured welcome
+  // is one Meta error for every new customer, and nobody would see them.
+  const problem = welcomeProblem(settings);
+  if (problem) return { ok: false, error: problem };
+
+  return mergeSetting(
+    "platform_whatsapp",
+    writeWelcome(settings),
+    settings.enabled ? "Welcome message saved and switched on." : "Welcome message saved."
+  );
+}
+
 async function mergeSetting(
   key: string,
   patch: Record<string, unknown>,

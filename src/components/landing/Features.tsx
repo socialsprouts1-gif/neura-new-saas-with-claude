@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import FeatureMark from "./FeatureMark";
 import {
   Bot,
   GitBranch,
@@ -22,6 +23,7 @@ const features = [
     color: "#7C3AED",
     bgColor: "rgba(124,58,237,0.1)",
     borderColor: "rgba(124,58,237,0.2)",
+    mark: "chatbot" as const,
     title: "AI Chatbot Builder",
     desc: "Train AI chatbots on your business data — FAQs, products, policies. Deploy multilingual bots with human handoff in minutes.",
     tags: ["GPT-4", "Claude", "Gemini"],
@@ -31,6 +33,7 @@ const features = [
     color: "#2563EB",
     bgColor: "rgba(37,99,235,0.1)",
     borderColor: "rgba(37,99,235,0.2)",
+    mark: "workflow" as const,
     title: "Visual Workflow Builder",
     desc: "Drag-and-drop automation builder. Create follow-up sequences, abandoned cart recovery, and onboarding flows without code.",
     tags: ["No-Code", "Zapier-like", "n8n"],
@@ -40,6 +43,7 @@ const features = [
     color: "#C026D3",
     bgColor: "rgba(192,38,211,0.1)",
     borderColor: "rgba(192,38,211,0.2)",
+    mark: "campaigns" as const,
     title: "Bulk Campaigns",
     desc: "Broadcast personalized messages to thousands. Schedule campaigns, segment audiences, track opens and conversions.",
     tags: ["Broadcast", "Scheduling", "Templates"],
@@ -49,6 +53,7 @@ const features = [
     color: "#B45309",
     bgColor: "rgba(180,83,9,0.1)",
     borderColor: "rgba(180,83,9,0.2)",
+    mark: "crm" as const,
     title: "Built-in CRM",
     desc: "Full lead pipeline with tags, notes, scores, and stages. AI predicts conversion probability for every lead.",
     tags: ["Pipeline", "Lead Scoring", "AI Insights"],
@@ -58,6 +63,7 @@ const features = [
     color: "#DB2777",
     bgColor: "rgba(219,39,119,0.1)",
     borderColor: "rgba(219,39,119,0.2)",
+    mark: "assistant" as const,
     title: "AI Sales Assistant",
     desc: "AI qualifies leads, recommends replies, summarizes conversations, and detects purchase intent in real time.",
     tags: ["Intent Detection", "Reply AI", "Summaries"],
@@ -67,6 +73,7 @@ const features = [
     color: "#2563EB",
     bgColor: "rgba(37,99,235,0.1)",
     borderColor: "rgba(37,99,235,0.2)",
+    mark: "analytics" as const,
     title: "Analytics Dashboard",
     desc: "Real-time insights on response rates, conversion, revenue, campaign performance, and chatbot effectiveness.",
     tags: ["Real-time", "Revenue", "Funnels"],
@@ -76,6 +83,7 @@ const features = [
     color: "#7C3AED",
     bgColor: "rgba(124,58,237,0.1)",
     borderColor: "rgba(124,58,237,0.2)",
+    mark: "commerce" as const,
     title: "WhatsApp Commerce",
     desc: "Product catalogs, order tracking, payment links, automated invoices, and COD support directly in WhatsApp.",
     tags: ["Shopify", "WooCommerce", "Payments"],
@@ -85,6 +93,7 @@ const features = [
     color: "#C026D3",
     bgColor: "rgba(192,38,211,0.1)",
     borderColor: "rgba(192,38,211,0.2)",
+    mark: "content" as const,
     title: "AI Content Generator",
     desc: "Generate marketing messages, sales copy, follow-up scripts, and campaign hooks with AI — tailored to your brand.",
     tags: ["Copywriting", "Templates", "Brand Voice"],
@@ -94,6 +103,7 @@ const features = [
     color: "#B45309",
     bgColor: "rgba(180,83,9,0.1)",
     borderColor: "rgba(180,83,9,0.2)",
+    mark: "integrations" as const,
     title: "Powerful Integrations",
     desc: "Connect to Shopify, HubSpot, Stripe, Calendly, Google Sheets, Zapier, Slack, and WhatsApp Cloud API natively.",
     tags: ["Zapier", "Stripe", "HubSpot"],
@@ -103,6 +113,7 @@ const features = [
     color: "#2563EB",
     bgColor: "rgba(37,99,235,0.1)",
     borderColor: "rgba(37,99,235,0.2)",
+    mark: "whitelabel" as const,
     title: "White Label",
     desc: "Agencies can white-label the entire platform — custom domains, branding, client workspaces, and reseller billing.",
     tags: ["Agencies", "Custom Domain", "Resell"],
@@ -112,6 +123,7 @@ const features = [
     color: "#DB2777",
     bgColor: "rgba(219,39,119,0.1)",
     borderColor: "rgba(219,39,119,0.2)",
+    mark: "voice" as const,
     title: "AI Voice Agent",
     desc: "Understand voice notes, respond with text-to-speech, and handle multilingual voice conversations automatically.",
     tags: ["STT", "TTS", "Multilingual"],
@@ -121,6 +133,7 @@ const features = [
     color: "#7C3AED",
     bgColor: "rgba(124,58,237,0.1)",
     borderColor: "rgba(124,58,237,0.2)",
+    mark: "booking" as const,
     title: "Appointment Booking",
     desc: "Let AI schedule, confirm, and remind clients of appointments. Integrated with Calendly and Google Calendar.",
     tags: ["Calendly", "Reminders", "AI Scheduling"],
@@ -173,13 +186,10 @@ export default function Features() {
               />
 
               <div className="relative">
-                {/* Icon */}
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                  style={{ background: feat.bgColor, border: `1px solid ${feat.borderColor}` }}
-                >
-                  <feat.icon className="w-6 h-6" style={{ color: feat.color }} />
-                </div>
+                {/* A real mark, not a thin outline on a 10%-alpha square.
+                    Twelve of those read as one icon set with the colour
+                    turned down; these are shaped around what they name. */}
+                <FeatureMark name={feat.mark} size={52} className="mb-5" />
 
                 {/* Title & desc */}
                 <h3 className="text-lg font-semibold mb-2 group-hover:text-white transition-colors">

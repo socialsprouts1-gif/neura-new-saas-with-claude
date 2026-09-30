@@ -31,6 +31,14 @@ export interface BrandContent {
   siteTitle: string;
   /** Meta description, and the card text when a link is shared. */
   siteDescription: string;
+  /**
+   * The number the "chat with us" button on the site opens.
+   *
+   * Written however it is said — 8767512569, +91 87675 12569 — and
+   * normalised at the link. Empty hides the button rather than rendering
+   * one that opens WhatsApp on an error.
+   */
+  whatsappNumber: string;
 }
 
 export interface HeroContent {
@@ -64,6 +72,7 @@ export const DEFAULT_BRAND: BrandContent = {
   siteTitle: "Neura Chat — AI-Powered WhatsApp Automation Platform",
   siteDescription:
     "Automate customer support, lead generation, sales, follow-ups, and engagement with AI-powered WhatsApp workflows.",
+  whatsappNumber: "8767512569",
 };
 
 export const DEFAULT_HERO: HeroContent = {
@@ -73,7 +82,10 @@ export const DEFAULT_HERO: HeroContent = {
   subheadline:
     "Automate customer support, lead generation, sales follow-ups, and marketing campaigns with AI-powered WhatsApp workflows. No code required.",
   pills: ["AI Chatbots", "Bulk Campaigns", "CRM Built-in", "Auto Follow-ups", "Analytics"],
-  primaryCta: { label: "Start Free Trial", href: "/auth/register" },
+  // Not "Start Free Trial". The trial is what every sign-up gets anyway,
+  // so a button promising it sent people who were ready to pay into a
+  // fourteen-day holding pattern instead of to a payment window.
+  primaryCta: { label: "Choose a plan", href: "/#pricing" },
   secondaryCta: { label: "Watch Demo", href: "#how-it-works" },
   // Off until there are real numbers to show. A customer count, a star
   // rating and a message total are all claims a buyer can check, and being

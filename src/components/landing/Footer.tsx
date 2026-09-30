@@ -34,8 +34,8 @@ export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent
               AI handle the repetitive half of every conversation.
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Link href="/auth/register" className="btn-primary px-8 py-3.5">
-                Start Free Trial
+              <Link href="/#pricing" className="btn-primary px-8 py-3.5">
+                Choose a plan
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link href="#" className="btn-secondary px-8 py-3.5">

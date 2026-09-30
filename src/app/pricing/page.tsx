@@ -3,6 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Pricing from "@/components/landing/Pricing";
 import FAQ from "@/components/landing/FAQ";
 import Footer from "@/components/landing/Footer";
+import WhatsAppFloat from "@/components/landing/WhatsAppFloat";
 
 // Same content and the same prices as the section on the home page, loaded
 // the same way. This page used to render Pricing with no props at all, so it
@@ -18,10 +19,15 @@ export default async function PricingPage() {
     <main className="marketing marketing-canvas">
       <Navbar brand={content.brand} />
       <div className="pt-[70px]">
-        <Pricing tiers={pricing.tiers} trialDays={pricing.trialDays} />
+        <Pricing
+          tiers={pricing.tiers}
+          trialDays={pricing.trialDays}
+          salesNumber={content.brand.whatsappNumber}
+        />
         <FAQ />
         <Footer brand={content.brand} />
       </div>
+      <WhatsAppFloat number={content.brand.whatsappNumber} />
     </main>
   );
 }

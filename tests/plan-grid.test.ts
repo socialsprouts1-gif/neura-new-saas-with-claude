@@ -10,6 +10,7 @@ import {
 
 const plan = (over: Partial<PlanOption>): PlanOption => ({
   id: "p",
+  slug: "starter",
   name: "Starter",
   description: null,
   priceCents: 100000,

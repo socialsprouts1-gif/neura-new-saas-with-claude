@@ -63,12 +63,17 @@ export default function BrandWordmark({
         <Image
           src={brand.logoUrl}
           alt={brandName(brand)}
-          width={size}
+          // Sized for the widest a logo is likely to be, then constrained
+          // by the style below. Next needs numbers here; what is rendered
+          // is what the style says.
+          width={size * 4}
           height={size}
-          // Uploaded art is any shape; contain keeps a wide logo from being
-          // cropped into a square.
-          className="object-contain"
-          style={{ width: size, height: size }}
+          // Height-locked, width free. Forcing an uploaded file into a
+          // square letterboxed every wide lockup — a logo with the name in
+          // it came out a few pixels tall inside a box of empty space, and
+          // looked nothing like the file that was uploaded.
+          className="object-contain object-left"
+          style={{ height: size, width: "auto", maxWidth: size * 5 }}
           unoptimized
         />
       ) : (

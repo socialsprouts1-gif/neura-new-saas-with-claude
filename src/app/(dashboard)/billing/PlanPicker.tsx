@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -22,6 +22,7 @@ import {
   type PlanOption,
 } from "@/lib/plan-grid";
 import { startModalCheckout, cancelSubscription } from "../checkout-actions";
+import { PLAN_PARAM, planFromParam } from "@/lib/plan-checkout";
 
 /**
  * A mark per tier, escalating with it.
@@ -75,9 +76,24 @@ export default function PlanPicker({
   // Opens on whichever interval the workspace is already paying for, so
   // somebody on an annual plan is not shown monthly prices next to their
   // own plan and left to work out why the numbers disagree.
-  const [interval, setInterval] = useState<PlanInterval>(() =>
-    plans.find((plan) => plan.isCurrent)?.interval === "yearly" ? "yearly" : "monthly"
+  const params = useSearchParams();
+
+  // Arrived from "Choose plan" on the public site, so the payment window
+  // opens on its own rather than making somebody pick the same plan twice.
+  // The slug is checked against the plans that exist before it is used —
+  // it comes from a link anyone can edit and it decides what is charged.
+  const requested = useMemo(
+    () => planFromParam(params.get(PLAN_PARAM), plans.map((plan) => plan.slug)),
+    [params, plans]
   );
+
+  const [interval, setInterval] = useState<PlanInterval>(() => {
+    // The plan they arrived to buy wins over the one they already have:
+    // the card behind the payment window should be the one being paid for.
+    const arriving = requested ? plans.find((plan) => plan.slug === requested) : null;
+    const settled = plans.find((plan) => plan.isCurrent);
+    return (arriving ?? settled)?.interval === "yearly" ? "yearly" : "monthly";
+  });
 
   const hasYearly = tiers.some((tier) => tier.yearly);
   const bestSaving = Math.max(0, ...tiers.map((tier) => yearlySaving(tier) ?? 0));
@@ -169,6 +185,23 @@ export default function PlanPicker({
       });
       router.refresh();
     });
+
+  // Fired once, and only for a plan that is neither already theirs nor
+  // already in flight. A payment window that reopens on every render is
+  // a trap somebody cannot get out of without closing the tab.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !requested || !canManage) return;
+
+    const plan = plans.find((option) => option.slug === requested);
+    if (!plan || plan.isCurrent) return;
+
+    opened.current = true;
+    buy(plan.id);
+    // buy is recreated every render; the ref above is what makes this
+    // run once, so it is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requested, canManage, plans]);
 
   return (
     <div className="space-y-6">

@@ -106,8 +106,8 @@ export default function Navbar({ brand = DEFAULT_BRAND }: { brand?: BrandContent
             >
               Sign In
             </Link>
-            <Link href="/auth/register" className="btn-primary text-[15px] py-2.5 px-6 group">
-              Start Free Trial
+            <Link href="/#pricing" className="btn-primary text-[15px] py-2.5 px-6 group">
+              Choose a plan
               <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
           </div>
@@ -146,8 +146,8 @@ export default function Navbar({ brand = DEFAULT_BRAND }: { brand?: BrandContent
                 <Link href="/auth/login" className="btn-secondary text-sm text-center justify-center">
                   Sign In
                 </Link>
-                <Link href="/auth/register" className="btn-primary text-sm text-center justify-center">
-                  Start Free Trial
+                <Link href="/#pricing" className="btn-primary text-sm text-center justify-center">
+                  Choose a plan
                 </Link>
               </div>
             </div>

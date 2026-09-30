@@ -3,10 +3,13 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import BrandMark from "@/components/ui/BrandMark";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { PLAN_PARAM, authNextFor } from "@/lib/plan-checkout";
+import { normaliseWaNumber } from "@/lib/whatsapp-link";
+import { sendSignupWelcome } from "../welcome-actions";
 
 const perks = [
   "AI-ready WhatsApp automation",
@@ -15,13 +18,18 @@ const perks = [
   "Multi-tenant from day one",
 ];
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  // The plan chosen on the pricing page. Validated on the billing side
+  // against the plans that exist — here it is only carried.
+  const params = useSearchParams();
+  const plan = params.get(PLAN_PARAM);
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +40,17 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
 
+    // The number is what the welcome message goes to, and what the
+    // workspace's own WhatsApp number is matched against later. A typo
+    // here is a welcome message that silently never arrives, so it is
+    // checked before the account exists rather than after.
+    const waId = normaliseWaNumber(phone);
+    if (!waId) {
+      setError("That WhatsApp number does not look right. Include the country code, or enter a 10-digit Indian number.");
+      setLoading(false);
+      return;
+    }
+
     let data;
     try {
       const supabase = createClient();
@@ -39,10 +58,20 @@ export default function RegisterPage() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Carries the chosen plan through the confirmation email, so
+          // the link lands on payment rather than losing the choice
+          // somewhere between the pricing page and the inbox.
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+            authNextFor(plan)
+          )}`,
           data: {
             full_name: `${firstName} ${lastName}`.trim(),
             org_name: companyName || undefined,
+            // Stored on the user so the welcome template can be sent, and
+            // so support can reach somebody on the number they signed up
+            // with rather than only by email.
+            whatsapp_number: waId,
+            phone: waId,
           },
         },
       });
@@ -69,7 +98,14 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/overview");
+    // Hello on WhatsApp, to somebody who just signed up for WhatsApp
+    // automation. Deliberately not awaited before moving on: the account
+    // exists, and a message that could not be sent must not leave a new
+    // customer staring at a spinner. It does nothing unless platform staff
+    // have configured a template under Admin.
+    void sendSignupWelcome();
+
+    router.push(authNextFor(plan));
     router.refresh();
   };
 
@@ -224,6 +260,24 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
+                    <label className="block text-xs font-medium text-white/70 mb-1.5">
+                      WhatsApp number
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+91 87675 12569"
+                      autoComplete="tel"
+                      className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
+                    />
+                    <p className="text-[12px] text-white/40 mt-1.5">
+                      We send your setup guide here. A 10-digit Indian number is fine.
+                    </p>
+                  </div>
+
+                  <div>
                     <label className="block text-xs font-medium text-white/70 mb-1.5">Company Name</label>
                     <input
                       type="text"
@@ -281,5 +335,20 @@ export default function RegisterPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+/**
+ * useSearchParams makes the tree under it client-rendered, and a statically
+ * prerendered route has to say where that starts. Without this the
+ * production build fails outright on this page — it works in development,
+ * where every route is rendered on demand, which is exactly how it got
+ * missed.
+ */
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--app-bg)]" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }

@@ -16,6 +16,8 @@ export type PlanInterval = "monthly" | "yearly";
 
 export interface PlanOption {
   id: string;
+  /** "growth", "growth-yearly" — what a Choose plan link carries. */
+  slug: string;
   name: string;
   description: string | null;
   priceCents: number;

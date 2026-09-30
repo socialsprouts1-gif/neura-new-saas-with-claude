@@ -4,6 +4,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Zap, Building2, Star, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { planSignupHref, slugForInterval } from "@/lib/plan-checkout";
+import { whatsappHref } from "@/lib/whatsapp-link";
+import { WhatsAppGlyph } from "./BrandGlyphs";
 import {
   DEFAULT_TIERS,
   bestYearlySaving,
@@ -36,15 +39,22 @@ function rupees(paise: number, currency: string): string {
 export default function Pricing({
   tiers = DEFAULT_TIERS,
   trialDays = DEFAULT_TRIAL_DAYS,
+  salesNumber = "",
 }: {
   tiers?: PricingTier[];
   trialDays?: number;
+  /** The WhatsApp number "Talk to Sales" opens. Empty falls back to sign-up. */
+  salesNumber?: string;
 }) {
   const [yearly, setYearly] = useState(false);
   const yearlyOffered = hasYearly(tiers);
   const bestSaving = bestYearlySaving(tiers);
   // Nothing to toggle to if no plan is sold yearly.
   const showYearly = yearly && yearlyOffered;
+  const salesHref = whatsappHref(
+    salesNumber,
+    "Hi! I'd like to talk about NeuraChat for my business."
+  );
 
   return (
     <section id="pricing" className="relative py-28 overflow-hidden">
@@ -65,7 +75,8 @@ export default function Pricing({
             <span className="gradient-text-green">transparent pricing</span>
           </h2>
           <p className="text-lg text-white/60 max-w-xl mx-auto">
-            Start free for {trialDays} days. No credit card required. Cancel anytime.
+            Pick a plan and pay in a minute — or sign up and try everything free for{" "}
+            {trialDays} days first. Cancel anytime.
           </p>
 
           {/* Toggle */}
@@ -183,15 +194,18 @@ export default function Pricing({
                   ))}
                 </ul>
 
-                {/* CTA */}
+                {/* The plan travels with the link. It used to say "Start
+                    free trial" and go to a bare /auth/register, so the
+                    choice somebody had just made was forgotten at the door
+                    and they had to make it again in Billing. */}
                 <Link
-                  href="/auth/register"
+                  href={planSignupHref(slugForInterval(tier.slug, showYearly))}
                   className={`flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-semibold text-sm transition-all duration-200 ${
                     tier.popular ? "btn-primary" : "btn-secondary"
                   }`}
                   style={!tier.popular ? { borderColor: `${chrome.color}40`, color: chrome.color } : {}}
                 >
-                  Start free trial
+                  Choose {tier.name}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </motion.div>
@@ -213,9 +227,23 @@ export default function Pricing({
               Custom pricing for large teams, dedicated infrastructure, SLA guarantees, and tailored onboarding.
             </div>
           </div>
-          <Link href="/auth/register" className="btn-secondary whitespace-nowrap">
-            Talk to Sales
-          </Link>
+          {/* WhatsApp, not a form. It is the product, and it is the one
+              channel this business is certain to answer on. */}
+          {salesHref ? (
+            <a
+              href={salesHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary whitespace-nowrap"
+            >
+              <WhatsAppGlyph className="w-[18px] h-[18px]" />
+              Talk to Sales
+            </a>
+          ) : (
+            <Link href="/auth/register" className="btn-secondary whitespace-nowrap">
+              Talk to Sales
+            </Link>
+          )}
         </motion.div>
       </div>
     </section>

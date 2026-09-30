@@ -2,6 +2,7 @@ import { loadPricing, loadSiteContent } from "@/lib/site-content-server";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import TrustStrip from "@/components/landing/TrustStrip";
+import WhatsAppFloat from "@/components/landing/WhatsAppFloat";
 import StatsBand from "@/components/landing/StatsBand";
 import Features from "@/components/landing/Features";
 import HowItWorks from "@/components/landing/HowItWorks";
@@ -34,9 +35,17 @@ export default async function HomePage() {
       <UseCases />
       <Testimonials />
       <Integrations />
-      <Pricing tiers={pricing.tiers} trialDays={pricing.trialDays} />
+      <Pricing
+          tiers={pricing.tiers}
+          trialDays={pricing.trialDays}
+          salesNumber={content.brand.whatsappNumber}
+        />
       <FAQ />
       <Footer brand={content.brand} />
+
+      {/* On a site that sells WhatsApp automation, a contact form would be
+          an argument against the product. */}
+      <WhatsAppFloat number={content.brand.whatsappNumber} />
     </main>
   );
 }

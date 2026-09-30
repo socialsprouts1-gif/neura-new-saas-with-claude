@@ -127,6 +127,7 @@ export default async function BillingPage() {
           <PlanPicker
             plans={(plans ?? []).map((option) => ({
               id: option.id,
+              slug: option.slug ?? "",
               name: option.name,
               description: option.description,
               priceCents: option.price_cents,

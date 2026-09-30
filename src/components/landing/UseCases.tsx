@@ -190,8 +190,8 @@ export default function UseCases() {
                 ))}
               </div>
 
-              <a href="/auth/register" className="btn-primary inline-flex">
-                Start Free Trial
+              <a href="#pricing" className="btn-primary inline-flex">
+                Choose a plan
               </a>
             </div>
 
