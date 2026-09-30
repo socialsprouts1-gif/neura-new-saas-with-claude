@@ -5,11 +5,13 @@ import Link from "next/link";
 import BrandMark from "@/components/ui/BrandMark";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PLAN_PARAM, authNextFor } from "@/lib/plan-checkout";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
 import { sendSignupWelcome } from "../welcome-actions";
+import { describeClaim, claimGuestCheckout } from "../claim-actions";
+import { splitName } from "@/lib/guest-checkout";
 
 const perks = [
   "AI-ready WhatsApp automation",
@@ -24,6 +26,16 @@ function RegisterForm() {
   // against the plans that exist — here it is only carried.
   const params = useSearchParams();
   const plan = params.get(PLAN_PARAM);
+
+  // Arrived from the payment window: the plan is already bought, and this
+  // form exists only to put a login on it. Everything the gateway asked
+  // for is filled in, so all that is left is a password.
+  const claim = params.get("claim");
+  const [claimed, setClaimed] = useState<{
+    planName: string;
+    bonus: string;
+  } | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -34,6 +46,29 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
+
+  useEffect(() => {
+    if (!claim) return;
+    let live = true;
+
+    void describeClaim(claim).then((found) => {
+      if (!live) return;
+      if (!found.ok) {
+        setClaimError(found.error);
+        return;
+      }
+      const name = splitName(found.contact.name);
+      setFirstName((current) => current || name.first);
+      setLastName((current) => current || name.last);
+      setEmail((current) => current || found.contact.email);
+      setPhone((current) => current || found.contact.phone);
+      setClaimed({ planName: found.planName, bonus: "" });
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [claim]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -98,6 +133,18 @@ function RegisterForm() {
       return;
     }
 
+    // They already paid. Awaited, unlike the welcome message, because the
+    // page they are about to land on shows their plan and would otherwise
+    // show them the trial they have just paid to skip.
+    if (claim) {
+      const applied = await claimGuestCheckout(claim);
+      if (!applied.ok && applied.error) {
+        // The money is taken and the account exists, so this is a note to
+        // act on rather than a sign-up failure to report.
+        console.error(applied.error);
+      }
+    }
+
     // Hello on WhatsApp, to somebody who just signed up for WhatsApp
     // automation. Deliberately not awaited before moving on: the account
     // exists, and a message that could not be sent must not leave a new
@@ -105,7 +152,7 @@ function RegisterForm() {
     // have configured a template under Admin.
     void sendSignupWelcome();
 
-    router.push(authNextFor(plan));
+    router.push(claim ? "/overview" : authNextFor(plan));
     router.refresh();
   };
 
@@ -197,8 +244,26 @@ function RegisterForm() {
             ) : (
               <>
                 <div className="mb-8">
-                  <h1 className="text-2xl font-bold mb-2">Create your account</h1>
-                  <p className="text-white/50 text-sm">Spin up your Neura Chat organization</p>
+                  {claimed ? (
+                    <>
+                      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/12 border border-accent/25 text-accent-ink text-xs font-semibold mb-3">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Payment received — {claimed.planName}
+                      </span>
+                      <h1 className="text-2xl font-bold mb-2">Almost there</h1>
+                      <p className="text-white/50 text-sm">
+                        Your plan is paid for. Pick a password and your workspace is ready.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h1 className="text-2xl font-bold mb-2">Create your account</h1>
+                      <p className="text-white/50 text-sm">Spin up your Neura Chat organization</p>
+                    </>
+                  )}
+                  {claimError && (
+                    <p className="text-sm text-[#FACC15]/85 mt-3 leading-relaxed">{claimError}</p>
+                  )}
                 </div>
 
                 <button

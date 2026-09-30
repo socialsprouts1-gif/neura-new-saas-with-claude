@@ -62,7 +62,12 @@ export function loadRazorpay(): Promise<boolean> {
  */
 export function openRazorpay(
   checkout: ModalCheckout,
-  brand: { name: string; logoUrl?: string | null }
+  brand: {
+    name: string;
+    logoUrl?: string | null;
+    /** The modal's accent. The public site is violet; the product is green. */
+    themeColor?: string;
+  }
 ): Promise<ModalOutcome> {
   return new Promise((resolve) => {
     if (!window.Razorpay) {
@@ -89,7 +94,7 @@ export function openRazorpay(
       description: checkout.planName,
       ...(brand.logoUrl ? { image: brand.logoUrl } : {}),
       prefill: checkout.customerEmail ? { email: checkout.customerEmail } : {},
-      theme: { color: "#00E08F" },
+      theme: { color: brand.themeColor ?? "#00E08F" },
       handler: (response: Record<string, string>) => finish({ kind: "paid", fields: response }),
       modal: {
         ondismiss: () => finish({ kind: "dismissed" }),

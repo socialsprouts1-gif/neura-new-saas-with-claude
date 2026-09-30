@@ -27,14 +27,16 @@ test("the interval switch picks the right row either way", () => {
   assert.equal(slugForInterval("growth-yearly", true), "growth-yearly");
 });
 
-test("choosing a plan goes to sign-up carrying the slug", () => {
-  assert.equal(planSignupHref("growth"), "/auth/register?plan=growth");
+test("choosing a plan goes straight to payment, carrying the slug", () => {
+  // Not to sign-up. That put a form in front of somebody who had already
+  // decided and had their card out.
+  assert.equal(planSignupHref("growth"), "/checkout?plan=growth");
   assert.equal(planCheckoutHref("growth"), "/billing?plan=growth");
 });
 
 test("a slug that is not a slug falls back rather than building a broken link", () => {
   for (const bad of ["", "  ", "../admin", "a b", "Growth!"]) {
-    assert.equal(planSignupHref(bad), "/auth/register");
+    assert.equal(planSignupHref(bad), "/#pricing");
     assert.equal(planCheckoutHref(bad), "/billing");
   }
 });

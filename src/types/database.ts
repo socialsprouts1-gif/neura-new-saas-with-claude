@@ -636,6 +636,50 @@ export interface Database {
         Update: Partial<Coupon>;
         Relationships: [];
       };
+      guest_checkouts: {
+        Row: {
+          id: string;
+          plan_id: string;
+          /** 32 hex characters. The only thing that can claim this payment. */
+          claim_token: string;
+          amount_cents: number;
+          currency: string;
+          billing_interval: "monthly" | "yearly";
+          status: "pending" | "paid" | "claimed" | "expired";
+          provider: string | null;
+          /** The gateway's own order id — what a payment is matched on. */
+          provider_reference: string | null;
+          provider_payment_id: string | null;
+          contact_name: string | null;
+          contact_email: string | null;
+          contact_phone: string | null;
+          created_at: string;
+          paid_at: string | null;
+          claimed_at: string | null;
+          claimed_org_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          plan_id: string;
+          claim_token: string;
+          amount_cents?: number;
+          currency?: string;
+          billing_interval?: "monthly" | "yearly";
+          status?: "pending" | "paid" | "claimed" | "expired";
+          provider?: string | null;
+          provider_reference?: string | null;
+          provider_payment_id?: string | null;
+          contact_name?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          created_at?: string;
+          paid_at?: string | null;
+          claimed_at?: string | null;
+          claimed_org_id?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["guest_checkouts"]["Insert"]>;
+        Relationships: [];
+      };
       orders: {
         Row: Order;
         Insert: Partial<Order> & { org_id: string };

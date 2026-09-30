@@ -34,7 +34,18 @@ export type ActivateResult =
 export async function activateSubscription(
   admin: Admin,
   orderId: string,
-  payment: { provider: string; reference: string }
+  payment: { provider: string; reference: string },
+  options: {
+    /**
+     * Days added to the paid period, on top of the interval bought.
+     *
+     * Used by the guest checkout, where somebody pays before they have an
+     * account: they keep the trial they would have had for signing up
+     * free, plus a bonus for paying up front. Choosing to pay immediately
+     * must never cost somebody time they would otherwise have had.
+     */
+    bonusDays?: number;
+  } = {}
 ): Promise<ActivateResult> {
   const { data: order } = await admin
     .from("orders")
@@ -67,13 +78,17 @@ export async function activateSubscription(
     : "monthly") as BillingInterval;
 
   const now = new Date();
+  const bonus = Number.isFinite(options.bonusDays) ? Math.max(0, Math.floor(options.bonusDays!)) : 0;
+  const ends = periodEnd(now, interval);
+  if (bonus > 0) ends.setDate(ends.getDate() + bonus);
+
   const { error: subscriptionError } = await admin.from("subscriptions").upsert(
     {
       org_id: order.org_id,
       plan_id: plan.id,
       status: "active",
       current_period_start: now.toISOString(),
-      current_period_end: periodEnd(now, interval).toISOString(),
+      current_period_end: ends.toISOString(),
       // A renewal after a cancellation has to clear the flag, or the
       // subscription they just paid to restart is still marked ending.
       cancel_at_period_end: false,
@@ -119,7 +134,7 @@ export async function activateSubscription(
     planName: plan.name,
     amountCents: order.amount_cents,
     interval,
-    periodEnd: periodEnd(now, interval),
+    periodEnd: ends,
   });
 
   return { ok: true, alreadyDone: false, planName: plan.name };

@@ -32,14 +32,21 @@ export function slugForInterval(slug: string, yearly: boolean): string {
 }
 
 /**
- * Where a "Choose plan" button goes.
+ * Where a "Choose plan" button goes: straight to the payment window.
  *
- * Sign-up rather than the gateway, because a stranger has no workspace to
- * put a subscription on yet. Payment opens the moment they land inside.
+ * It used to go to sign-up. That put a form in front of somebody who had
+ * their card out and had already decided — so the gateway opens first
+ * now, and the account is created afterwards from the name, email and
+ * phone the payment itself collects.
  */
 export function planSignupHref(slug: string): string {
-  if (!SLUG.test(slug)) return "/auth/register";
-  return `/auth/register?${PLAN_PARAM}=${encodeURIComponent(slug)}`;
+  if (!SLUG.test(slug)) return "/#pricing";
+  return `/checkout?${PLAN_PARAM}=${encodeURIComponent(slug)}`;
+}
+
+/** Where somebody lands once a guest payment has gone through. */
+export function claimHref(token: string): string {
+  return `/auth/register?claim=${encodeURIComponent(token)}`;
 }
 
 /** Where they go once they have an account: billing, with the window opening. */
