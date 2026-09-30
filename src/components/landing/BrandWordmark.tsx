@@ -1,8 +1,44 @@
 "use client";
 
 import Image from "next/image";
-import { Zap } from "lucide-react";
 import { DEFAULT_BRAND, brandName, type BrandContent } from "@/lib/site-content";
+
+/**
+ * The generated mark: an N drawn as one stroke, with a tail lifting off
+ * the last corner.
+ *
+ * It used to be a lightning bolt, which is the icon every tool that has
+ * not decided what it is reaches for. A letter is the brand; the tail is
+ * the only flourish, and it points the way the product moves.
+ */
+function NeuraMark({ letter }: { letter: string }) {
+  if (letter !== "N") {
+    return (
+      <span className="text-[#FFFFFF] font-black leading-none" style={{ fontSize: "0.52em" }}>
+        {letter}
+      </span>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 32 32" className="w-[62%] h-[62%]" fill="none" aria-hidden="true">
+      <path
+        d="M9 24.5V9.5L23 22.5V11"
+        stroke="#FFFFFF"
+        strokeWidth="3.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M23 11c0-2.4 1.6-4 4-4"
+        stroke="#FFFFFF"
+        strokeOpacity="0.6"
+        strokeWidth="3.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 /**
  * The logo and name, wherever they appear.
@@ -37,14 +73,21 @@ export default function BrandWordmark({
         />
       ) : (
         <span
-          className="rounded-lg bg-gradient-to-br from-accent to-accent2 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,135,0.5)] group-hover:shadow-[0_0_30px_rgba(0,255,135,0.7)] transition-shadow shrink-0"
-          style={{ width: size, height: size }}
+          className="bg-gradient-to-br from-accent to-accent2 flex items-center justify-center transition-shadow shrink-0"
+          style={{
+            width: size,
+            height: size,
+            // A superellipse corner rather than a fixed radius, so the mark
+            // keeps its proportions at 28px in a navbar and 34px in a footer.
+            borderRadius: size * 0.3,
+            boxShadow: "var(--btn-glow)",
+          }}
         >
-          <Zap className="w-1/2 h-1/2 text-[#050508]" />
+          <NeuraMark letter={(brand.name || "N").trim().charAt(0).toUpperCase()} />
         </span>
       )}
 
-      <span className="font-bold text-lg whitespace-nowrap">
+      <span className="font-extrabold text-[1.35rem] tracking-[-0.02em] whitespace-nowrap">
         {brand.name}
         {brand.nameAccent && (
           <>

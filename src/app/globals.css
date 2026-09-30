@@ -546,3 +546,206 @@ body {
     animation: none;
   }
 }
+
+/* The marketing site
+   ======================================================================
+   The product is dark. The public site is light, warm and violet — a
+   different room for a different reader: somebody who has never heard of
+   this product and is deciding in four seconds whether it looks like a
+   real company.
+
+   It is one scope rather than a rewrite because of the lever described at
+   the top of this file: --color-white is Tailwind's own token, so every
+   text-white/60 and border-white/10 inside .marketing becomes ink at that
+   opacity, which is what those utilities always meant. Redefining eight
+   variables re-themes eleven sections; the alternative was editing several
+   hundred class strings and missing some.
+
+   Anything that must stay its own colour inside here — WhatsApp's green,
+   a partner's logo, the white of a chat bubble — is written as a literal,
+   because it is not a theme decision. */
+.marketing {
+  /* Ink, not black: a warm near-black keeps the page from looking like a
+     printed form. Contrast against the lightest surface is 15.8:1. */
+  --color-white: #171226;
+
+  --app-bg: #FAF8FC;
+  --surface-1: #FFFFFF;
+  --surface-2: #F4F1F9;
+  --surface-3: #EDE9F6;
+
+  --card-bg: #FFFFFF;
+  --card-border: rgba(23, 18, 38, 0.07);
+  /* Two shadows: a tight one that seats the card on the page and a wide
+     soft one that lifts it. One alone reads as either a sticker or a blur. */
+  --card-shadow: 0 1px 2px rgba(23, 18, 38, 0.04), 0 12px 32px rgba(23, 18, 38, 0.07);
+
+  --violet: #7C3AED;
+  --violet-deep: #5B21B6;
+  --violet-soft: #A78BFA;
+  --wa-green: #25D366;
+
+  /* Violet is legible as text on white at 5.6:1, so ink and fill are the
+     same value here — unlike the green theme, which needs a darker text
+     variant. */
+  --accent: #7C3AED;
+  --accent-ink: #6D28D9;
+  --accent-strong: #6D28D9;
+  --accent-2: #C026D3;
+  --accent-2-ink: #A21CAF;
+
+  --color-accent: #7C3AED;
+  --color-accent-ink: #6D28D9;
+  --color-accent2: #C026D3;
+  --color-accent2-ink: #A21CAF;
+
+  --btn-glow: 0 8px 20px rgba(109, 40, 217, 0.25);
+  --btn-glow-hover: 0 12px 28px rgba(109, 40, 217, 0.35);
+
+  --scrollbar: rgba(124, 58, 237, 0.35);
+
+  color-scheme: light;
+  background: var(--app-bg);
+  color: var(--color-white);
+}
+
+/* The page itself, before anything is drawn on it.
+   Three light sources — lavender top right, a warm blush left of centre,
+   a cool wash at the foot — so the background has somewhere to be brighter
+   than somewhere else. A flat off-white behind a floating card makes the
+   card look pasted on. */
+.marketing-canvas {
+  position: relative;
+  background:
+    radial-gradient(1100px 620px at 88% -8%, rgba(167, 139, 250, 0.20), transparent 62%),
+    radial-gradient(760px 520px at 8% 4%, rgba(251, 207, 232, 0.24), transparent 60%),
+    radial-gradient(900px 600px at 50% 104%, rgba(196, 181, 253, 0.16), transparent 60%),
+    linear-gradient(180deg, #FDFBFF 0%, #FAF7FC 48%, #F6F2FB 100%);
+}
+
+.marketing .btn-primary {
+  /* White on violet, not the near-black the green theme uses — #050508 on
+     #7C3AED is 3.1:1 and fails, where white is 4.9:1 and passes. */
+  color: #FFFFFF;
+  background: linear-gradient(135deg, #6D28D9 0%, #7C3AED 52%, #8B5CF6 100%);
+  border-radius: 9999px;
+  padding: 0.875rem 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.marketing .btn-primary:hover {
+  background: linear-gradient(135deg, #5B21B6 0%, #6D28D9 52%, #7C3AED 100%);
+  transform: translateY(-1px);
+}
+
+.marketing .btn-secondary {
+  color: var(--color-white);
+  background: #FFFFFF;
+  border: 1px solid rgba(23, 18, 38, 0.10);
+  border-radius: 9999px;
+  padding: 0.875rem 1.75rem;
+  box-shadow: 0 1px 2px rgba(23, 18, 38, 0.05), 0 8px 24px rgba(23, 18, 38, 0.06);
+  backdrop-filter: none;
+}
+
+.marketing .btn-secondary:hover {
+  background: #FFFFFF;
+  border-color: rgba(124, 58, 237, 0.35);
+  box-shadow: 0 2px 4px rgba(23, 18, 38, 0.06), 0 12px 28px rgba(109, 40, 217, 0.14);
+  transform: translateY(-1px);
+}
+
+/* A white pill that sits on the page rather than glowing out of it. */
+.marketing .section-badge {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(23, 18, 38, 0.08);
+  color: color-mix(in oklab, var(--color-white) 62%, transparent);
+  box-shadow: 0 1px 2px rgba(23, 18, 38, 0.04), 0 6px 18px rgba(23, 18, 38, 0.05);
+  backdrop-filter: blur(8px);
+  padding: 0.4375rem 0.875rem;
+}
+
+.marketing .glass-card,
+.marketing .glass {
+  background: #FFFFFF;
+  border: 1px solid var(--card-border);
+  backdrop-filter: none;
+}
+
+/* Every heading accent on the site runs through this one class, so the
+   site changes palette here and nowhere else. Three stops rather than two:
+   indigo into violet into magenta is the run in the reference, and two
+   stops of it lands as a flat purple. */
+.marketing .gradient-text-green,
+.marketing .gradient-text-purple {
+  background: linear-gradient(105deg, #4F46E5 0%, #7C3AED 46%, #C026D3 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.marketing .tag-purple {
+  background: rgba(124, 58, 237, 0.10);
+  color: #6D28D9;
+  border-color: rgba(124, 58, 237, 0.22);
+}
+
+.marketing .tag-blue {
+  background: rgba(37, 99, 235, 0.10);
+  color: #1D4ED8;
+  border-color: rgba(37, 99, 235, 0.20);
+}
+
+.marketing .tag-green {
+  background: rgba(22, 163, 74, 0.10);
+  color: #15803D;
+  border-color: rgba(22, 163, 74, 0.20);
+}
+
+/* A green hairline grid is a dark-mode device. Here it is ink at 3%, which
+   gives the eye something to catch without becoming graph paper. */
+.marketing .grid-pattern {
+  background-image:
+    linear-gradient(rgba(23, 18, 38, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 18, 38, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* The neon halo is the single most dark-mode thing in the stylesheet: on
+   white it is a grey smudge under the button. */
+.marketing .animate-glow-pulse {
+  animation: none;
+  box-shadow: var(--btn-glow);
+}
+
+.marketing .animate-neon-pulse {
+  animation: none;
+}
+
+/* A slower, shallower float than the product's. These are large elements
+   near the top of the page and a 12px swing at 6s reads as drifting. */
+@keyframes marketingFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.float-slow { animation: marketingFloat 7s ease-in-out infinite; }
+.float-mid { animation: marketingFloat 6s ease-in-out infinite 0.6s; }
+.float-fast { animation: marketingFloat 5.5s ease-in-out infinite 1.2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .float-slow, .float-mid, .float-fast { animation: none; }
+}
+
+/* WhatsApp's own chat wallpaper, drawn rather than fetched: a warm paper
+   tone with a faint repeating mark. The real thing is a doodle sheet we
+   have no licence to ship, and a flat beige panel is the tell that this is
+   a mock-up, so this is a neutral texture at the same value. */
+.wa-wallpaper {
+  background-color: #EFE7DE;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(180, 160, 140, 0.16) 1.5px, transparent 1.6px),
+    radial-gradient(circle at 70% 65%, rgba(180, 160, 140, 0.13) 1.5px, transparent 1.6px),
+    radial-gradient(circle at 45% 85%, rgba(180, 160, 140, 0.10) 1.5px, transparent 1.6px);
+  background-size: 52px 52px, 68px 68px, 40px 40px;
+}

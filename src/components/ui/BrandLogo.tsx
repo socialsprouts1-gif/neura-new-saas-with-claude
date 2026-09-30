@@ -280,6 +280,29 @@ const MARKS: Record<string, Mark> = {
       </>
     ),
   },
+  meta: {
+    art: (
+      <path
+        d="M3 14.4c0-3.4 1.5-6.9 3.9-6.9 1.4 0 2.4.9 3.7 2.9.9 1.4 1.9 3.1 2.8 4.7 1.3 2.2 2.2 3.3 3.5 3.3 1.5 0 2.2-1.3 2.2-3.3 0-3.4-1.5-7-3.9-7-1.4 0-2.7 1-4.3 3.4-.9 1.4-1.9 3.1-2.8 4.7-1.2 2-2.1 2.7-3.2 2.7C3.7 18.9 3 17.2 3 14.4Z"
+        fill="none"
+        stroke="#0668E1"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  twilio: {
+    art: (
+      <>
+        <rect x="3.5" y="3.5" width="17" height="17" rx="5" fill="none" stroke="#F22F46" strokeWidth="1.8" />
+        <circle cx="9.4" cy="9.4" r="1.9" fill="#F22F46" />
+        <circle cx="14.6" cy="9.4" r="1.9" fill="#F22F46" />
+        <circle cx="9.4" cy="14.6" r="1.9" fill="#F22F46" />
+        <circle cx="14.6" cy="14.6" r="1.9" fill="#F22F46" />
+      </>
+    ),
+  },
   calendly: {
     art: (
       <>
@@ -312,10 +335,16 @@ export default function BrandLogo({
               width: size,
               height: size,
               background: solid,
-              borderColor: "rgba(255,255,255,0.14)",
-              // A logo that is normally white-on-colour needs the colour,
-              // not a 10% wash of it.
-              boxShadow: `0 2px 10px ${solid}40`,
+              // A near-white tile needs an ink hairline or it disappears on
+              // the marketing site, where the page behind it is also white.
+              borderColor:
+                solid.toUpperCase() === "#FFFFFF"
+                  ? "rgba(23,18,38,0.12)"
+                  : "rgba(255,255,255,0.14)",
+              boxShadow:
+                solid.toUpperCase() === "#FFFFFF"
+                  ? "0 2px 10px rgba(23,18,38,0.10)"
+                  : `0 2px 10px ${solid}40`,
             }
           : {
               width: size,

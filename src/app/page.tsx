@@ -1,6 +1,8 @@
 import { loadPricing, loadSiteContent } from "@/lib/site-content-server";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
+import TrustStrip from "@/components/landing/TrustStrip";
+import StatsBand from "@/components/landing/StatsBand";
 import Features from "@/components/landing/Features";
 import HowItWorks from "@/components/landing/HowItWorks";
 import UseCases from "@/components/landing/UseCases";
@@ -19,9 +21,14 @@ export default async function HomePage() {
   const [content, pricing] = await Promise.all([loadSiteContent(), loadPricing()]);
 
   return (
-    <main className="bg-[var(--app-bg)] text-white overflow-x-hidden">
+    // .marketing is the light violet theme, scoped here so the product
+    // behind the login stays dark. See globals.css — redefining --color-white
+    // inside this element re-themes every text-white/60 under it.
+    <main className="marketing marketing-canvas overflow-x-hidden">
       <Navbar brand={content.brand} />
       <Hero content={content.hero} />
+      <TrustStrip />
+      <StatsBand stats={content.hero.stats} />
       <Features />
       <HowItWorks />
       <UseCases />

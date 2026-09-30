@@ -19,9 +19,9 @@ import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 // those are design, not catalogue, and a fourth plan should not need a code
 // change to appear.
 const CHROME = [
-  { icon: Zap, color: "#00FF87" },
-  { icon: Star, color: "#00D4FF" },
-  { icon: Building2, color: "#A855F7" },
+  { icon: Zap, color: "#7C3AED" },
+  { icon: Star, color: "#2563EB" },
+  { icon: Building2, color: "#C026D3" },
 ];
 
 /** Whole rupees, grouped Indian-style. Paise are never shown: no plan has any. */
@@ -127,12 +127,12 @@ export default function Pricing({
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
                 className={`relative glass-card p-7 flex flex-col ${
-                  tier.popular ? "border-accent2/40 shadow-[0_0_50px_rgba(0,212,255,0.1)]" : ""
+                  tier.popular ? "border-accent2/40 shadow-[0_0_50px_rgba(37,99,235,0.1)]" : ""
                 }`}
               >
                 {tier.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="px-4 py-1 rounded-full text-xs font-bold bg-accent2 text-[#050508]">
+                    <span className="px-4 py-1 rounded-full text-xs font-bold bg-accent2 text-[#FFFFFF]">
                       Most Popular
                     </span>
                   </div>

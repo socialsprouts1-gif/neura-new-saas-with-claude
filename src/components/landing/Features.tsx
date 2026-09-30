@@ -19,108 +19,108 @@ import {
 const features = [
   {
     icon: Bot,
-    color: "#00FF87",
-    bgColor: "rgba(0,255,135,0.1)",
-    borderColor: "rgba(0,255,135,0.2)",
+    color: "#7C3AED",
+    bgColor: "rgba(124,58,237,0.1)",
+    borderColor: "rgba(124,58,237,0.2)",
     title: "AI Chatbot Builder",
     desc: "Train AI chatbots on your business data — FAQs, products, policies. Deploy multilingual bots with human handoff in minutes.",
     tags: ["GPT-4", "Claude", "Gemini"],
   },
   {
     icon: GitBranch,
-    color: "#00D4FF",
-    bgColor: "rgba(0,212,255,0.1)",
-    borderColor: "rgba(0,212,255,0.2)",
+    color: "#2563EB",
+    bgColor: "rgba(37,99,235,0.1)",
+    borderColor: "rgba(37,99,235,0.2)",
     title: "Visual Workflow Builder",
     desc: "Drag-and-drop automation builder. Create follow-up sequences, abandoned cart recovery, and onboarding flows without code.",
     tags: ["No-Code", "Zapier-like", "n8n"],
   },
   {
     icon: Megaphone,
-    color: "#A855F7",
-    bgColor: "rgba(168,85,247,0.1)",
-    borderColor: "rgba(168,85,247,0.2)",
+    color: "#C026D3",
+    bgColor: "rgba(192,38,211,0.1)",
+    borderColor: "rgba(192,38,211,0.2)",
     title: "Bulk Campaigns",
     desc: "Broadcast personalized messages to thousands. Schedule campaigns, segment audiences, track opens and conversions.",
     tags: ["Broadcast", "Scheduling", "Templates"],
   },
   {
     icon: Users,
-    color: "#F59E0B",
-    bgColor: "rgba(245,158,11,0.1)",
-    borderColor: "rgba(245,158,11,0.2)",
+    color: "#B45309",
+    bgColor: "rgba(180,83,9,0.1)",
+    borderColor: "rgba(180,83,9,0.2)",
     title: "Built-in CRM",
     desc: "Full lead pipeline with tags, notes, scores, and stages. AI predicts conversion probability for every lead.",
     tags: ["Pipeline", "Lead Scoring", "AI Insights"],
   },
   {
     icon: Brain,
-    color: "#EC4899",
-    bgColor: "rgba(236,72,153,0.1)",
-    borderColor: "rgba(236,72,153,0.2)",
+    color: "#DB2777",
+    bgColor: "rgba(219,39,119,0.1)",
+    borderColor: "rgba(219,39,119,0.2)",
     title: "AI Sales Assistant",
     desc: "AI qualifies leads, recommends replies, summarizes conversations, and detects purchase intent in real time.",
     tags: ["Intent Detection", "Reply AI", "Summaries"],
   },
   {
     icon: BarChart3,
-    color: "#00D4FF",
-    bgColor: "rgba(0,212,255,0.1)",
-    borderColor: "rgba(0,212,255,0.2)",
+    color: "#2563EB",
+    bgColor: "rgba(37,99,235,0.1)",
+    borderColor: "rgba(37,99,235,0.2)",
     title: "Analytics Dashboard",
     desc: "Real-time insights on response rates, conversion, revenue, campaign performance, and chatbot effectiveness.",
     tags: ["Real-time", "Revenue", "Funnels"],
   },
   {
     icon: ShoppingCart,
-    color: "#00FF87",
-    bgColor: "rgba(0,255,135,0.1)",
-    borderColor: "rgba(0,255,135,0.2)",
+    color: "#7C3AED",
+    bgColor: "rgba(124,58,237,0.1)",
+    borderColor: "rgba(124,58,237,0.2)",
     title: "WhatsApp Commerce",
     desc: "Product catalogs, order tracking, payment links, automated invoices, and COD support directly in WhatsApp.",
     tags: ["Shopify", "WooCommerce", "Payments"],
   },
   {
     icon: Wand2,
-    color: "#A855F7",
-    bgColor: "rgba(168,85,247,0.1)",
-    borderColor: "rgba(168,85,247,0.2)",
+    color: "#C026D3",
+    bgColor: "rgba(192,38,211,0.1)",
+    borderColor: "rgba(192,38,211,0.2)",
     title: "AI Content Generator",
     desc: "Generate marketing messages, sales copy, follow-up scripts, and campaign hooks with AI — tailored to your brand.",
     tags: ["Copywriting", "Templates", "Brand Voice"],
   },
   {
     icon: Plug,
-    color: "#F59E0B",
-    bgColor: "rgba(245,158,11,0.1)",
-    borderColor: "rgba(245,158,11,0.2)",
+    color: "#B45309",
+    bgColor: "rgba(180,83,9,0.1)",
+    borderColor: "rgba(180,83,9,0.2)",
     title: "Powerful Integrations",
     desc: "Connect to Shopify, HubSpot, Stripe, Calendly, Google Sheets, Zapier, Slack, and WhatsApp Cloud API natively.",
     tags: ["Zapier", "Stripe", "HubSpot"],
   },
   {
     icon: Globe,
-    color: "#00D4FF",
-    bgColor: "rgba(0,212,255,0.1)",
-    borderColor: "rgba(0,212,255,0.2)",
+    color: "#2563EB",
+    bgColor: "rgba(37,99,235,0.1)",
+    borderColor: "rgba(37,99,235,0.2)",
     title: "White Label",
     desc: "Agencies can white-label the entire platform — custom domains, branding, client workspaces, and reseller billing.",
     tags: ["Agencies", "Custom Domain", "Resell"],
   },
   {
     icon: Mic,
-    color: "#EC4899",
-    bgColor: "rgba(236,72,153,0.1)",
-    borderColor: "rgba(236,72,153,0.2)",
+    color: "#DB2777",
+    bgColor: "rgba(219,39,119,0.1)",
+    borderColor: "rgba(219,39,119,0.2)",
     title: "AI Voice Agent",
     desc: "Understand voice notes, respond with text-to-speech, and handle multilingual voice conversations automatically.",
     tags: ["STT", "TTS", "Multilingual"],
   },
   {
     icon: Calendar,
-    color: "#00FF87",
-    bgColor: "rgba(0,255,135,0.1)",
-    borderColor: "rgba(0,255,135,0.2)",
+    color: "#7C3AED",
+    bgColor: "rgba(124,58,237,0.1)",
+    borderColor: "rgba(124,58,237,0.2)",
     title: "Appointment Booking",
     desc: "Let AI schedule, confirm, and remind clients of appointments. Integrated with Calendly and Google Calendar.",
     tags: ["Calendly", "Reminders", "AI Scheduling"],
@@ -162,7 +162,7 @@ export default function Features() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.05 }}
               whileHover={{ y: -4, transition: { duration: 0.2 } }}
-              className="group relative glass-card p-6 hover:border-white/20 transition-all duration-300 hover:shadow-[0_20px_60px_rgba(0,0,0,0.5)] cursor-pointer"
+              className="group relative glass-card p-6 hover:border-white/20 transition-all duration-300 hover:shadow-[0_18px_44px_rgba(23,18,38,0.13)] cursor-pointer"
             >
               {/* Hover glow */}
               <div
@@ -185,7 +185,7 @@ export default function Features() {
                 <h3 className="text-lg font-semibold mb-2 group-hover:text-white transition-colors">
                   {feat.title}
                 </h3>
-                <p className="text-sm text-white/55 leading-relaxed mb-4">{feat.desc}</p>
+                <p className="text-sm text-white/65 leading-relaxed mb-4">{feat.desc}</p>
 
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1.5">

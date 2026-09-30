@@ -21,7 +21,7 @@ export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent
         {/* Top CTA Banner */}
         <div
           className="glass-card p-10 mb-16 text-center relative overflow-hidden"
-          style={{ borderColor: "rgba(0,255,135,0.15)" }}
+          style={{ borderColor: "rgba(124,58,237,0.15)" }}
         >
           <div className="absolute inset-0 bg-gradient-to-r from-accent/5 via-transparent to-accent2/5" />
           <div className="relative">
@@ -70,15 +70,20 @@ export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent
 
             {/* Social */}
             <div className="flex gap-3 mt-6">
+              {/* Keyed by href, and every href was "#" — four identical
+                  keys, which React warned about on every render. They also
+                  need real destinations before launch; an icon that goes
+                  nowhere is worse than no icon. */}
               {[
-                { icon: Share2, href: "#" },
-                { icon: Link2, href: "#" },
-                { icon: GitFork, href: "#" },
-                { icon: PlaySquare, href: "#" },
-              ].map(({ icon: Icon, href }) => (
+                { icon: Share2, href: "#", label: "Share" },
+                { icon: Link2, href: "#", label: "Website" },
+                { icon: GitFork, href: "#", label: "Community" },
+                { icon: PlaySquare, href: "#", label: "Watch a demo" },
+              ].map(({ icon: Icon, href, label }) => (
                 <a
-                  key={href}
+                  key={label}
                   href={href}
+                  aria-label={label}
                   className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:border-accent/30 hover:bg-accent/5 transition-all"
                 >
                   <Icon className="w-4 h-4 text-white/60" />

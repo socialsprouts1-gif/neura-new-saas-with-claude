@@ -13,9 +13,11 @@ export default async function PricingPage() {
   const [content, pricing] = await Promise.all([loadSiteContent(), loadPricing()]);
 
   return (
-    <main className="bg-[var(--app-bg)] text-white">
+    // The same light scope as the home page. Without it these components
+    // render their light-tuned colours against the product's black.
+    <main className="marketing marketing-canvas">
       <Navbar brand={content.brand} />
-      <div className="pt-16">
+      <div className="pt-[70px]">
         <Pricing tiers={pricing.tiers} trialDays={pricing.trialDays} />
         <FAQ />
         <Footer brand={content.brand} />
