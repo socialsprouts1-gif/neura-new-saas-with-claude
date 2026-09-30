@@ -128,6 +128,17 @@ export async function activateSubscription(
   // activation: a confirmation that did not arrive is a bad day, and a
   // payment that did not activate because the mail server was down is a
   // refund and a support ticket.
+  // And on WhatsApp, if platform staff have configured that message.
+  // After the money is recorded and unable to fail the activation, for
+  // the same reason the email is: a payment that did not activate because
+  // a message could not be sent is a refund and a support ticket.
+  try {
+    const { sendPlatformEventToOwner } = await import("@/lib/platform-message");
+    await sendPlatformEventToOwner("payment_received", order.org_id);
+  } catch (error) {
+    console.error("Could not send the payment WhatsApp message", error);
+  }
+
   await confirmPayment(admin, {
     orgId: order.org_id,
     orderId: order.id,

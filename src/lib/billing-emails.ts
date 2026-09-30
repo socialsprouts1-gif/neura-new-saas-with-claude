@@ -188,6 +188,19 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
     if (outcome.skipped) result.skipped += 1;
     else if (outcome.ok) result.sent += 1;
     else result.failed += 1;
+
+    // The same news on WhatsApp, for the one kind where it is worth
+    // interrupting somebody: sending has stopped. Sent alongside the
+    // email rather than on its own schedule, so the two cannot disagree
+    // about who has been told, and never able to fail the sweep.
+    if (due.kind === "trial_expired") {
+      try {
+        const { sendPlatformEventToOwner } = await import("@/lib/platform-message");
+        await sendPlatformEventToOwner("trial_ended", row.orgId);
+      } catch (error) {
+        console.error("Could not send the trial-ended WhatsApp message", error);
+      }
+    }
   }
 
   return result;

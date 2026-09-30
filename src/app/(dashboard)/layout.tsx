@@ -5,6 +5,7 @@ import { appBrand } from "@/lib/app-brand";
 import Sidebar from "./_components/Sidebar";
 import TopBar from "./_components/TopBar";
 import BillingBanner from "./_components/BillingBanner";
+import PaywallGate from "./_components/PaywallGate";
 import SuspendedBanner from "./_components/SuspendedBanner";
 import ReminderWatcher from "./_components/ReminderWatcher";
 import ScheduleTicker from "./_components/ScheduleTicker";
@@ -49,6 +50,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           brand={brand}
         />
         <BillingBanner orgId={orgId} isPlatformAdmin={isPlatformAdmin} />
+        <PaywallGate orgId={orgId} isPlatformAdmin={isPlatformAdmin} />
         {suspended && <SuspendedBanner reason={suspended.reason} />}
         {/* Scrolls for ordinary pages; the inbox fills exactly this height
             and manages its own internal scrolling instead. */}

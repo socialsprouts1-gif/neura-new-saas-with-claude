@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
 import { isOrgRole, roleChangeBlocked } from "@/lib/member-role";
-import { readWelcome, welcomeProblem, writeWelcome } from "@/lib/signup-welcome";
+import { EVENTS, readEvents, firstProblem, writeEvents } from "@/lib/whatsapp-events";
 import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -385,41 +385,56 @@ export async function saveSignupRole(formData: FormData): Promise<ActionResult> 
  * prevent.
  */
 /**
- * The WhatsApp welcome every new sign-up gets.
+ * The WhatsApp messages the platform sends its own customers.
  *
- * A template, not free-form text: a person who has just signed up has
- * never written in, so WhatsApp's 24-hour service window is shut and Meta
- * refuses anything else. It goes out on the platform's own number,
- * because at sign-up the customer has not connected one.
+ * One form for every moment — signing up, a trial running out, a payment
+ * landing — because they are the same shape and a separate card each
+ * would mean choosing the sending number three times.
+ *
+ * All of them are templates, not free-form text: these reach people who
+ * have not messaged the platform, so WhatsApp's 24-hour service window is
+ * shut and Meta refuses anything else.
  */
-export async function saveWelcomeMessage(formData: FormData): Promise<ActionResult> {
+export async function saveWhatsAppEvents(formData: FormData): Promise<ActionResult> {
   await requirePlatformAdmin();
 
   // One control, not two dependent ones: the number carries its workspace
-  // with it, so there is no way to pick a number that belongs to a
-  // different workspace than the one selected.
+  // with it, so a number belonging to a different workspace cannot be
+  // chosen at all.
   const [orgId = "", connectionId = ""] = String(formData.get("sender") ?? "").split("|");
 
-  const settings = readWelcome({
-    enabled: formData.get("enabled") === "on",
-    org_id: orgId.trim(),
-    connection_id: connectionId.trim(),
-    template_name: String(formData.get("template_name") ?? "")
-      .trim()
-      .toLowerCase(),
-    language: String(formData.get("language") ?? "").trim(),
-    uses_name: formData.get("uses_name") === "on",
-  });
+  const messages: Record<string, unknown> = {};
+  for (const event of EVENTS) {
+    // The dropdown's value is "name|language", because a template is only
+    // identified by both — the same name exists once per language, and
+    // sending the wrong one is a 404 from Meta that names nothing.
+    const [templateName = "", language = ""] = String(
+      formData.get(`${event.key}_template`) ?? ""
+    ).split("|");
 
-  // Refused here rather than once per sign-up: a half-configured welcome
-  // is one Meta error for every new customer, and nobody would see them.
-  const problem = welcomeProblem(settings);
+    messages[event.key] = {
+      enabled: formData.get(`${event.key}_enabled`) === "on",
+      template_name: templateName.trim().toLowerCase(),
+      language: language.trim() || "en",
+      uses_name: formData.get(`${event.key}_uses_name`) === "on",
+    };
+  }
+
+  const settings = readEvents({ org_id: orgId.trim(), connection_id: connectionId.trim(), messages });
+
+  // Refused here rather than once per customer: a half-configured message
+  // is one Meta error for every sign-up, and nobody would see them.
+  const problem = firstProblem(settings);
   if (problem) return { ok: false, error: problem };
+
+  const on = EVENTS.filter((event) => settings.messages[event.key].enabled).length;
 
   return mergeSetting(
     "platform_whatsapp",
-    writeWelcome(settings),
-    settings.enabled ? "Welcome message saved and switched on." : "Welcome message saved."
+    writeEvents(settings),
+    on === 0
+      ? "Saved. No WhatsApp messages will be sent."
+      : `Saved. ${on} WhatsApp message${on === 1 ? "" : "s"} switched on.`
   );
 }
 

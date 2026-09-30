@@ -8,6 +8,7 @@ import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { saveMyWhatsAppNumber } from "../welcome-actions";
 
 // The auth callback redirects here with ?error=… when a confirmation or
 // magic link fails. Read in its own Suspense-wrapped child so the rest of
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +51,15 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : "Sign in failed");
       setLoading(false);
       return;
+    }
+
+    // Every customer from before sign-up asked for a number has none, so
+    // none of them can be sent anything. Asking once here is how they
+    // catch up. Optional, ignored when the account already has one, and
+    // never able to stop somebody signing in — awaited only so the number
+    // is on the account before the page they land on reads it.
+    if (phone.trim()) {
+      await saveMyWhatsAppNumber(phone).catch(() => null);
     }
 
     router.push("/overview");
@@ -161,6 +172,23 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">
+                WhatsApp number <span className="text-white/35">(optional)</span>
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 87675 12569"
+                autoComplete="tel"
+                className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all"
+              />
+              <p className="text-[12px] text-white/35 mt-1.5">
+                Only needed once. Add it and we can reach you on WhatsApp about your account.
+              </p>
+            </div>
+
             {error && <p className="text-sm text-red-400">{error}</p>}
 
             <button
@@ -175,8 +203,8 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-white/50 mt-6">
             Don&apos;t have an account?{" "}
-            <Link href="/auth/register" className="text-accent-ink hover:text-[#00CC6A] font-medium transition-colors">
-              Start free trial
+            <Link href="/#pricing" className="text-accent-ink hover:text-[#00CC6A] font-medium transition-colors">
+              Choose a plan
             </Link>
           </p>
         </div>

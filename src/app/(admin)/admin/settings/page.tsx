@@ -11,7 +11,7 @@ import PlatformGateway from "./PlatformGateway";
 import PaymentCheck from "./PaymentCheck";
 import KnownSettings from "./KnownSettings";
 import EmailCheck from "./EmailCheck";
-import WelcomeMessage from "./WelcomeMessage";
+import WhatsAppEvents from "./WhatsAppEvents";
 
 export default async function AdminSettingsPage() {
   await requirePlatformAdmin();
@@ -97,7 +97,7 @@ export default async function AdminSettingsPage() {
       <EmailCheck />
 
       <KnownSettings />
-      <WelcomeMessage />
+      <WhatsAppEvents />
 
       <PaymentCheck />
       <PlatformGateway />
