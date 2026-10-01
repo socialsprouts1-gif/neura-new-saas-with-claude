@@ -10,6 +10,7 @@ import UseCases from "@/components/landing/UseCases";
 import Testimonials from "@/components/landing/Testimonials";
 import Integrations from "@/components/landing/Integrations";
 import Pricing from "@/components/landing/Pricing";
+import Comparison from "@/components/landing/Comparison";
 import FAQ from "@/components/landing/FAQ";
 import Footer from "@/components/landing/Footer";
 
@@ -40,10 +41,13 @@ export default async function HomePage() {
       <Testimonials />
       <Integrations />
       <Pricing
-          tiers={pricing.tiers}
-          trialDays={pricing.trialDays}
-          salesNumber={content.brand.whatsappNumber}
-        />
+        tiers={pricing.tiers}
+        trialDays={pricing.trialDays}
+        salesNumber={content.brand.whatsappNumber}
+      />
+      {/* Straight after the price, because somebody who has just read it
+          is the one asking "compared to what". */}
+      <Comparison tiers={pricing.tiers} trialDays={pricing.trialDays} />
       <FAQ />
       <Footer brand={content.brand} />
 
