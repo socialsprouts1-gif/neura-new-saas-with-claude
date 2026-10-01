@@ -27,7 +27,11 @@ export default async function HomePage() {
     // inside this element re-themes every text-white/60 under it.
     <main className="marketing marketing-canvas overflow-x-hidden">
       <Navbar brand={content.brand} />
-      <Hero content={content.hero} />
+      <Hero
+        content={content.hero}
+        demoUrl={content.brand.demoUrl}
+        whatsappNumber={content.brand.whatsappNumber}
+      />
       <TrustStrip />
       <StatsBand stats={content.hero.stats} />
       <Features />

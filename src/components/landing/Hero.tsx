@@ -3,9 +3,10 @@
 import { motion } from "framer-motion";
 import { DEFAULT_HERO, type HeroContent } from "@/lib/site-content";
 import Link from "next/link";
-import { ArrowRight, Play, Bot, Send, Database, Clock, BarChart3 } from "lucide-react";
+import { ArrowRight, CalendarCheck, Bot, Send, Database, Clock, BarChart3 } from "lucide-react";
 import { WhatsAppGlyph } from "./BrandGlyphs";
 import HeroShowcase from "./HeroShowcase";
+import { demoTarget, demoHint } from "@/lib/book-demo";
 
 // Icon and tint are layout, not copy, so they stay here and pair with the
 // editable pills by position — the same arrangement the floating cards
@@ -19,7 +20,18 @@ const pillChrome = [
   { icon: BarChart3, tint: "#9333EA" },
 ];
 
-export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent }) {
+export default function Hero({
+  content = DEFAULT_HERO,
+  demoUrl = "",
+  whatsappNumber = "",
+}: {
+  content?: HeroContent;
+  /** A Calendly or other booking page. Empty falls back to WhatsApp. */
+  demoUrl?: string;
+  whatsappNumber?: string;
+}) {
+  const demo = demoTarget({ demoUrl, whatsappNumber });
+
   const pills = content.pills
     .slice(0, pillChrome.length)
     .map((label, i) => ({ label, ...pillChrome[i] }));
@@ -80,12 +92,28 @@ export default function Hero({ content = DEFAULT_HERO }: { content?: HeroContent
                 {content.primaryCta.label}
                 <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
-              <Link href={content.secondaryCta.href} className="btn-secondary text-[15px]">
-                <span className="w-7 h-7 rounded-full bg-white/8 flex items-center justify-center shrink-0">
-                  <Play className="w-3 h-3 fill-current translate-x-[1px]" />
-                </span>
-                {content.secondaryCta.label}
-              </Link>
+              {/* Booking, not a video. Opens the configured booking page
+                  when there is one, and WhatsApp when there is not —
+                  which for a WhatsApp automation product is not a
+                  second-best, it is the demo. */}
+              {demo.kind !== "none" && (
+                <a
+                  href={demo.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary text-[15px]"
+                  title={demoHint(demo)}
+                >
+                  <span className="w-7 h-7 rounded-full bg-white/8 flex items-center justify-center shrink-0">
+                    {demo.kind === "booking" ? (
+                      <CalendarCheck className="w-[15px] h-[15px]" />
+                    ) : (
+                      <WhatsAppGlyph className="w-[15px] h-[15px]" />
+                    )}
+                  </span>
+                  {content.secondaryCta.label}
+                </a>
+              )}
             </motion.div>
 
             <motion.div

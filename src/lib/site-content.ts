@@ -39,6 +39,14 @@ export interface BrandContent {
    * one that opens WhatsApp on an error.
    */
   whatsappNumber: string;
+  /**
+   * Where "Book a demo" goes — a Calendly link, or any booking page.
+   *
+   * Empty falls back to WhatsApp, which is the right default for a
+   * product that sells WhatsApp automation: the demo starts in the
+   * channel it is about.
+   */
+  demoUrl: string;
 }
 
 export interface HeroContent {
@@ -72,7 +80,8 @@ export const DEFAULT_BRAND: BrandContent = {
   siteTitle: "Neura Chat — AI-Powered WhatsApp Automation Platform",
   siteDescription:
     "Automate customer support, lead generation, sales, follow-ups, and engagement with AI-powered WhatsApp workflows.",
-  whatsappNumber: "8767512569",
+  whatsappNumber: "8237982569",
+  demoUrl: "",
 };
 
 export const DEFAULT_HERO: HeroContent = {
@@ -86,7 +95,10 @@ export const DEFAULT_HERO: HeroContent = {
   // so a button promising it sent people who were ready to pay into a
   // fourteen-day holding pattern instead of to a payment window.
   primaryCta: { label: "Choose a plan", href: "/#pricing" },
-  secondaryCta: { label: "Watch Demo", href: "#how-it-works" },
+  // Booking, not a video. "Watch Demo" promised one and scrolled the
+  // page; the href here is only a fallback — the button resolves to a
+  // configured booking page, or to WhatsApp.
+  secondaryCta: { label: "Book a demo", href: "#pricing" },
   // Off until there are real numbers to show. A customer count, a star
   // rating and a message total are all claims a buyer can check, and being
   // caught inventing one costs more than the section was ever worth.
@@ -136,12 +148,49 @@ export function mergeSection<T extends object>(defaults: T, saved: unknown): T {
   return merged as T;
 }
 
+/**
+ * The two hero buttons, as they were saved before plans went straight to
+ * payment.
+ *
+ * A stored row always wins over the default, which is correct — it is
+ * somebody's edit. But these two particular values are not an edit: they
+ * are what the defaults used to be, saved the first time anybody pressed
+ * Save on the landing editor. Leaving them meant the live site kept
+ * offering a free trial button that was deliberately removed, and kept
+ * sending that click to sign-up rather than to the gateway.
+ *
+ * So exactly these are corrected, once, and anything else anybody has
+ * actually typed is left alone.
+ */
+const STALE_CTA: Array<{ label: string; href: string }> = [
+  { label: "Start Free Trial", href: "/auth/register" },
+  { label: "Watch Demo", href: "#how-it-works" },
+];
+
+function freshenCta(
+  saved: { label: string; href: string },
+  fallback: { label: string; href: string }
+): { label: string; href: string } {
+  const stale = STALE_CTA.some(
+    (old) =>
+      old.label.toLowerCase() === (saved.label ?? "").trim().toLowerCase() &&
+      old.href === (saved.href ?? "").trim()
+  );
+  return stale ? fallback : saved;
+}
+
 /** Builds the whole content tree from whatever rows exist. */
 export function buildSiteContent(rows: Array<{ key: string; value: unknown }>): SiteContent {
   const byKey = new Map(rows.map((row) => [row.key, row.value]));
+  const hero = mergeSection(DEFAULT_HERO, byKey.get("hero"));
+
   return {
     brand: mergeSection(DEFAULT_BRAND, byKey.get("brand")),
-    hero: mergeSection(DEFAULT_HERO, byKey.get("hero")),
+    hero: {
+      ...hero,
+      primaryCta: freshenCta(hero.primaryCta, DEFAULT_HERO.primaryCta),
+      secondaryCta: freshenCta(hero.secondaryCta, DEFAULT_HERO.secondaryCta),
+    },
   };
 }
 

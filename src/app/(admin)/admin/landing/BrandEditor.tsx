@@ -103,6 +103,21 @@ export default function BrandEditor({ initial }: { initial: BrandContent }) {
         />
       </div>
 
+      <div className="grid md:grid-cols-2 gap-4 mb-5">
+        <Text
+          label="WhatsApp number"
+          value={brand.whatsappNumber}
+          onChange={(v) => set("whatsappNumber", v)}
+          hint="The chat button in the corner, and where Book a demo goes when no calendar is set. A 10-digit Indian number is fine."
+        />
+        <Text
+          label="Booking page (optional)"
+          value={brand.demoUrl}
+          onChange={(v) => set("demoUrl", v)}
+          hint="A Calendly or Cal.com link. Must start with https://. Leave empty and Book a demo opens WhatsApp instead."
+        />
+      </div>
+
       <div className="space-y-4 mb-5">
         <Text
           label="Browser tab title"
