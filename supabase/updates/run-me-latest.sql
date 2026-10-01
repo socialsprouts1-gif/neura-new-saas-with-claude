@@ -7,9 +7,6 @@
 -- before recreating it — so running this twice changes nothing the second
 -- time, and running it when you are already up to date is a no-op.
 --
---  12. Guest checkout                  — pay from the pricing page before
---                                         there is an account to pay for
---
 -- Run it top to bottom in one go. The sections are in dependency order.
 --
 -- What is in here, newest last:
@@ -37,10 +34,16 @@
 --  10. Shiprocket orders               — structured shipping address and
 --                                         what Shiprocket sends back
 --  11. Shipment documents              — label, invoice and pickup
+--  12. FAQ number                      — which number each FAQ answers on
+--  13. Cart checkout                   — ask for the money when a cart
+--                                         arrives, instead of waiting for
+--                                         somebody to press a button
+--  14. Guest checkout                  — paying from the pricing page
+--                                         before there is an account to
+--                                         pay for
 --
--- Sections 7 to 11 are today's. The six before them are included because
--- they are harmless to re-run, and this way it does not matter whether you
--- got to them.
+-- Every one of them is included whether or not you have run it before.
+-- They are harmless to re-run, so it does not matter which you got to.
 
 
 
