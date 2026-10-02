@@ -19,7 +19,7 @@ export default async function BillingPage() {
     await Promise.all([
       supabase
         .from("subscriptions")
-        .select("*, plans(name, price_cents, currency, message_limit, contact_limit, seat_limit)")
+        .select("*, plans(name, price_cents, currency, message_limit, contact_limit, seat_limit, number_limit)")
         .eq("org_id", orgId)
         .maybeSingle(),
       supabase
@@ -41,7 +41,15 @@ export default async function BillingPage() {
   const left = daysRemaining(entitlement.subscription);
 
   const plan = subscription?.plans as
-    | { name: string; price_cents: number; currency: string; message_limit: number | null; contact_limit: number | null; seat_limit: number | null }
+    | {
+        name: string;
+        price_cents: number;
+        currency: string;
+        message_limit: number | null;
+        contact_limit: number | null;
+        seat_limit: number | null;
+        number_limit: number | null;
+      }
     | null
     | undefined;
 
@@ -85,6 +93,7 @@ export default async function BillingPage() {
                 {[
                   ["Messages", plan.message_limit?.toLocaleString() ?? "Unlimited"],
                   ["Contacts", plan.contact_limit?.toLocaleString() ?? "Unlimited"],
+                  ["WhatsApp numbers", plan.number_limit?.toString() ?? "Unlimited"],
                   ["Team seats", plan.seat_limit?.toString() ?? "Unlimited"],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between text-sm">
@@ -139,6 +148,7 @@ export default async function BillingPage() {
               messageLimit: option.message_limit,
               contactLimit: option.contact_limit,
               seatLimit: option.seat_limit,
+              numberLimit: option.number_limit ?? null,
               isCurrent: option.id === subscription?.plan_id && entitlement.active,
             }))}
             canManage={role === "owner" || role === "admin"}

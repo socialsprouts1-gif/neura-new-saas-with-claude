@@ -28,6 +28,8 @@ export interface PlanOption {
   messageLimit: number | null;
   contactLimit: number | null;
   seatLimit: number | null;
+  /** How many WhatsApp numbers. Null means unlimited. */
+  numberLimit: number | null;
   isCurrent: boolean;
 }
 
@@ -119,6 +121,9 @@ export function limitLines(plan: PlanOption | null): string[] {
   return [
     count(plan.messageLimit, "message a month", "messages a month"),
     count(plan.contactLimit, "contact", "contacts"),
+    // Numbers before seats: now that messages and contacts are unlimited
+    // on every plan, this is the line that tells the tiers apart.
+    count(plan.numberLimit, "WhatsApp number", "WhatsApp numbers"),
     count(plan.seatLimit, "team seat", "team seats"),
   ];
 }

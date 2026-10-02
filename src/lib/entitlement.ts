@@ -35,13 +35,19 @@ export async function loadEntitlement(
   const { data } = await supabase
     .from("subscriptions")
     .select(
-      "status, current_period_end, cancel_at_period_end, plans(name, message_limit, contact_limit, seat_limit)"
+      "status, current_period_end, cancel_at_period_end, plans(name, message_limit, contact_limit, seat_limit, number_limit)"
     )
     .eq("org_id", orgId)
     .maybeSingle();
 
   const plan = data?.plans as
-    | { name: string; message_limit: number | null; contact_limit: number | null; seat_limit: number | null }
+    | {
+        name: string;
+        message_limit: number | null;
+        contact_limit: number | null;
+        seat_limit: number | null;
+        number_limit: number | null;
+      }
     | null
     | undefined;
 
@@ -64,6 +70,10 @@ export async function loadEntitlement(
           message_limit: plan.message_limit,
           contact_limit: plan.contact_limit,
           seat_limit: plan.seat_limit,
+          // Null on a database that has not run the migration yet, which
+          // reads as unlimited — the right way round for a column that
+          // might not be there.
+          number_limit: plan.number_limit ?? null,
         }
       : NO_LIMITS,
     planName: plan?.name ?? null,

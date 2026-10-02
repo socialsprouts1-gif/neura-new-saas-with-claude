@@ -275,7 +275,7 @@ describe("checkLimit", () => {
 describe("usageRows", () => {
   it("lists all three whether or not any is close", () => {
     const rows = usageRows(
-      { message_limit: 1000, contact_limit: null, seat_limit: 3 },
+      { message_limit: 1000, contact_limit: null, seat_limit: 3, number_limit: null },
       { messages: 850, contacts: 4000, seats: 1 }
     );
     assert.deepEqual(

@@ -20,6 +20,7 @@ const plan = (over: Partial<PlanOption>): PlanOption => ({
   messageLimit: null,
   contactLimit: null,
   seatLimit: null,
+  numberLimit: null,
   isCurrent: false,
   ...over,
 });
@@ -115,14 +116,27 @@ test("no saving can be computed from one interval alone", () => {
 });
 
 test("limits stand in for bullets nobody wrote", () => {
-  const lines = limitLines(plan({ messageLimit: 5000, contactLimit: 1000, seatLimit: 1 }));
-  assert.deepEqual(lines, ["5,000 messages a month", "1,000 contacts", "1 team seat"]);
+  const lines = limitLines(
+    plan({ messageLimit: 5000, contactLimit: 1000, numberLimit: 2, seatLimit: 1 })
+  );
+  assert.deepEqual(lines, [
+    "5,000 messages a month",
+    "1,000 contacts",
+    "2 WhatsApp numbers",
+    "1 team seat",
+  ]);
 });
 
 test("a null limit reads as unlimited, not as zero", () => {
   assert.deepEqual(limitLines(plan({})), [
     "Unlimited messages a month",
     "Unlimited contacts",
+    "Unlimited WhatsApp numbers",
     "Unlimited team seats",
   ]);
+});
+
+test("one number reads in the singular", () => {
+  // Starter gives exactly one, which is the plan most people land on.
+  assert.ok(limitLines(plan({ numberLimit: 1 })).includes("1 WhatsApp number"));
 });

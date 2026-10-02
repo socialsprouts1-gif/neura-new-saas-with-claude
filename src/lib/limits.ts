@@ -13,6 +13,14 @@ export interface PlanLimits {
   message_limit: number | null;
   contact_limit: number | null;
   seat_limit: number | null;
+  /**
+   * How many WhatsApp numbers may be connected.
+   *
+   * The one limit the plans actually differ on now that messages and
+   * contacts are unlimited — so it is the one that has to be enforced,
+   * or the tiers are three prices for the same thing.
+   */
+  number_limit: number | null;
 }
 
 /** No plan means no limits: a workspace waiting on one is not punished. */
@@ -20,9 +28,10 @@ export const NO_LIMITS: PlanLimits = {
   message_limit: null,
   contact_limit: null,
   seat_limit: null,
+  number_limit: null,
 };
 
-export type LimitKind = "messages" | "contacts" | "seats";
+export type LimitKind = "messages" | "contacts" | "seats" | "numbers";
 
 export interface LimitVerdict {
   ok: boolean;
@@ -38,6 +47,7 @@ const LABEL: Record<LimitKind, { one: string; many: string; period: string }> = 
   messages: { one: "message", many: "messages", period: " this month" },
   contacts: { one: "contact", many: "contacts", period: "" },
   seats: { one: "seat", many: "seats", period: "" },
+  numbers: { one: "WhatsApp number", many: "WhatsApp numbers", period: "" },
 };
 
 /**

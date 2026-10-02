@@ -163,6 +163,17 @@ export const ROWS: ComparisonRow[] = [
     },
   },
   {
+    label: "WhatsApp numbers",
+    values: {
+      wati: "Not stated",
+      aisensy: "Not stated",
+      interakt: "Not stated",
+      doubletick: "Not stated",
+      gallabox: "Not stated",
+      gupshup: "Not stated",
+    },
+  },
+  {
     label: "Agent accounts",
     values: {
       wati: "5",
@@ -285,6 +296,7 @@ export function ownColumn(prices: OwnPlanPrices): Record<string, Cell> {
     // Not a number, because there is no markup to quote: messages are
     // billed at Meta's own rate.
     "Marketing message cost": "At Meta's rate",
+    "WhatsApp numbers": "1 - 5 by plan",
     "Support channels": "WhatsApp, Email, Chat",
     "Free trial": `${prices.trialDays} days`,
     "Chatbots included": "Unlimited",
@@ -292,7 +304,7 @@ export function ownColumn(prices: OwnPlanPrices): Record<string, Cell> {
     "Quick replies": "Text, Buttons, Lists",
     // No carousel support in the product. An honest cross.
     "Carousel in service messages": false,
-    "Agent accounts": "By plan",
+    "Agent accounts": "1 - 15 by plan",
     "Drag-and-drop WhatsApp forms": true,
     "Drip campaigns": true,
     "Smart analytics": true,

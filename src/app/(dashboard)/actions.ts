@@ -90,6 +90,14 @@ export async function connectWaba(formData: FormData): Promise<ActionResult> {
     .eq("phone_number_id", phoneNumberId)
     .maybeSingle();
 
+  // How many numbers the plan allows. Checked only when this is a new
+  // number — reconnecting one that is already here to rotate its token
+  // must not be refused for being over a limit it is already inside.
+  if (!existing) {
+    const refusal = await numberLimitRefusal(supabase, orgId);
+    if (refusal) return { ok: false, error: refusal };
+  }
+
   const { error } = await supabase.from("waba_connections").upsert(
     {
       org_id: orgId,
@@ -682,4 +690,39 @@ export async function startEmbeddedSignup(
       mode,
     }),
   };
+}
+
+/**
+ * Why a workspace cannot connect another WhatsApp number, or null.
+ *
+ * Messages and contacts are unlimited on every plan, so the number count
+ * is the one thing the tiers actually differ on — which makes it the one
+ * that has to be enforced, or three prices buy the same product.
+ *
+ * Never throws and never blocks on its own failure: a limit check that
+ * errors must not stop somebody connecting a number they have paid for.
+ */
+async function numberLimitRefusal(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string
+): Promise<string | null> {
+  try {
+    const { loadEntitlement } = await import("@/lib/entitlement");
+    const { checkLimit } = await import("@/lib/limits");
+
+    const entitlement = await loadEntitlement(supabase, orgId);
+    const limit = entitlement.limits.number_limit;
+    if (limit === null) return null;
+
+    const { count } = await supabase
+      .from("waba_connections")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId);
+
+    const verdict = checkLimit("numbers", limit, count ?? 0);
+    return verdict.ok ? null : (verdict.reason ?? null);
+  } catch (error) {
+    console.error("Could not check the WhatsApp number limit", error);
+    return null;
+  }
 }
