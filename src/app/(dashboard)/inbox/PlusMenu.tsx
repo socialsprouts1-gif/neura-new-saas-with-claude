@@ -56,19 +56,26 @@ export default function PlusMenu({
   /** Forms that have been uploaded to WhatsApp and can actually open. */
   forms: FormOption[];
   onInsert: (text: string) => void;
-  onSendTemplate: (template: TemplateOption) => void;
+  onSendTemplate: (template: TemplateOption, variables: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("menu");
   const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  // A template with variables cannot be sent until they are filled in —
+  // Meta counts them and refuses the whole message if the number is
+  // wrong. So picking one opens a short form rather than sending.
+  const [filling, setFilling] = useState<TemplateOption | null>(null);
+  const [values, setValues] = useState<string[]>([]);
 
   const close = () => {
     setOpen(false);
     setView("menu");
     setText("");
     setMessage(null);
+    setFilling(null);
+    setValues([]);
   };
 
   // Wraps the button as well as the panel, so pressing [+] again closes it
@@ -292,15 +299,83 @@ export default function PlusMenu({
                       key={template.id}
                       type="button"
                       onClick={() => {
-                        onSendTemplate(template);
+                        if (template.variables.length > 0) {
+                          setFilling(template);
+                          setValues(template.variables.map(() => ""));
+                          return;
+                        }
+                        onSendTemplate(template, []);
                         close();
                       }}
                       className="w-full text-left px-2.5 py-2 rounded-lg hover:bg-white/6 transition-colors"
                     >
                       <div className="text-sm truncate">{template.name}</div>
-                      <div className="text-[11px] text-white/40">{template.language}</div>
+                      <div className="text-[11px] text-white/40">
+                        {template.language}
+                        {template.variables.length > 0 &&
+                          ` · ${template.variables.length} value${
+                            template.variables.length === 1 ? "" : "s"
+                          } to fill`}
+                        {template.needsMedia && " · image"}
+                      </div>
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* Filling the variables in. Shown over the list rather than
+                  as a second panel: the template has been chosen, and the
+                  only thing left is what goes in it. */}
+              {filling && (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                  <div className="text-[12px] text-white/55">
+                    <span className="text-white/80">{filling.name}</span> needs{" "}
+                    {filling.variables.length} value
+                    {filling.variables.length === 1 ? "" : "s"}.
+                  </div>
+
+                  {filling.variables.map((token, index) => (
+                    <label key={token} className="block">
+                      <span className="block text-[11px] text-white/45 mb-1">
+                        {/^\d+$/.test(token) ? `Value ${token}` : token.replace(/_/g, " ")}
+                      </span>
+                      <input
+                        value={values[index] ?? ""}
+                        onChange={(event) =>
+                          setValues((current) => {
+                            const next = [...current];
+                            next[index] = event.target.value;
+                            return next;
+                          })
+                        }
+                        className="w-full bg-white/5 border border-white/12 rounded-lg px-2.5 py-1.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50"
+                      />
+                    </label>
+                  ))}
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={values.some((value) => !value.trim())}
+                      onClick={() => {
+                        onSendTemplate(filling, values);
+                        close();
+                      }}
+                      className="btn-primary btn-compact disabled:opacity-50"
+                    >
+                      Send
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilling(null);
+                        setValues([]);
+                      }}
+                      className="btn-quiet btn-compact"
+                    >
+                      Back
+                    </button>
+                  </div>
                 </div>
               )}
             </Panel>

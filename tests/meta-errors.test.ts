@@ -367,3 +367,30 @@ test("a refused catalogue read points at the import that works", () => {
   assert.match(text, /product cards still works/);
   assert.doesNotMatch(text, /does not look like a catalogue id/);
 });
+
+/** What Meta sends back when a template's media header could not be used. */
+const headerMismatch = (kind: string) => ({
+  error: {
+    message: "(#132012) Parameter format does not match format in the created template",
+    code: 132012,
+    error_data: {
+      details: `header: Format mismatch, expected ${kind}, received UNKNOWN`,
+    },
+  },
+});
+
+test("a media-header mismatch says it is a missing picture, not a broken message", () => {
+  // Meta's own wording — "expected IMAGE, received UNKNOWN" — reads like
+  // a bug in the message. It is almost always a URL that does not point
+  // straight at a file.
+  const message = describeMetaError(400, headerMismatch("IMAGE"));
+  assert.match(message, /picture|media URL/i);
+  assert.match(message, /https:\/\//);
+  assert.ok(hasDetailHelp(headerMismatch("IMAGE")));
+});
+
+test("the same help covers video and document headers", () => {
+  for (const kind of ["VIDEO", "DOCUMENT"]) {
+    assert.ok(hasDetailHelp(headerMismatch(kind)), kind);
+  }
+});

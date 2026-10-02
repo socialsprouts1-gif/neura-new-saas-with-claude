@@ -192,6 +192,16 @@ const META_SUBCODE_HELP: Record<string, string> = {
 // on; ordered, so the first rule that fits wins.
 const META_DETAIL_HELP: Array<{ match: RegExp; help: string }> = [
   {
+    // 132012. The template declares a media header and the send either
+    // carried no header component or one Meta could not read as a file.
+    // Its own wording — "expected IMAGE, received UNKNOWN" — reads like a
+    // bug in the message rather than a missing picture, which is what it
+    // almost always is.
+    match: /Format mismatch, expected (IMAGE|VIDEO|DOCUMENT)/i,
+    help:
+      "This template has a picture at the top, and the one saved against it could not be used. Open the template and check the media URL: it has to be a direct https:// link to the file itself — one that ends in .jpg, .png, .mp4 or .pdf and opens the file when pasted into a browser, not a Drive or Dropbox sharing page. Upload it under Gallery and use the link from there if you are not sure.",
+  },
+  {
     // WhatsApp Pay. `order_details` is the interactive type the customer
     // pays inside, and Meta refuses it outright on an account that has no
     // payment configuration — with error 131009, the same code a broken

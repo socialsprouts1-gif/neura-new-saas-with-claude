@@ -12,6 +12,8 @@ import type { LeadStage } from "@/types/portal";
 // Shared with the copilot, which had its own copy. The two had already
 // drifted — one could read a template message and the other could not.
 import { renderMessageBody, renderButtons } from "@/lib/message-preview";
+import { resolveTemplateShape } from "@/lib/template-unpack";
+import { templateVariables } from "@/lib/template-variables";
 
 // WhatsApp only delivers free-form replies within 24 hours of the customer's
 // last inbound message. Outside it, only an approved template goes through.
@@ -123,7 +125,9 @@ export default async function InboxPage({
         .limit(50),
       supabase
         .from("message_templates")
-        .select("id, name, language, category")
+        // The body and the components too: what the composer has to ask
+        // for before it can send is decided by the template, not guessed.
+        .select("id, name, language, category, body_text, header_format, header_media_url, components_json")
         .eq("org_id", orgId)
         .eq("status", "approved")
         .order("name"),
@@ -356,7 +360,21 @@ export default async function InboxPage({
             })),
           }}
           canned={canned ?? []}
-          templates={templates ?? []}
+          templates={(templates ?? []).map((template) => {
+            // Meta's own copy wins over our columns, the same way every
+            // sender resolves it — so a template written in WhatsApp
+            // Manager asks for its variables even before a Sync.
+            const shape = resolveTemplateShape(template);
+            const format = (shape.headerFormat ?? "NONE").toUpperCase();
+            return {
+              id: template.id,
+              name: template.name,
+              language: template.language,
+              category: template.category,
+              variables: templateVariables(shape.bodyText).map((slot) => slot.token),
+              needsMedia: format === "IMAGE" || format === "VIDEO" || format === "DOCUMENT",
+            };
+          })}
           media={(media ?? []).map((asset) => ({
             id: asset.id,
             name: asset.name,

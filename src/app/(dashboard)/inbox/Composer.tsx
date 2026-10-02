@@ -21,6 +21,16 @@ export interface TemplateOption {
   name: string;
   language: string;
   category: string;
+  /**
+   * The variables this template declares, in the order Meta expects them.
+   *
+   * Sent empty, Meta refuses the whole message with 132000 — so the
+   * composer has to ask for them before it can send, rather than
+   * discovering the count from an error afterwards.
+   */
+  variables: string[];
+  /** A template whose header is an image, video or document. */
+  needsMedia: boolean;
 }
 
 export interface MediaOption {
@@ -194,11 +204,15 @@ export default function Composer({
           templates={templates}
           forms={forms}
           onInsert={insert}
-          onSendTemplate={(template) =>
+          onSendTemplate={(template, variables) =>
             void post({
               templateName: template.name,
               language: template.language,
-              components: [],
+              // Values only. The components are built on the server from
+              // the stored template — this used to send a hardcoded empty
+              // array, which is why a template with an image header came
+              // back as Meta 132012.
+              variables,
             })
           }
         />

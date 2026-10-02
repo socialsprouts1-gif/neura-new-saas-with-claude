@@ -12,6 +12,8 @@ import {
   describeMetaError,
   type MetaTemplateComponent,
 } from "@/lib/meta-whatsapp";
+import { buildTemplateComponents } from "@/lib/template-components";
+import { resolveTemplateShape } from "@/lib/template-unpack";
 
 interface SendRequestBody {
   orgId?: string;
@@ -23,7 +25,13 @@ interface SendRequestBody {
   body?: string;
   templateName?: string;
   language?: string;
-  components?: MetaTemplateComponent[];
+  /**
+   * Values for the template's own variables, in the order it declares
+   * them. The components themselves are built on the server from the
+   * stored template — a browser that could name its own components could
+   * send a header pointing anywhere.
+   */
+  variables?: string[];
 }
 
 export async function POST(request: NextRequest) {
@@ -116,10 +124,36 @@ export async function POST(request: NextRequest) {
 
   const accessToken = connection.accessToken;
 
+  // The components are built here, from the template this workspace has
+  // stored, rather than taken from the request. The composer used to send
+  // a hardcoded empty array, so a template with an image header went out
+  // with no header at all and Meta refused it with 132012 — "expected
+  // IMAGE, received UNKNOWN" — and one with a body variable was refused
+  // with 132000. The same bug the campaign sender had, one screen over.
+  //
+  // Building them server-side is also the only safe way round: a browser
+  // that could name its own components could point a header at any URL it
+  // liked and have it sent from this workspace's number.
+  let components: MetaTemplateComponent[] = [];
+
+  if (isTemplate) {
+    const built = await templateComponents(supabase, {
+      orgId: body.orgId,
+      name: body.templateName!,
+      language: body.language!,
+      variables: Array.isArray(body.variables) ? body.variables.map(String) : [],
+    });
+
+    if ("error" in built) {
+      return NextResponse.json({ error: built.error }, { status: 400 });
+    }
+    components = built.components;
+  }
+
   try {
     const messageType = isTemplate ? "template" : "text";
     const content = isTemplate
-      ? { template_name: body.templateName, language: body.language, components: body.components ?? [] }
+      ? { template_name: body.templateName, language: body.language, components }
       : { body: body.body };
 
     const result = isTemplate
@@ -128,7 +162,7 @@ export async function POST(request: NextRequest) {
           contact.wa_id,
           body.templateName!,
           body.language!,
-          body.components ?? [],
+          components,
           accessToken
         )
       : await sendTextMessage(connection.phoneNumberId, contact.wa_id, body.body!, accessToken);
@@ -325,4 +359,39 @@ async function assistantShouldStandDown(
 
   if (!assistants || assistants.length === 0) return false;
   return lastRun?.matched_kind === "assistant";
+}
+
+/**
+ * The components for a template this workspace owns.
+ *
+ * Looked up by name and language together, because the same name exists
+ * once per language and sending the wrong one is a 404 from Meta naming
+ * nothing. Scoped to the org, so naming another workspace's template
+ * finds nothing rather than sending it.
+ */
+async function templateComponents(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: { orgId: string; name: string; language: string; variables: string[] }
+): Promise<{ components: MetaTemplateComponent[] } | { error: string }> {
+  const { data: template } = await supabase
+    .from("message_templates")
+    .select("body_text, header_format, header_text, header_media_url, components_json")
+    .eq("org_id", input.orgId)
+    .eq("name", input.name)
+    .eq("language", input.language)
+    .maybeSingle();
+
+  if (!template) {
+    return {
+      error: `This workspace has no approved template called ${input.name} in ${input.language}. Press Sync on the Templates screen if you created it in WhatsApp Manager.`,
+    };
+  }
+
+  // Meta's own copy first, then our columns — the same resolution the
+  // campaign sender uses, so a template synced from WhatsApp Manager
+  // sends correctly whether or not anybody has pressed Sync since.
+  const built = buildTemplateComponents(resolveTemplateShape(template), input.variables);
+  if (!built.ok) return { error: built.error };
+
+  return { components: built.components };
 }
