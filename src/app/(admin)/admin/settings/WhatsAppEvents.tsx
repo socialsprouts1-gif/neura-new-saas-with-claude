@@ -3,6 +3,8 @@ import { saveWhatsAppEvents } from "../actions";
 import ActionForm, { SelectField } from "@/components/ui/ActionForm";
 import { Card } from "@/components/ui/primitives";
 import { EVENTS, readEvents } from "@/lib/whatsapp-events";
+import { resolveTemplateShape } from "@/lib/template-unpack";
+import { variableCount } from "@/lib/template-variables";
 import { displayWaNumber } from "@/lib/whatsapp-link";
 
 /**
@@ -68,11 +70,15 @@ export default async function WhatsAppEvents() {
     value: `${row.name}|${row.language}`,
     label: `${row.name} · ${row.language} · ${row.category}`,
     category: String(row.category ?? ""),
+    // A code template has to declare exactly one variable, and the obvious
+    // thing to write — "Hi {{1}}, your code is {{2}}" — declares two.
+    // Caught here rather than as a Meta refusal nobody sees.
+    variables: variableCount(resolveTemplateShape(row).bodyText),
   }));
 
-  /** The chosen template's category, for the one event that cares. */
-  const categoryOf = (templateName: string, language: string) =>
-    templateOptions.find((option) => option.value === `${templateName}|${language}`)?.category ?? "";
+  /** The chosen template, for the one event that cares what is in it. */
+  const chosenOption = (templateName: string, language: string) =>
+    templateOptions.find((option) => option.value === `${templateName}|${language}`);
 
   return (
     <Card className="mb-6">
@@ -160,16 +166,34 @@ export default async function WhatsAppEvents() {
                     reserves those for one-time codes, and they are the only ones that get the
                     copy-code button. If yours has that button, the code is put into it
                     automatically.
-                    {message.templateName &&
-                      categoryOf(message.templateName, message.language) &&
-                      categoryOf(message.templateName, message.language) !== "AUTHENTICATION" && (
-                        <span className="block mt-1.5 text-[#FACC15]/80">
-                          The template chosen here is a{" "}
-                          {categoryOf(message.templateName, message.language)} template. It may
-                          still send, but Meta asks for codes to go out as AUTHENTICATION and can
-                          pause a number that sends them any other way.
-                        </span>
-                      )}
+                    {(() => {
+                      const picked = message.templateName
+                        ? chosenOption(message.templateName, message.language)
+                        : undefined;
+                      if (!picked) return null;
+
+                      return (
+                        <>
+                          {picked.variables !== 1 && (
+                            <span className="block mt-1.5 text-[#F87171]/85">
+                              This template has {picked.variables === 0 ? "no variables" : `${picked.variables} variables`}. A
+                              code template takes exactly one — the code, written as{" "}
+                              {"{{1}}"} — so this one cannot send and codes will go by email
+                              instead.
+                            </span>
+                          )}
+                          {picked.category && picked.category !== "AUTHENTICATION" && (
+                            <span className="block mt-1.5 text-[#FACC15]/80">
+                              This is a {picked.category} template. Meta reserves AUTHENTICATION
+                              for codes and only opens it to accounts that have scaled, so a
+                              UTILITY one is the usual way round it — it sends, but keep the
+                              wording about the sign-up they just started rather than about a
+                              passcode.
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                   </p>
                 ) : (
                   <SelectField

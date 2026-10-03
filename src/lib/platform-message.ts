@@ -5,7 +5,8 @@ import { resolveConnection } from "@/lib/connections";
 import { sendTemplateMessage, describeMetaError, MetaApiError } from "@/lib/meta-whatsapp";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
 import { recordOutboundTemplate } from "@/lib/outbound-log";
-import { otpButtonIndex } from "@/lib/template-unpack";
+import { otpButtonIndex, resolveTemplateShape } from "@/lib/template-unpack";
+import { variableCount } from "@/lib/template-variables";
 import { otpComponents } from "@/lib/signup-otp";
 import {
   readEvents,
@@ -289,11 +290,29 @@ export async function sendOtpTemplate(
     // copy-code button sent none fails identically.
     const { data: template } = await admin
       .from("message_templates")
-      .select("components_json")
+      .select("body_text, header_format, header_text, header_media_url, components_json")
       .eq("waba_id", connection.wabaId)
       .eq("name", message.templateName)
       .eq("language", message.language)
       .maybeSingle();
+
+    // Exactly one variable, and it is the code. Checked here rather than
+    // discovered as Meta's 132000 for every customer, because a template
+    // written with a greeting as well — "Hi {{1}}, your code is {{2}}" — is
+    // the obvious thing to write and the one shape this cannot send.
+    if (template) {
+      const declared = variableCount(resolveTemplateShape(template).bodyText);
+      if (declared !== 1) {
+        return {
+          sent: false,
+          setup: true,
+          reason:
+            declared === 0
+              ? `The template "${message.templateName}" has no variable in it, so there is nowhere to put the code. It needs exactly one, written as {{1}}.`
+              : `The template "${message.templateName}" has ${declared} variables. A code template takes exactly one — the code — so a greeting cannot go in it as well.`,
+        };
+      }
+    }
 
     const buttonIndex = otpButtonIndex(template?.components_json);
 

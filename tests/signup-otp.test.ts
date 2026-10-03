@@ -24,6 +24,7 @@ import {
 import { otpButtonIndex } from "../src/lib/template-unpack.ts";
 import { signupCodeEmail } from "../src/lib/email-templates.ts";
 import { isMarketing, suppressible } from "../src/lib/email-kinds.ts";
+import { variableCount } from "../src/lib/template-variables.ts";
 
 const BRAND = {
   name: "Neura Chat",
@@ -371,4 +372,19 @@ test("a sign-up code is never treated as marketing", () => {
   // cannot create an account.
   assert.equal(isMarketing("signup_code"), false);
   assert.equal(suppressible("signup_code"), false);
+});
+
+// --- the shape a code template has to have ---------------------------------
+
+test("a code template declares exactly one variable", () => {
+  // The obvious thing to write — "Hi {{1}}, your code is {{2}}" — declares
+  // two, and Meta refuses it with 132000 for every customer. Both the admin
+  // screen and the sender count it, so this is the rule they share.
+  assert.equal(variableCount("Your sign-up code is {{1}}. It expires in 10 minutes."), 1);
+  assert.equal(variableCount("Hi {{1}}, your code is {{2}}."), 2);
+  assert.equal(variableCount("Your code is on its way."), 0);
+});
+
+test("a named variable counts too, so a NAMED template is not read as empty", () => {
+  assert.equal(variableCount("Your code is {{code}}."), 1);
 });
