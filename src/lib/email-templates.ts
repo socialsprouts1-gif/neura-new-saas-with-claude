@@ -178,6 +178,33 @@ export function welcomeEmail(brand: EmailBrand, input: { trialDays: number }): E
   };
 }
 
+/**
+ * The sign-up code, when it could not go over WhatsApp.
+ *
+ * No button and no link in it at all. A verification message carrying a
+ * link is the exact shape of a phishing mail, and teaching customers that
+ * ours contain one is a habit somebody else will use later.
+ */
+export function signupCodeEmail(
+  brand: EmailBrand,
+  input: { code: string; minutes: number }
+): EmailBody {
+  const lines = [
+    `Your ${brand.name} sign-up code is below. Type it into the page you left open.`,
+    `It expires in ${input.minutes} minutes. If you did not ask for it, you can ignore this — nobody can use it without the rest of your details.`,
+  ];
+
+  const code = `<div style="margin:26px 0 20px;padding:18px 0;background:#F4F6F9;border-radius:12px;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:32px;font-weight:700;letter-spacing:0.28em;color:#0B1220;">${escape(
+    input.code
+  )}</div>`;
+
+  return {
+    subject: `${input.code} is your ${brand.name} code`,
+    html: layout(brand, `Your code expires in ${input.minutes} minutes.`, `${p(lines[0])}${code}${p(lines[1])}`),
+    text: `${lines[0]}\n\n${input.code}\n\n${lines[1]}`,
+  };
+}
+
 export function trialEndingEmail(brand: EmailBrand, input: { daysLeft: number }): EmailBody {
   const when = inDays(input.daysLeft);
   const action = { label: "See plans", href: `${brand.appUrl}/billing` };

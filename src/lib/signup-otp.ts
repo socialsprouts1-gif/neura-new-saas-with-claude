@@ -97,6 +97,19 @@ export function normaliseCode(value: string | null | undefined): string | null {
   return digits.length === CODE_LENGTH ? digits : null;
 }
 
+/**
+ * How a code reached somebody.
+ *
+ * Two channels prove two different things, and the difference is recorded
+ * rather than smoothed over: a code typed back after arriving on WhatsApp
+ * proves whoever signed up holds that phone, and a code read in an inbox
+ * proves only that they hold that inbox. Email is the fallback for an
+ * account Meta has not yet approved a code template on — worth having,
+ * because the alternative is nobody being able to sign up at all, and
+ * worth labelling, because it is not the same evidence.
+ */
+export type OtpChannel = "whatsapp" | "email";
+
 export interface OtpRow {
   wa_id: string;
   code_hash: string;
@@ -105,6 +118,7 @@ export interface OtpRow {
   sends: number;
   last_sent_at: string | null;
   window_started_at: string | null;
+  channel?: OtpChannel;
   verified_at: string | null;
   verification_token: string | null;
   consumed_at: string | null;

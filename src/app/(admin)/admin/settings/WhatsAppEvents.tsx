@@ -150,6 +150,11 @@ export default async function WhatsAppEvents() {
 
                 {event.carriesCode ? (
                   <p className="text-xs text-white/45 leading-relaxed">
+                    <span className="block mb-1.5 text-white/60">
+                      Until this is set, sign-up codes go to the customer&rsquo;s email instead,
+                      so nobody is stopped from creating an account. Email proves their inbox,
+                      not their phone — which is the whole reason to set this.
+                    </span>
                     This one&rsquo;s variable is the code itself, so there is nothing to choose.
                     Use an <span className="text-white/75">AUTHENTICATION</span> template — Meta
                     reserves those for one-time codes, and they are the only ones that get the

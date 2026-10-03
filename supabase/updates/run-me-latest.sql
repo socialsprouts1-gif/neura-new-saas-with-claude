@@ -915,6 +915,11 @@ create table if not exists public.signup_otps (
   -- When the send tally started, so the daily limit is a rolling window
   -- rather than a midnight reset somebody can wait out.
   window_started_at timestamptz not null default now(),
+  -- How the code was delivered. WhatsApp is the point of the exercise;
+  -- email is the fallback for when Meta has not approved a code template
+  -- yet, and it is recorded because the two prove different things — a
+  -- code read in an inbox says nothing about who holds the phone.
+  channel text not null default 'whatsapp',
   verified_at timestamptz,
   -- Handed to the browser once the code is right, and exchanged for an
   -- account. Long, random, single-use: it is the only proof the sign-up
@@ -930,6 +935,16 @@ create table if not exists public.signup_otps (
   requested_ip text,
   created_at timestamptz not null default now()
 );
+
+-- Added separately as well, so a database that already has this table from
+-- an earlier run of this file gets the column too.
+alter table public.signup_otps
+  add column if not exists channel text not null default 'whatsapp';
+
+alter table public.signup_otps
+  drop constraint if exists signup_otps_channel_check;
+alter table public.signup_otps
+  add constraint signup_otps_channel_check check (channel in ('whatsapp', 'email'));
 
 create index if not exists signup_otps_last_sent_idx
   on public.signup_otps(last_sent_at desc);

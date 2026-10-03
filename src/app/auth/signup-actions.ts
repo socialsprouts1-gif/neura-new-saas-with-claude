@@ -70,7 +70,7 @@ export async function completeSignup(input: SignupInput): Promise<SignupResult> 
 
   const { data: found } = await admin
     .from("signup_otps")
-    .select("wa_id, name, verified_at, consumed_at")
+    .select("wa_id, name, channel, verified_at, consumed_at")
     .eq("verification_token", token)
     .maybeSingle();
 
@@ -78,7 +78,7 @@ export async function completeSignup(input: SignupInput): Promise<SignupResult> 
     return { ok: false, needsNewCode: true, error: "Verify your WhatsApp number again." };
   }
 
-  const row = found as Pick<OtpRow, "wa_id" | "verified_at" | "consumed_at"> & {
+  const row = found as Pick<OtpRow, "wa_id" | "channel" | "verified_at" | "consumed_at"> & {
     name: string | null;
   };
 
@@ -123,6 +123,11 @@ export async function completeSignup(input: SignupInput): Promise<SignupResult> 
           // This is the whole point of doing sign-up on the server.
           whatsapp_number: waId,
           phone: waId,
+          // Whether the code actually reached that number, or went to the
+          // email address because Meta had not approved a code template
+          // yet. The two are not the same evidence, and writing "verified"
+          // over both would make the flag worth nothing.
+          whatsapp_verified: row.channel !== "email",
         },
       },
     });

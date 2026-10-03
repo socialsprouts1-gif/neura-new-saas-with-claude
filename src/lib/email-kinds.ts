@@ -16,6 +16,10 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  */
 const TRANSACTIONAL = new Set([
   "welcome",
+  // A sign-up code. Putting an unsubscribe link on the one message
+  // somebody is actively waiting for would be absurd, and a code that can
+  // be suppressed is a person who cannot create an account.
+  "signup_code",
   "payment_received",
   "subscription_expired",
   "first_chatbot",

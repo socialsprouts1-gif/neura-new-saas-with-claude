@@ -22,6 +22,16 @@ import {
   normaliseVerificationToken,
 } from "../src/lib/signup-otp-code.ts";
 import { otpButtonIndex } from "../src/lib/template-unpack.ts";
+import { signupCodeEmail } from "../src/lib/email-templates.ts";
+import { isMarketing, suppressible } from "../src/lib/email-kinds.ts";
+
+const BRAND = {
+  name: "Neura Chat",
+  appUrl: "https://neurachat.in",
+  supportEmail: "support@neurachat.in",
+  logoUrl: null,
+  unsubscribeUrl: null,
+};
 
 const SECRET = "a-test-secret";
 const NOW = new Date("2026-10-03T12:00:00.000Z");
@@ -322,4 +332,43 @@ test("the number shown back is enough to spot a typo and no more", () => {
 test("masking something too short to mask does not invent digits", () => {
   assert.equal(maskedNumber("12"), "12");
   assert.equal(maskedNumber(""), "");
+});
+
+// --- the code by email, when WhatsApp cannot take it -----------------------
+
+test("the code email carries the code", () => {
+  const body = signupCodeEmail(BRAND, { code: "123456", minutes: 10 });
+  assert.match(body.subject, /123456/);
+  assert.match(body.html, /123456/);
+  assert.match(body.text, /123456/);
+});
+
+test("the code email sends nobody anywhere but our own site", () => {
+  // A verification message with a button to click is the exact shape of a
+  // phishing mail, and teaching customers that ours carry one is a habit
+  // somebody else will use later. The footer's own links are all that is
+  // left, and this fails the moment an action button is added.
+  const body = signupCodeEmail(BRAND, { code: "123456", minutes: 10 });
+  const hrefs = [...body.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+  assert.ok(hrefs.length > 0);
+  for (const href of hrefs) {
+    assert.ok(
+      href.startsWith("mailto:") || href === BRAND.appUrl,
+      `${href} is not our own site`
+    );
+  }
+  assert.doesNotMatch(body.text, /https?:\/\//);
+});
+
+test("the code email says when it stops working", () => {
+  const body = signupCodeEmail(BRAND, { code: "123456", minutes: 10 });
+  assert.match(body.text, /10 minutes/);
+});
+
+test("a sign-up code is never treated as marketing", () => {
+  // An unsubscribe link on the one message somebody is actively waiting
+  // for would be absurd, and a code that can be suppressed is a person who
+  // cannot create an account.
+  assert.equal(isMarketing("signup_code"), false);
+  assert.equal(suppressible("signup_code"), false);
 });

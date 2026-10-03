@@ -4,6 +4,8 @@ import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
 import { sendOtpTemplate } from "@/lib/platform-message";
+import { sendEmail } from "@/lib/email";
+import { signupCodeEmail } from "@/lib/email-templates";
 import {
   CODE_TTL_MINUTES,
   MAX_NUMBERS_PER_VISITOR,
@@ -15,6 +17,7 @@ import {
   expiryFrom,
   maskedNumber,
   normaliseCode,
+  type OtpChannel,
   type OtpRow,
 } from "@/lib/signup-otp";
 import {
@@ -85,8 +88,10 @@ const COLUMNS =
 export interface OtpSendResult {
   ok: boolean;
   error?: string;
-  /** The number as it is shown back, so a typo is caught before waiting. */
+  /** The number or address it went to, so a typo is caught before waiting. */
   sentTo?: string;
+  /** Which it was. The form says "on WhatsApp" or "by email" accordingly. */
+  channel?: OtpChannel;
   /** Seconds before Resend does anything, for the countdown on the button. */
   retryAfterSeconds?: number;
   expiresInMinutes?: number;
@@ -169,25 +174,70 @@ export async function requestSignupOtp(input: {
 
     const sent = await sendOtpTemplate({ waId, name }, code);
 
-    if (!sent.sent) {
-      // The code was stored before it was sent, because a sent code that
-      // was never stored cannot be checked. Since it did not go out, the
-      // cooldown it started is given back — making somebody wait a minute
-      // for a message they never received is the wrong way round.
-      await releaseCooldown(admin, waId, row, now);
-      console.error("Could not send a sign-up code", sent.reason);
-      return { ok: false, error: sent.setup ? sent.reason : GENERIC_SEND_FAILURE };
+    if (sent.sent) {
+      return {
+        ok: true,
+        channel: "whatsapp",
+        sentTo: maskedNumber(waId),
+        retryAfterSeconds: RESEND_COOLDOWN_SECONDS,
+        expiresInMinutes: CODE_TTL_MINUTES,
+      };
     }
 
-    return {
-      ok: true,
-      sentTo: maskedNumber(waId),
-      retryAfterSeconds: RESEND_COOLDOWN_SECONDS,
-      expiresInMinutes: CODE_TTL_MINUTES,
-    };
+    console.error("Could not send a sign-up code on WhatsApp", sent.reason);
+
+    // WhatsApp could not take it. Rather than stopping sign-up dead, the
+    // code goes to the address from the first step — which is a weaker
+    // thing entirely, and is recorded as such: a code read in an inbox
+    // says nothing about who holds the phone. It is here because an
+    // account Meta has not yet approved a code template on would otherwise
+    // have a sign-up form nobody can get through.
+    if (email && (await emailTheCode(email, code, waId))) {
+      await admin.from("signup_otps").update({ channel: "email" }).eq("wa_id", waId);
+      return {
+        ok: true,
+        channel: "email",
+        sentTo: email,
+        retryAfterSeconds: RESEND_COOLDOWN_SECONDS,
+        expiresInMinutes: CODE_TTL_MINUTES,
+      };
+    }
+
+    // Neither worked. The code was stored before it was sent, because a
+    // sent code that was never stored cannot be checked — so the cooldown
+    // it started is given back, since making somebody wait a minute for a
+    // message they never received is the wrong way round.
+    await releaseCooldown(admin, waId, row, now);
+    return { ok: false, error: sent.setup ? sent.reason : GENERIC_SEND_FAILURE };
   } catch (error) {
     console.error("Could not start WhatsApp verification", error);
     return { ok: false, error: GENERIC_SEND_FAILURE };
+  }
+}
+
+/**
+ * The code by email, when WhatsApp could not take it.
+ *
+ * Deduped on the code itself rather than on the number, so pressing Resend
+ * sends a new code and not nothing — the dedupe key exists to stop a
+ * retried cron sending the same message twice, and every code here is
+ * genuinely new.
+ */
+async function emailTheCode(to: string, code: string, waId: string): Promise<boolean> {
+  try {
+    const result = await sendEmail({
+      to,
+      orgId: null,
+      kind: "signup_code",
+      dedupeKey: `signup_code:${waId}:${hashCode(waId, code, secret()).slice(0, 16)}`,
+      body: (brand) => signupCodeEmail(brand, { code, minutes: CODE_TTL_MINUTES }),
+    });
+
+    if (!result.ok) console.error("Could not email a sign-up code", result.skipped ?? result.error);
+    return result.ok && result.skipped !== "not_configured";
+  } catch (error) {
+    console.error("Could not email a sign-up code", error);
+    return false;
   }
 }
 

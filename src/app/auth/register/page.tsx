@@ -72,6 +72,11 @@ function RegisterForm() {
   // token that typing the right one earns.
   const [codeSent, setCodeSent] = useState(false);
   const [sentTo, setSentTo] = useState("");
+  // Where it went. WhatsApp is the point of the exercise; email is the
+  // fallback, and saying which is not a detail — somebody who pressed
+  // "Send code on WhatsApp" and then waits at their phone for an email
+  // has been told nothing useful.
+  const [sentBy, setSentBy] = useState<"whatsapp" | "email">("whatsapp");
   const [code, setCode] = useState("");
   const [token, setToken] = useState("");
   const [cooldown, setCooldown] = useState(0);
@@ -162,6 +167,7 @@ function RegisterForm() {
     setCodeSent(true);
     setCode("");
     setSentTo(("sentTo" in result && result.sentTo) || displayWaNumber(waId));
+    setSentBy(("channel" in result && result.channel === "email") ? "email" : "whatsapp");
     setCooldown(("retryAfterSeconds" in result && result.retryAfterSeconds) || 60);
   };
 
@@ -528,8 +534,17 @@ function RegisterForm() {
                             invalid={codeWrong}
                           />
                           {sentTo && (
-                            <p className="text-[12px] text-white/40 mt-2">
-                              Sent on WhatsApp to <span className="text-white/65">{sentTo}</span>.
+                            <p className="text-[12px] text-white/40 mt-2 leading-relaxed">
+                              {sentBy === "email" ? (
+                                <>
+                                  Sent by email to <span className="text-white/65">{sentTo}</span>.
+                                  WhatsApp could not take it this time, so check your inbox.
+                                </>
+                              ) : (
+                                <>
+                                  Sent on WhatsApp to <span className="text-white/65">{sentTo}</span>.
+                                </>
+                              )}
                             </p>
                           )}
                         </div>

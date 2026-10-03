@@ -692,6 +692,8 @@ export interface Database {
           sends: number;
           last_sent_at: string;
           window_started_at: string;
+          /** How the code was delivered: "whatsapp" or, as a fallback, "email". */
+          channel: "whatsapp" | "email";
           verified_at: string | null;
           /** Single-use proof that the number in the sign-up form was verified. */
           verification_token: string | null;
@@ -710,6 +712,7 @@ export interface Database {
           sends?: number;
           last_sent_at?: string;
           window_started_at?: string;
+          channel?: "whatsapp" | "email";
           verified_at?: string | null;
           verification_token?: string | null;
           consumed_at?: string | null;
