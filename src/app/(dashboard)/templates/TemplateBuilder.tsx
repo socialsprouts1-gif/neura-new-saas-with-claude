@@ -35,7 +35,12 @@ const CATEGORY_HELP: Record<string, string> = {
     "A message about something the customer already did — an order, a booking, an account. Cheapest, and approved fastest.",
   MARKETING:
     "Promotions, offers, anything they did not ask for. Costs more and only reaches people who opted in.",
-  AUTHENTICATION: "One-time passcodes. No links, no calls, no marketing language.",
+  // Meta does not let an authentication template be written freehand — it
+  // has its own fixed wording and its own copy-code button, so one made
+  // here with a body of your own is refused. Said out loud, because the
+  // refusal that comes back names no field and reads like a bug.
+  AUTHENTICATION:
+    "One-time passcodes. Meta writes these itself: create it in WhatsApp Manager (Templates → Create → Authentication) and press Sync here. A code template built on this screen will be rejected.",
 };
 
 const BLANK: TemplateSpec = {

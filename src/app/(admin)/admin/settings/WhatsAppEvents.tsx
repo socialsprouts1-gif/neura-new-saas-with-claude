@@ -54,16 +54,25 @@ export default async function WhatsAppEvents() {
   const { data: templates } = chosen?.wabaId
     ? await admin
         .from("message_templates")
-        .select("name, language, body_text, components_json")
+        .select("name, language, category, body_text, components_json")
         .eq("waba_id", chosen.wabaId)
         .eq("status", "approved")
         .order("name")
     : { data: [] };
 
+  // The category is in the label because it is the difference between a
+  // code that arrives and a template Meta refuses: a one-time code belongs
+  // in an AUTHENTICATION template, and nothing on screen would otherwise
+  // say which of these is one.
   const templateOptions = (templates ?? []).map((row) => ({
     value: `${row.name}|${row.language}`,
-    label: `${row.name} · ${row.language}`,
+    label: `${row.name} · ${row.language} · ${row.category}`,
+    category: String(row.category ?? ""),
   }));
+
+  /** The chosen template's category, for the one event that cares. */
+  const categoryOf = (templateName: string, language: string) =>
+    templateOptions.find((option) => option.value === `${templateName}|${language}`)?.category ?? "";
 
   return (
     <Card className="mb-6">
@@ -139,15 +148,35 @@ export default async function WhatsAppEvents() {
                   ]}
                 />
 
-                <SelectField
-                  label="Does it greet them by name?"
-                  name={`${event.key}_uses_name`}
-                  defaultValue={message.usesName ? "on" : "off"}
-                  options={[
-                    { value: "off", label: "No — it has no variables" },
-                    { value: "on", label: "Yes — it takes their name as {{1}}" },
-                  ]}
-                />
+                {event.carriesCode ? (
+                  <p className="text-xs text-white/45 leading-relaxed">
+                    This one&rsquo;s variable is the code itself, so there is nothing to choose.
+                    Use an <span className="text-white/75">AUTHENTICATION</span> template — Meta
+                    reserves those for one-time codes, and they are the only ones that get the
+                    copy-code button. If yours has that button, the code is put into it
+                    automatically.
+                    {message.templateName &&
+                      categoryOf(message.templateName, message.language) &&
+                      categoryOf(message.templateName, message.language) !== "AUTHENTICATION" && (
+                        <span className="block mt-1.5 text-[#FACC15]/80">
+                          The template chosen here is a{" "}
+                          {categoryOf(message.templateName, message.language)} template. It may
+                          still send, but Meta asks for codes to go out as AUTHENTICATION and can
+                          pause a number that sends them any other way.
+                        </span>
+                      )}
+                  </p>
+                ) : (
+                  <SelectField
+                    label="Does it greet them by name?"
+                    name={`${event.key}_uses_name`}
+                    defaultValue={message.usesName ? "on" : "off"}
+                    options={[
+                      { value: "off", label: "No — it has no variables" },
+                      { value: "on", label: "Yes — it takes their name as {{1}}" },
+                    ]}
+                  />
+                )}
               </div>
             );
           })}

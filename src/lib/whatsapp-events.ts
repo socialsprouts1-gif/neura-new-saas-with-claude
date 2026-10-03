@@ -12,7 +12,7 @@
 // who have not messaged the platform, so WhatsApp's 24-hour service
 // window is shut and Meta refuses free-form text to them outright.
 
-export type EventKey = "signup" | "trial_ended" | "payment_received";
+export type EventKey = "otp" | "signup" | "trial_ended" | "payment_received";
 
 export interface EventMeta {
   key: EventKey;
@@ -21,9 +21,26 @@ export interface EventMeta {
   when: string;
   /** A template name that would make sense here, shown as the placeholder. */
   suggestion: string;
+  /**
+   * Whether this one carries a one-time code rather than a greeting.
+   *
+   * The code event is the odd one out in every direction: its template has
+   * to be an AUTHENTICATION template, its one variable is the code and
+   * never the person's name, and it is sent again every time somebody asks
+   * for another — so the "already sent this" rule the others rely on has
+   * to be off for it.
+   */
+  carriesCode?: boolean;
 }
 
 export const EVENTS: EventMeta[] = [
+  {
+    key: "otp",
+    label: "Sign-up code",
+    when: "Somebody types their WhatsApp number while signing up and has to prove it is theirs.",
+    suggestion: "signup_code",
+    carriesCode: true,
+  },
   {
     key: "signup",
     label: "New sign-up",
@@ -78,6 +95,7 @@ export const DEFAULT_EVENTS: WhatsAppEventSettings = {
   orgId: "",
   connectionId: "",
   messages: {
+    otp: { ...BLANK },
     signup: { ...BLANK },
     trial_ended: { ...BLANK },
     payment_received: { ...BLANK },
@@ -116,6 +134,7 @@ export function readEvents(value: unknown): WhatsAppEventSettings {
     orgId: text(raw.org_id),
     connectionId: text(raw.connection_id),
     messages: {
+      otp: readMessage(messages?.otp),
       signup: readMessage(messages?.signup),
       trial_ended: readMessage(messages?.trial_ended),
       payment_received: readMessage(messages?.payment_received),
@@ -201,6 +220,11 @@ export function eventComponents(
   key: EventKey,
   name: string
 ): EventComponent[] {
+  // The code template's one variable is the code, which this function has
+  // no business knowing — see otpComponents in signup-otp.ts. Guarded here
+  // so a caller that reaches for the wrong one sends nothing rather than
+  // somebody's name where Meta expects six digits.
+  if (carriesCode(key)) return [];
   if (!settings.messages[key].usesName) return [];
   // Never blank: Meta refuses an empty parameter, and "there" reads as a
   // greeting rather than as a missing value.
@@ -211,6 +235,11 @@ export function eventComponents(
 /** The first name, for a greeting. "Vivek Sharma" should not say "Hi Vivek Sharma". */
 export function greetingName(fullName: string | null | undefined): string {
   return (fullName ?? "").trim().split(/\s+/)[0] ?? "";
+}
+
+/** Whether this event's template carries a one-time code rather than a name. */
+export function carriesCode(key: EventKey): boolean {
+  return EVENTS.find((event) => event.key === key)?.carriesCode === true;
 }
 
 /** How a sent message is labelled in the inbox, and how a repeat is recognised. */

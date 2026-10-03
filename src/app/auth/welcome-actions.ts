@@ -4,57 +4,27 @@ import { createClient } from "@/lib/supabase/server";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
 import { sendPlatformEvent } from "@/lib/platform-message";
 
-// Saying hello on WhatsApp, to somebody who just signed up for WhatsApp.
+// Catching up the customers who signed up before there was anywhere to put
+// a WhatsApp number.
 //
-// The work happens in sendPlatformEvent, which every one of the
-// platform's own messages goes through. This is the thin part: it decides
-// who the recipient is, and it takes no arguments in order to do that —
-// the number comes from the signed-in user's own metadata, so a caller
-// cannot use this to send a template to an arbitrary number.
-
-export interface WelcomeResult {
-  sent: boolean;
-  reason?: string;
-}
-
-export async function sendSignupWelcome(): Promise<WelcomeResult> {
-  try {
-    const supabase = await createClient();
-    const { data: auth } = await supabase.auth.getUser();
-    const user = auth?.user;
-    if (!user) return { sent: false, reason: "Not signed in" };
-
-    const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-    const raw =
-      typeof metadata.whatsapp_number === "string"
-        ? metadata.whatsapp_number
-        : typeof metadata.phone === "string"
-          ? metadata.phone
-          : "";
-
-    const waId = normaliseWaNumber(raw);
-    if (!waId) return { sent: false, reason: "No WhatsApp number on this account" };
-
-    return await sendPlatformEvent("signup", {
-      waId,
-      name: typeof metadata.full_name === "string" ? metadata.full_name : null,
-    });
-  } catch (error) {
-    // Logged, never surfaced as a sign-up failure: the account exists and
-    // the person is already through the door.
-    console.error("Could not send the sign-up welcome", error);
-    return { sent: false, reason: "Unknown failure" };
-  }
-}
+// New accounts no longer come through here: sign-up proves the number with
+// a code and the account is created on the server, which is also where the
+// welcome is sent from. What is left is everybody who already has an
+// account and no number on it — none of whom can be sent anything until
+// somebody asks them once. The sign-in form asks, and this is where the
+// answer lands.
 
 /**
  * Records the WhatsApp number of somebody who already had an account.
  *
- * Every customer from before sign-up asked for a number has none, so none
- * of them can be sent anything. The sign-in form asks once, and this is
- * where the answer lands — only ever onto the caller's own account, and
- * only when it is still empty, so a typo at a shared machine cannot
- * overwrite a number that was already right.
+ * Only ever onto the caller's own account, and only when it is still
+ * empty, so a typo at a shared machine cannot overwrite a number that was
+ * already right.
+ *
+ * Not verified with a code, unlike sign-up — this is a signed-in person
+ * filling in their own account, and stopping a sign-in to run a code
+ * exchange is a tax on everybody to prevent somebody mistyping their own
+ * number. The number they are trusted with is their own.
  */
 export async function saveMyWhatsAppNumber(
   input: string
@@ -80,6 +50,19 @@ export async function saveMyWhatsAppNumber(
       data: { ...metadata, whatsapp_number: waId, phone: waId },
     });
     if (error) return { ok: false, error: error.message };
+
+    // Hello, to somebody who has just told us where to reach them. Sent
+    // with the number from this request rather than by re-reading the
+    // account, which has only this second been written to. It cannot fail
+    // loudly: sendPlatformEvent returns a reason and never throws, and a
+    // message that did not go out must not stop somebody signing in.
+    const welcome = await sendPlatformEvent("signup", {
+      waId,
+      name: typeof metadata.full_name === "string" ? metadata.full_name : null,
+    });
+    if (!welcome.sent && welcome.reason) {
+      console.info("No welcome message was sent", welcome.reason);
+    }
 
     return { ok: true };
   } catch (error) {

@@ -5,6 +5,8 @@ import { resolveConnection } from "@/lib/connections";
 import { sendTemplateMessage, describeMetaError, MetaApiError } from "@/lib/meta-whatsapp";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
 import { recordOutboundTemplate } from "@/lib/outbound-log";
+import { otpButtonIndex } from "@/lib/template-unpack";
+import { otpComponents } from "@/lib/signup-otp";
 import {
   readEvents,
   canSend,
@@ -32,6 +34,16 @@ export interface PlatformSendResult {
   sent: boolean;
   /** For the server log and the admin test button only. */
   reason?: string;
+  /**
+   * True when nothing was sent because nothing is set up yet, as opposed to
+   * a delivery that was tried and failed.
+   *
+   * The difference matters on the sign-up form: a stranger must not be
+   * shown a Meta error, but "no template is configured" is worth saying out
+   * loud, because the person who will hit it first is whoever runs this
+   * business, testing their own sign-up.
+   */
+  setup?: boolean;
 }
 
 /**
@@ -223,4 +235,100 @@ export async function sendPlatformEventToOwner(
   const owner = await ownerWhatsApp(admin, orgId);
   if (!owner) return { sent: false, reason: "The owner has no WhatsApp number on file" };
   return sendPlatformEvent(key, owner);
+}
+
+/**
+ * Sends a sign-up code to a number that is proving it belongs to somebody.
+ *
+ * Separate from sendPlatformEvent for two reasons that are not negotiable.
+ * It must not be idempotent — "already sent" is exactly what a person
+ * pressing Resend is asking you to ignore — and its template is an
+ * authentication template, whose one variable is the code and whose
+ * copy-code button has to be sent the code a second time.
+ *
+ * The code never reaches the message log. The customer has it on their
+ * phone and the server has an HMAC of it; a readable copy in a row that
+ * platform staff can open is a third place it exists for no reason.
+ */
+export async function sendOtpTemplate(
+  recipient: { waId: string; name?: string | null },
+  code: string
+): Promise<PlatformSendResult> {
+  try {
+    const waId = normaliseWaNumber(recipient.waId ?? "");
+    if (!waId) return { sent: false, reason: "No usable WhatsApp number" };
+
+    const admin = createAdminClient();
+
+    const { data: setting } = await admin
+      .from("platform_settings")
+      .select("value")
+      .eq("key", SETTING)
+      .maybeSingle();
+
+    const settings = readEvents(setting?.value);
+    if (!canSend(settings, "otp")) {
+      return {
+        sent: false,
+        setup: true,
+        reason:
+          "Sending codes is not switched on yet. Choose a template under Admin → Platform settings.",
+      };
+    }
+
+    const connection = await resolveConnection(admin, settings.orgId, {
+      connectionId: settings.connectionId || null,
+    });
+    if ("error" in connection) return { sent: false, setup: true, reason: connection.error };
+
+    const message = settings.messages.otp;
+
+    // Which button to put the code in, read out of the template Meta itself
+    // returned. A guess either way is a refused message: a button component
+    // aimed at a template with no buttons fails, and a template with a
+    // copy-code button sent none fails identically.
+    const { data: template } = await admin
+      .from("message_templates")
+      .select("components_json")
+      .eq("waba_id", connection.wabaId)
+      .eq("name", message.templateName)
+      .eq("language", message.language)
+      .maybeSingle();
+
+    const buttonIndex = otpButtonIndex(template?.components_json);
+
+    const result = await sendTemplateMessage(
+      connection.phoneNumberId,
+      waId,
+      message.templateName,
+      message.language,
+      otpComponents(code, buttonIndex),
+      connection.accessToken
+    );
+
+    await recordOutboundTemplate(admin, {
+      orgId: settings.orgId,
+      connectionId: connection.id,
+      waId,
+      contactName: recipient.name ?? null,
+      templateName: message.templateName,
+      language: message.language,
+      // Deliberately no code. Support needs to know one went out, not what
+      // it said.
+      body: `${eventSource("otp")} — ${"•".repeat(6)}`,
+      source: eventSource("otp"),
+      waMessageId: result.messages[0]?.id ?? null,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    const reason =
+      error instanceof MetaApiError
+        ? describeMetaError(error.status, error.body)
+        : error instanceof Error
+          ? error.message
+          : "Unknown failure";
+    console.error("Could not send a sign-up code", reason);
+    return { sent: false, reason };
+  }
 }

@@ -680,6 +680,47 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["guest_checkouts"]["Insert"]>;
         Relationships: [];
       };
+      signup_otps: {
+        Row: {
+          id: string;
+          /** Digits only, country code included — Meta's own form. */
+          wa_id: string;
+          /** An HMAC of the code, keyed to the number. Never the code. */
+          code_hash: string;
+          expires_at: string;
+          attempts: number;
+          sends: number;
+          last_sent_at: string;
+          window_started_at: string;
+          verified_at: string | null;
+          /** Single-use proof that the number in the sign-up form was verified. */
+          verification_token: string | null;
+          consumed_at: string | null;
+          name: string | null;
+          email: string | null;
+          requested_ip: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          wa_id: string;
+          code_hash: string;
+          expires_at: string;
+          attempts?: number;
+          sends?: number;
+          last_sent_at?: string;
+          window_started_at?: string;
+          verified_at?: string | null;
+          verification_token?: string | null;
+          consumed_at?: string | null;
+          name?: string | null;
+          email?: string | null;
+          requested_ip?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["signup_otps"]["Insert"]>;
+        Relationships: [];
+      };
       orders: {
         Row: Order;
         Insert: Partial<Order> & { org_id: string };

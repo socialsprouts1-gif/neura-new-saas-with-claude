@@ -180,3 +180,32 @@ export function resolveTemplateShape(row: StoredTemplateRow): ResolvedShape {
     headerMediaUrl: stored.headerMediaUrl,
   };
 }
+
+/**
+ * Where the copy-code button is, in a template that has one.
+ *
+ * Authentication templates carry a button whose "link" is the code itself,
+ * and sending one means naming that button by its position. Meta refuses a
+ * button component aimed at a template with no buttons, and refuses a
+ * template with a button sent none — so this reads the answer out of what
+ * Meta returned for the template rather than asking anybody to keep a
+ * setting in step with it.
+ *
+ * null means there is no such button, which is a complete answer: a
+ * code-only authentication template is perfectly valid and is sent with
+ * just its body.
+ */
+export function otpButtonIndex(components: unknown): number | null {
+  for (const component of asComponents(components)) {
+    if (String(component.type ?? "").toUpperCase() !== "BUTTONS") continue;
+
+    const buttons = Array.isArray(component.buttons) ? component.buttons : [];
+    for (let index = 0; index < buttons.length; index += 1) {
+      const button = buttons[index] as { type?: unknown } | null;
+      if (!button || typeof button !== "object") continue;
+      if (String(button.type ?? "").toUpperCase() === "OTP") return index;
+    }
+  }
+
+  return null;
+}

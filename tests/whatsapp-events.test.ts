@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   EVENTS,
+  carriesCode,
   readEvents,
   writeEvents,
   messageProblem,
@@ -17,6 +18,7 @@ const STORED = {
   org_id: "org-1",
   connection_id: "conn-1",
   messages: {
+    otp: { enabled: false, template_name: "", language: "en", uses_name: false },
     signup: { enabled: true, template_name: "welcome_to_neurachat", language: "en", uses_name: true },
     trial_ended: { enabled: true, template_name: "trial_ended", language: "en", uses_name: false },
     payment_received: { enabled: false, template_name: "", language: "en", uses_name: false },
@@ -75,6 +77,37 @@ test("enabled is only ever literally true", () => {
 
 test("what is read can be written back unchanged", () => {
   assert.deepEqual(writeEvents(readEvents(STORED)), STORED);
+});
+
+test("a row saved before an event existed reads that event as off", () => {
+  // Adding a fourth moment must not disturb the three somebody already
+  // configured, and must not arrive switched on.
+  const older = { ...STORED, messages: { ...STORED.messages, otp: undefined } };
+  const settings = readEvents(older);
+  assert.equal(settings.messages.otp.enabled, false);
+  assert.equal(settings.messages.otp.templateName, "");
+  assert.equal(settings.messages.signup.templateName, "welcome_to_neurachat");
+});
+
+// --- the code message is the odd one out -----------------------------------
+
+test("the sign-up code event is marked as carrying a code", () => {
+  assert.equal(carriesCode("otp"), true);
+  assert.equal(carriesCode("signup"), false);
+});
+
+test("the code template is never sent somebody's name", () => {
+  // Its one variable is the code, built by otpComponents in signup-otp.ts.
+  // A name where Meta expects six digits is a message that reads as
+  // nonsense to the customer and still counts against the number.
+  const settings = readEvents({
+    ...STORED,
+    messages: {
+      ...STORED.messages,
+      otp: { enabled: true, template_name: "signup_code", language: "en", uses_name: true },
+    },
+  });
+  assert.deepEqual(eventComponents(settings, "otp", "Vivek"), []);
 });
 
 // --- is it usable ----------------------------------------------------------
