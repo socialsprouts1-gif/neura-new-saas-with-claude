@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CATEGORIES,
   DEFAULT_RATES,
+  SUGGESTED_RATES,
   MIN_TOPUP,
   balanceState,
   canSpend,
@@ -203,4 +204,30 @@ test("a per-message rate keeps the decimals a total does not need", () => {
 test("an unknown currency does not take the page down", () => {
   assert.match(formatMoney(10000, "NOTACURRENCY"), /100\.00/);
   assert.match(formatRate(85, "NOTACURRENCY"), /0\.85/);
+});
+
+// --- the starting point offered in Admin -----------------------------------
+
+test("the suggested rates actually switch the wallet on", () => {
+  // They exist so that turning it on is one Save rather than four guesses.
+  // A suggestion of all zeros would be a button that does nothing.
+  const rates = readRates({ ...SUGGESTED_RATES, currency: "INR" });
+  assert.equal(walletInUse(rates), true);
+});
+
+test("the suggestion prices marketing above utility, like Meta does", () => {
+  assert.ok(SUGGESTED_RATES.marketing > SUGGESTED_RATES.utility);
+  assert.ok(SUGGESTED_RATES.utility > 0);
+});
+
+test("the suggestion leaves service free, because a reply in the window is", () => {
+  assert.equal(SUGGESTED_RATES.service, 0);
+});
+
+test("there is a suggestion for every category the form shows", () => {
+  // A category with no suggestion renders an empty box in a form whose
+  // whole point is being ready to save.
+  for (const category of CATEGORIES) {
+    assert.equal(typeof SUGGESTED_RATES[category.key], "number", category.key);
+  }
 });

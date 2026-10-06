@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toggleAiAssistant } from "@/app/(dashboard)/portal-actions";
-import { providerById } from "@/lib/ai-providers";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
 import SettingsTab from "./SettingsTab";
 import KnowledgeTab from "./KnowledgeTab";
@@ -37,8 +36,6 @@ export default function AssistantEditor({
   const router = useRouter();
   const [step, setStep] = useState<StepKey>("persona");
   const [pending, startTransition] = useTransition();
-
-  const provider = providerById(assistant.provider);
 
   const items = checklist({
     name: assistant.name,
@@ -159,13 +156,15 @@ export default function AssistantEditor({
       {/* The two states that make an assistant look fine and answer nothing. */}
       {!hasKey && (
         <div className="rounded-xl border border-[#F87171]/25 bg-[#F87171]/8 p-4 mb-5">
-          <div className="text-sm font-semibold text-[#F87171] mb-1">
-            No API key for {provider?.name ?? assistant.provider}
-          </div>
+          {/* Deliberately not "No API key for Anthropic". The provider is a
+              choice made two steps away and changed in a dropdown; naming
+              whichever one happens to be selected reads as though the
+              product only works with that one. */}
+          <div className="text-sm font-semibold text-[#F87171] mb-1">No API key</div>
           <p className="text-xs text-white/50 leading-relaxed">
-            This assistant is saved but cannot generate a single reply. Paste a key under AI
-            Configuration on the Model step
-            {provider?.envVar ? `, or set ${provider.envVar} in the environment.` : "."}
+            This agent is saved but cannot generate a single reply. Choose your provider and paste
+            its key under AI Configuration on the Model step — OpenAI, Anthropic, Google and any
+            OpenAI-compatible endpoint all work.
           </p>
         </div>
       )}

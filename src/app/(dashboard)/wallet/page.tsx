@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Card, EmptyState, HeroHeader, StatCard, Table, Td } from "@/components/ui/primitives";
-import { Wallet, TrendingDown, MessageSquare, Coins } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Wallet, TrendingDown, MessageSquare, Coins } from "lucide-react";
 import {
   CATEGORIES,
   LEDGER_LABELS,
@@ -30,11 +31,11 @@ import TopupButton from "./TopupButton";
 export const dynamic = "force-dynamic";
 
 export default async function WalletPage() {
-  const { orgId, orgName, user } = await requireOrg();
+  const { orgId, orgName, user, isPlatformAdmin } = await requireOrg();
   const supabase = await createClient();
   const admin = createAdminClient();
 
-  const [{ data: org }, { data: setting }, { data: ledger }] = await Promise.all([
+  const [{ data: org, error: orgError }, { data: setting }, { data: ledger }] = await Promise.all([
     supabase
       .from("organizations")
       .select("wallet_balance_cents, wallet_currency")
@@ -50,6 +51,13 @@ export default async function WalletPage() {
       .order("created_at", { ascending: false })
       .limit(200),
   ]);
+
+  // 42703 is an undefined column, 42P01 an undefined table: the database
+  // update that adds the wallet has not been run. Worth naming, because
+  // otherwise the page shows a balance of zero and reads as a wallet that
+  // is simply empty — which is a very different thing from one that does
+  // not exist yet.
+  const needsMigration = orgError?.code === "42703" || orgError?.code === "42P01";
 
   const currency = org?.wallet_currency || "INR";
   const balance = Number(org?.wallet_balance_cents ?? 0);
@@ -74,13 +82,43 @@ export default async function WalletPage() {
         subtitle="What you have added, and what every message has taken off it."
       />
 
-      {state === "off" ? (
+      {needsMigration ? (
         <Card>
+          <h2 className="font-semibold mb-2">The wallet needs the latest database update</h2>
           <p className="text-sm text-white/60 leading-relaxed">
-            Messages are not charged to a wallet on this account. Everything you send is billed by
-            Meta to your own WhatsApp account, directly, on its own schedule — there is nothing to
-            top up here.
+            The tables it keeps the balance and the statement in do not exist yet. Run{" "}
+            <span className="text-white/85 font-mono text-[13px]">
+              supabase/updates/run-me-latest.sql
+            </span>{" "}
+            in the Supabase SQL editor — the whole file, it is safe to run more than once — and
+            this page will have something to show.
           </p>
+        </Card>
+      ) : state === "off" ? (
+        <Card>
+          <h2 className="font-semibold mb-2">The wallet is switched off</h2>
+          <p className="text-sm text-white/60 leading-relaxed">
+            Nothing is being charged. Messages you send are billed by Meta straight to your own
+            WhatsApp account, on its own schedule, so there is nothing to top up here.
+          </p>
+
+          {/* Only platform staff can switch it on, so only they are told
+              how. Telling a customer to go and set prices they cannot
+              reach is worse than telling them nothing. */}
+          {isPlatformAdmin && (
+            <div className="mt-4 pt-4 border-t border-white/8">
+              <p className="text-sm text-white/60 leading-relaxed mb-3">
+                To start charging for messages, set a price per category under{" "}
+                <span className="text-white/85">Admin → Platform settings → Message pricing</span>.
+                Until at least one of them is above zero, nobody sees a wallet at all — including
+                you.
+              </p>
+              <Link href="/admin/settings" className="btn-primary text-sm">
+                Set message pricing
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
         </Card>
       ) : (
         <>

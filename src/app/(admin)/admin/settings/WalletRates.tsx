@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { saveWalletRates } from "../actions";
 import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
 import { Card } from "@/components/ui/primitives";
-import { CATEGORIES, formatRate, readRates, walletInUse } from "@/lib/wallet";
+import { CATEGORIES, SUGGESTED_RATES, formatRate, readRates, walletInUse } from "@/lib/wallet";
 
 /**
  * What a message costs the workspace that sends it.
@@ -39,8 +39,10 @@ export default async function WalletRates() {
       </p>
 
       {!walletInUse(rates) && (
-        <p className="text-sm text-white/45 mb-4 leading-relaxed">
-          The wallet is currently off. Customers see nothing about it.
+        <p className="text-sm text-[#FACC15]/85 mb-4 leading-relaxed">
+          The wallet is currently off — customers see nothing about it, and nothing is charged.
+          The boxes below are filled in with a starting point, so pressing Save switches it on.
+          They are a suggestion and nothing more: set them against your own Meta invoice.
         </p>
       )}
 
@@ -62,16 +64,22 @@ export default async function WalletRates() {
                   ? rates.authentication
                   : rates.service;
 
+          // The suggestion only fills an unconfigured form. Once a price is
+          // set, that price is what the box shows — a form that silently
+          // reverts somebody's number to a default is one they stop
+          // trusting after the first time it does it.
+          const shown = walletInUse(rates) ? current : SUGGESTED_RATES[category.key];
+
           return (
             <Field
               key={category.key}
               label={`${category.label} — per message`}
               name={category.key}
               type="number"
-              defaultValue={String(current)}
-              hint={`${category.hint} Currently ${
-                current > 0 ? formatRate(current, rates.currency) : "free"
-              }.`}
+              defaultValue={String(shown)}
+              hint={`${category.hint} ${
+                shown > 0 ? `That is ${formatRate(shown, rates.currency)} a message.` : "Free."
+              }`}
             />
           );
         })}

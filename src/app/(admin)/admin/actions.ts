@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
 import { isOrgRole, roleChangeBlocked } from "@/lib/member-role";
-import { readRates, walletInUse, writeRates } from "@/lib/wallet";
+import { formatMoney as walletMoney, readRates, walletInUse, writeRates } from "@/lib/wallet";
 import { EVENTS, readEvents, firstProblem, writeEvents } from "@/lib/whatsapp-events";
 import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
@@ -466,6 +466,64 @@ export async function saveWalletRates(formData: FormData): Promise<ActionResult>
       ? `Saved. Messages are now charged${rates.blockWhenEmpty ? ", and sending stops when a wallet is empty" : ""}.`
       : "Saved. Every rate is zero, so the wallet is off and customers see nothing about it."
   );
+}
+
+/**
+ * Adds or takes money off a workspace's wallet, by hand.
+ *
+ * Exists because the alternative is editing a balance in the database,
+ * which leaves no line in the statement saying who did it or why — and a
+ * balance that changed with no explanation is the thing a customer rings
+ * up about. It is also the only way to put money in before the card
+ * gateway is connected, which is how this gets tested at all.
+ */
+export async function adjustWalletBalance(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const orgId = String(formData.get("org_id") ?? "").trim();
+  if (!orgId) return { ok: false, error: "No workspace." };
+
+  // Typed in whole currency units, because nobody wants to think in paise
+  // while crediting somebody ₹500.
+  const units = Number(formData.get("amount") ?? 0);
+  if (!Number.isFinite(units) || units === 0) {
+    return { ok: false, error: "Give an amount. A minus sign takes money off." };
+  }
+
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!reason) return { ok: false, error: "Say why. It goes on the customer's statement." };
+
+  const cents = Math.round(Math.abs(units) * 100);
+  const kind = units > 0 ? "refund" : "adjustment";
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("wallet_move", {
+    p_org_id: orgId,
+    p_kind: kind,
+    p_amount_cents: cents,
+    p_description: reason,
+    p_reference: null,
+    p_allow_negative: true,
+  });
+
+  if (error) {
+    // The one failure worth naming: the database update has not been run.
+    if (error.code === "42883" || error.code === "42P01") {
+      return {
+        ok: false,
+        error: "The wallet needs the latest database update. Run supabase/updates/run-me-latest.sql first.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  if (data === null) return { ok: false, error: "That workspace could not be found." };
+
+  revalidatePath(`/admin/organizations/${orgId}`);
+  return {
+    ok: true,
+    message: `Done. The balance is now ${walletMoney(Number(data))}.`,
+  };
 }
 
 async function mergeSetting(

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOrg } from "@/lib/org";
@@ -136,53 +135,4 @@ async function platformGateway(
   }
 
   return { ok: true, orgId, provider };
-}
-
-export interface AdjustResult {
-  ok: boolean;
-  error?: string;
-  message?: string;
-}
-
-/**
- * A manual credit or correction, by platform staff only.
- *
- * Exists because the alternative is editing a balance by hand in the
- * database, which leaves no line in the statement saying who did it or
- * why — and a balance that changed with no explanation is the thing a
- * customer rings up about.
- */
-export async function adjustWallet(input: {
-  orgId: string;
-  amountCents: number;
-  kind: "refund" | "adjustment";
-  reason: string;
-}): Promise<AdjustResult> {
-  const { isPlatformAdmin } = await requireOrg();
-  if (!isPlatformAdmin) return { ok: false, error: "Only platform staff can do that." };
-
-  const amount = Math.round(Number(input?.amountCents));
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, error: "Give an amount." };
-  }
-
-  const reason = (input?.reason ?? "").trim();
-  if (!reason) return { ok: false, error: "Say why. It goes on the customer's statement." };
-
-  const admin = createAdminClient();
-  const { data, error } = await admin.rpc("wallet_move", {
-    p_org_id: input.orgId,
-    p_kind: input.kind,
-    p_amount_cents: amount,
-    p_description: reason,
-    p_reference: null,
-    p_allow_negative: true,
-  });
-
-  if (error) return { ok: false, error: error.message };
-  if (data === null) return { ok: false, error: "That workspace could not be found." };
-
-  revalidatePath("/wallet");
-  revalidatePath("/organizations");
-  return { ok: true, message: `Done. The balance is now ${formatMoney(Number(data))}.` };
 }

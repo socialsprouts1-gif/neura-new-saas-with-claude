@@ -65,6 +65,22 @@ export interface WalletRates {
   lowBalance: number;
 }
 
+/**
+ * A starting point for the pricing form, not a price list.
+ *
+ * Offered as placeholders so switching the wallet on is one Save rather
+ * than four guesses about what a message is worth. They are this file's
+ * opinion and nothing else — not Meta's rates, which are billed to the
+ * WhatsApp account separately and change by country and by year. Whoever
+ * sets these should be looking at their own Meta invoice.
+ */
+export const SUGGESTED_RATES = {
+  marketing: 110,
+  utility: 50,
+  authentication: 40,
+  service: 0,
+} as const;
+
 export const DEFAULT_RATES: WalletRates = {
   currency: "INR",
   marketing: 0,

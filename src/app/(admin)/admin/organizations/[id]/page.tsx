@@ -7,8 +7,8 @@ import { PageHeader, Card, Badge, StatCard } from "@/components/ui/primitives";
 import { formatDate, formatMoney } from "@/types/admin";
 import { resolveFeatures, killedKeys, featureDef } from "@/lib/features";
 import FeatureGrid from "../../FeatureGrid";
-import ActionForm, { SelectField } from "@/components/ui/ActionForm";
-import { assignPlan } from "../../actions";
+import ActionForm, { Field, SelectField } from "@/components/ui/ActionForm";
+import { adjustWalletBalance, assignPlan } from "../../actions";
 import { saveOrgFeatures } from "../../actions";
 import SuspendControls from "./SuspendControls";
 
@@ -33,7 +33,9 @@ export default async function AdminOrganizationPage({
     await Promise.all([
       supabase
         .from("organizations")
-        .select("id, name, created_at, feature_overrides, suspended_at, suspended_reason")
+        .select(
+          "id, name, created_at, feature_overrides, suspended_at, suspended_reason, wallet_balance_cents, wallet_currency"
+        )
         .eq("id", id)
         .maybeSingle(),
       supabase
@@ -134,6 +136,38 @@ export default async function AdminOrganizationPage({
             No active plans to assign. Create one under Plans first.
           </p>
         )}
+      </Card>
+
+      {/* The only way to put money in before the card gateway is
+          connected, which is how this gets tested at all — and the only
+          way to correct a balance that leaves a line on the customer's
+          own statement saying who did it and why. */}
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">Message wallet</h2>
+        <p className="text-xs text-white/45 leading-relaxed mb-4 max-w-2xl">
+          Balance:{" "}
+          <span className="text-white/80 font-semibold">
+            {formatMoney(org.wallet_balance_cents ?? 0, org.wallet_currency ?? "INR")}
+          </span>
+          . Adding money here takes no payment — use it for a customer who paid another way, or to
+          put something right. A minus sign takes money off. Whatever you write as the reason is
+          what they see on their statement.
+        </p>
+        <ActionForm action={adjustWalletBalance} submitLabel="Apply" compact>
+          <input type="hidden" name="org_id" value={org.id} />
+          <Field
+            label={`Amount (${org.wallet_currency ?? "INR"})`}
+            name="amount"
+            type="number"
+            placeholder="500"
+            hint="In whole units, not paise. -500 takes money off."
+          />
+          <Field
+            label="Reason"
+            name="reason"
+            placeholder="Goodwill credit after the 12 Oct outage"
+          />
+        </ActionForm>
       </Card>
 
       <Card className="mb-6">
