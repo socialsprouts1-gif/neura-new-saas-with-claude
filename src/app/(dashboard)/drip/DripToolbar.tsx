@@ -11,6 +11,7 @@ import DripBuilder, {
   type TemplateChoice,
 } from "./DripBuilder";
 import { deleteDrip, enrolInDrip, setDripStatus } from "../drip-actions";
+import Modal from "@/components/ui/Modal";
 
 // The buttons on the sequences screen.
 //
@@ -192,44 +193,41 @@ export function EnrolButton({ id }: { id: string }) {
         Add people
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[var(--app-bg)] p-6 space-y-4">
-            <div>
-              <h3 className="font-semibold">Add people to this sequence</h3>
-              <p className="text-xs text-white/45 mt-1 leading-relaxed">
-                One number per line, or separated by commas. Step one goes out within the minute.
-                Anybody already in it stays exactly where they are.
-              </p>
-            </div>
-
-            <textarea
-              value={numbers}
-              onChange={(e) => setNumbers(e.target.value)}
-              placeholder={"+91 98765 43210\n+91 91234 56789"}
-              className="w-full min-h-[140px] bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50"
-            />
-
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="px-4 py-2.5 rounded-xl border border-white/12 text-sm text-white/65 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void add()}
-                disabled={busy}
-                className="btn-primary text-sm disabled:opacity-50"
-              >
-                {busy ? "Adding…" : "Add"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Add people to this sequence"
+        description="One number per line, or separated by commas. Step one goes out within the minute. Anybody already in it stays exactly where they are."
+        size="sm"
+        dismissable={!busy}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+              className="px-4 py-2.5 rounded-xl border border-white/12 text-sm text-white/65 hover:text-white transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void add()}
+              disabled={busy}
+              className="btn-primary text-sm disabled:opacity-50"
+            >
+              {busy ? "Adding…" : "Add"}
+            </button>
+          </>
+        }
+      >
+        <textarea
+          value={numbers}
+          onChange={(e) => setNumbers(e.target.value)}
+          placeholder={"+91 98765 43210\n+91 91234 56789"}
+          className="w-full min-h-[140px] bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50"
+        />
+      </Modal>
     </>
   );
 }

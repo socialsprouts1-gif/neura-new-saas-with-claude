@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { saveDrip } from "../drip-actions";
+import { ModalShell } from "@/components/ui/Modal";
 import {
   DEFAULT_SETTINGS,
   MAX_STEPS,
@@ -154,8 +155,12 @@ export default function DripBuilder({
   const label = "block text-xs font-medium text-white/70 mb-1.5";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 sm:p-8">
-      <div className="w-full max-w-5xl rounded-3xl border border-white/10 bg-[var(--app-bg)] shadow-2xl my-auto">
+    <ModalShell open onClose={onClose} label="Drip sequence" dismissable={!saving}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-5xl rounded-3xl border border-white/10 bg-[var(--app-bg)] shadow-2xl my-auto"
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
           <div>
             <h2 className="font-semibold">
@@ -542,7 +547,7 @@ export default function DripBuilder({
           </div>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

@@ -2,6 +2,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import SignOutButton from "./SignOutButton";
 import MobileNav from "./MobileNav";
 import type { AppBrand } from "@/lib/app-brand";
+import type { ReactNode } from "react";
 
 /**
  * The bar above every page.
@@ -17,6 +18,7 @@ export default function TopBar({
   features = {},
   courierConnected = false,
   brand,
+  wallet,
 }: {
   orgName: string;
   userEmail: string;
@@ -24,6 +26,8 @@ export default function TopBar({
   features?: Record<string, boolean>;
   courierConnected?: boolean;
   brand?: AppBrand;
+  /** The wallet balance chip, when this deployment charges for messages. */
+  wallet?: ReactNode;
 }) {
   return (
     <header className="flex items-center gap-2 h-16 px-4 md:px-6 border-b border-white/8 bg-[var(--surface-1)]/80 backdrop-blur-sm sticky top-0 z-20 flex-shrink-0">
@@ -41,6 +45,7 @@ export default function TopBar({
       <div className="flex items-center gap-1.5 md:gap-3 ml-auto flex-shrink-0">
         {/* Hidden below md: an email address is 30 characters of no use on a
             phone, and it was the thing pushing the buttons off the edge. */}
+        {wallet}
         <span className="text-sm text-white/60 hidden md:block truncate max-w-[16rem]">
           {userEmail}
         </span>

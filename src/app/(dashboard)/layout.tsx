@@ -4,6 +4,7 @@ import { loadSiteContent } from "@/lib/site-content-server";
 import { appBrand } from "@/lib/app-brand";
 import Sidebar from "./_components/Sidebar";
 import TopBar from "./_components/TopBar";
+import WalletChip from "./_components/WalletChip";
 import BillingBanner from "./_components/BillingBanner";
 import PaywallGate from "./_components/PaywallGate";
 import SuspendedBanner from "./_components/SuspendedBanner";
@@ -48,6 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           features={features}
           courierConnected={courierConnected}
           brand={brand}
+          wallet={<WalletChip orgId={orgId} />}
         />
         <BillingBanner orgId={orgId} isPlatformAdmin={isPlatformAdmin} />
         <PaywallGate orgId={orgId} isPlatformAdmin={isPlatformAdmin} />
