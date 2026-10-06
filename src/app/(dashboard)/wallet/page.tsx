@@ -38,7 +38,7 @@ export default async function WalletPage() {
   const [{ data: org, error: orgError }, { data: setting }, { data: ledger }] = await Promise.all([
     supabase
       .from("organizations")
-      .select("wallet_balance_cents, wallet_currency")
+      .select("wallet_balance_micros, wallet_currency")
       .eq("id", orgId)
       .maybeSingle(),
     // The rates are the platform's, not the workspace's, so they are read
@@ -46,7 +46,7 @@ export default async function WalletPage() {
     admin.from("platform_settings").select("value").eq("key", "wallet_rates").maybeSingle(),
     supabase
       .from("wallet_ledger")
-      .select("kind, amount_cents, balance_after_cents, description, created_at")
+      .select("kind, amount_micros, balance_after_micros, description, created_at")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(200),
@@ -60,13 +60,13 @@ export default async function WalletPage() {
   const needsMigration = orgError?.code === "42703" || orgError?.code === "42P01";
 
   const currency = org?.wallet_currency || "INR";
-  const balance = Number(org?.wallet_balance_cents ?? 0);
+  const balance = Number(org?.wallet_balance_micros ?? 0);
   const rates = readRates(setting?.value);
 
   const rows: LedgerRow[] = (ledger ?? []).map((row) => ({
     kind: row.kind as LedgerKind,
-    amountCents: row.amount_cents,
-    balanceAfterCents: row.balance_after_cents,
+    amountMicros: row.amount_micros,
+    balanceAfterMicros: row.balance_after_micros,
     description: row.description,
     createdAt: row.created_at,
   }));
@@ -215,7 +215,7 @@ export default async function WalletPage() {
                         {signedAmount(row, currency)}
                       </Td>
                       <Td className="whitespace-nowrap tabular-nums text-white/45">
-                        {formatMoney(row.balanceAfterCents, currency)}
+                        {formatMoney(row.balanceAfterMicros, currency)}
                       </Td>
                     </tr>
                   ))}

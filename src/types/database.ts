@@ -96,8 +96,8 @@ export interface Database {
           feature_overrides: Record<string, boolean>;
           suspended_at: string | null;
           suspended_reason: string | null;
-          /** The message wallet. Moved only by the wallet_move function. */
-          wallet_balance_cents: number;
+          /** The message wallet, in micros (₹1 = 1,000,000). Moved only by wallet_move. */
+          wallet_balance_micros: number;
           wallet_currency: string;
         };
         Insert: { id?: string; name: string; created_at?: string };
@@ -644,11 +644,11 @@ export interface Database {
           id: string;
           org_id: string;
           kind: "topup" | "debit" | "refund" | "adjustment";
-          /** Always positive. The kind says which way it moves. */
-          amount_cents: number;
+          /** Micros, always positive. The kind says which way it moves. */
+          amount_micros: number;
           currency: string;
           /** The running balance after this row, so a statement reads top to bottom. */
-          balance_after_cents: number;
+          balance_after_micros: number;
           description: string;
           reference: string | null;
           created_at: string;
@@ -656,8 +656,8 @@ export interface Database {
         Insert: Partial<Database["public"]["Tables"]["wallet_ledger"]["Row"]> & {
           org_id: string;
           kind: "topup" | "debit" | "refund" | "adjustment";
-          amount_cents: number;
-          balance_after_cents: number;
+          amount_micros: number;
+          balance_after_micros: number;
           description: string;
         };
         Update: Partial<Database["public"]["Tables"]["wallet_ledger"]["Row"]>;
@@ -1288,7 +1288,8 @@ export interface Database {
         Args: {
           p_org_id: string;
           p_kind: "topup" | "debit" | "refund" | "adjustment";
-          p_amount_cents: number;
+          /** Micros. ₹1 = 1,000,000. */
+          p_amount_micros: number;
           p_description: string;
           p_reference?: string | null;
           p_allow_negative?: boolean;

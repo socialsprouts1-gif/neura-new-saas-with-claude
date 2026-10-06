@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CATEGORIES,
+  TOPUP_PRESETS,
   DEFAULT_RATES,
+  MICROS,
+  RATES_CHECKED_ON,
   SUGGESTED_RATES,
   MIN_TOPUP,
   balanceState,
@@ -24,12 +27,12 @@ import {
 
 const RATES: WalletRates = {
   currency: "INR",
-  marketing: 109,
-  utility: 42,
-  authentication: 35,
+  marketing: 109 * 10_000, // ₹1.09
+  utility: 42 * 10_000, // ₹0.42
+  authentication: 35 * 10_000, // ₹0.35
   service: 0,
   blockWhenEmpty: false,
-  lowBalance: 10000,
+  lowBalance: 100 * MICROS,
 };
 
 // --- rates -----------------------------------------------------------------
@@ -63,29 +66,30 @@ test("a negative or nonsense rate reads as zero rather than as a credit", () => 
   assert.equal(rates.authentication, 0);
 });
 
-test("rates are whole units, because a fraction of a paisa is not money", () => {
-  // Held as 0.85 instead of 85, three thousand messages cost ₹2,549.9999994.
-  assert.equal(readRates({ marketing: 84.6 }).marketing, 85);
+test("rates are whole micros, because a float is not money", () => {
+  // Held as 0.8631 instead of 863100, three thousand messages come to
+  // ₹2,589.2999999999997.
+  assert.equal(readRates({ marketing: 863_100.4 }).marketing, 863_100);
 });
 
 // --- what a send costs -----------------------------------------------------
 
 test("each category costs its own rate", () => {
-  assert.equal(costOf("marketing", RATES), 109);
-  assert.equal(costOf("utility", RATES), 42);
-  assert.equal(costOf("authentication", RATES), 35);
+  assert.equal(costOf("marketing", RATES), 1_090_000);
+  assert.equal(costOf("utility", RATES), 420_000);
+  assert.equal(costOf("authentication", RATES), 350_000);
   assert.equal(costOf("service", RATES), 0);
 });
 
 test("the category is read however it was cased", () => {
-  assert.equal(costOf("MARKETING", RATES), 109);
+  assert.equal(costOf("MARKETING", RATES), 1_090_000);
 });
 
 test("an unrecognised category costs the utility rate, not nothing", () => {
   // Charging zero for something unrecognised is the error that only shows
   // up on the month's invoice, by which time the messages are long gone.
-  assert.equal(costOf("", RATES), 42);
-  assert.equal(costOf("something_new", RATES), 42);
+  assert.equal(costOf("", RATES), 420_000);
+  assert.equal(costOf("something_new", RATES), 420_000);
 });
 
 test("every category in the list is a category", () => {
@@ -96,23 +100,23 @@ test("every category in the list is a category", () => {
 // --- the balance -----------------------------------------------------------
 
 test("the balance has a state, and each one is distinguishable", () => {
-  assert.equal(balanceState(500000, RATES), "healthy");
-  assert.equal(balanceState(5000, RATES), "low");
-  assert.equal(balanceState(10000, RATES), "low");
+  assert.equal(balanceState(5_000 * MICROS, RATES), "healthy");
+  assert.equal(balanceState(50 * MICROS, RATES), "low");
+  assert.equal(balanceState(100 * MICROS, RATES), "low");
   assert.equal(balanceState(0, RATES), "empty");
   assert.equal(balanceState(-200, RATES), "negative");
 });
 
 test("sending is not blocked unless somebody switched blocking on", () => {
-  assert.equal(canSpend(0, 109, RATES), true);
-  assert.equal(canSpend(-5000, 109, RATES), true);
+  assert.equal(canSpend(0, 1_090_000, RATES), true);
+  assert.equal(canSpend(-5_000_000, 1_090_000, RATES), true);
 });
 
 test("with blocking on, an empty wallet stops a charged message", () => {
   const strict = { ...RATES, blockWhenEmpty: true };
-  assert.equal(canSpend(500, 109, strict), true);
-  assert.equal(canSpend(100, 109, strict), false);
-  assert.equal(canSpend(109, 109, strict), true);
+  assert.equal(canSpend(5_000_000, 1_090_000, strict), true);
+  assert.equal(canSpend(1_000_000, 1_090_000, strict), false);
+  assert.equal(canSpend(1_090_000, 1_090_000, strict), true);
 });
 
 test("a free message goes out whatever the balance says", () => {
@@ -123,30 +127,36 @@ test("a free message goes out whatever the balance says", () => {
 test("how many messages are left is worked out at the dearest rate", () => {
   // The number worked out at the cheapest rate is the one that runs out two
   // days early.
-  assert.equal(messagesLeft(10900, RATES), 100);
+  assert.equal(messagesLeft(109 * MICROS, RATES), 100);
 });
 
 test("with nothing priced there is no estimate, rather than an infinite one", () => {
-  assert.equal(messagesLeft(10000, DEFAULT_RATES), null);
+  assert.equal(messagesLeft(100 * MICROS, DEFAULT_RATES), null);
 });
 
 // --- topping up ------------------------------------------------------------
 
 test("a sensible top-up is accepted", () => {
-  const check = checkTopup(100000);
+  const check = checkTopup(1_000 * MICROS);
   assert.equal(check.ok, true);
-  assert.equal(check.ok && check.cents, 100000);
+  assert.equal(check.ok && check.micros, 1_000 * MICROS);
+});
+
+test("a top-up is rounded to whole paise, because that is what a card takes", () => {
+  const check = checkTopup(1_000 * MICROS + 7);
+  assert.equal(check.ok, true);
+  assert.equal((check.ok ? check.micros : 1) % 10_000, 0);
 });
 
 test("too little is refused, and the message says the floor", () => {
-  const check = checkTopup(500);
+  const check = checkTopup(50 * MICROS);
   assert.equal(check.ok, false);
   assert.match(check.ok === false ? check.error : "", /100/);
 });
 
 test("a mistyped amount with four extra zeros is refused", () => {
   // Which is a refund request and a very bad afternoon.
-  assert.equal(checkTopup(999999999).ok, false);
+  assert.equal(checkTopup(999_999_999 * MICROS).ok, false);
 });
 
 test("nothing at all is refused", () => {
@@ -156,7 +166,15 @@ test("nothing at all is refused", () => {
 });
 
 test("the floor is a real amount of money", () => {
-  assert.ok(MIN_TOPUP >= 1000);
+  assert.ok(MIN_TOPUP >= 10 * MICROS);
+});
+
+test("every preset divides into whole paise", () => {
+  // The card gateway takes paise. A preset that does not divide evenly is
+  // a button that fails at the modal.
+  for (const preset of TOPUP_PRESETS) {
+    assert.equal(preset % 10_000, 0, String(preset));
+  }
 });
 
 // --- the statement ---------------------------------------------------------
@@ -169,21 +187,21 @@ test("money in and money out are told apart", () => {
 });
 
 test("a statement line carries its sign, so it scans without reading", () => {
-  assert.match(signedAmount({ kind: "topup", amountCents: 500000 }), /^\+/);
-  assert.match(signedAmount({ kind: "debit", amountCents: 109 }), /^−/);
+  assert.match(signedAmount({ kind: "topup", amountMicros: 5_000 * MICROS }), /^\+/);
+  assert.match(signedAmount({ kind: "debit", amountMicros: 1_090_000 }), /^−/);
 });
 
 test("added and spent are kept apart rather than netted", () => {
   // "You added ₹5,000 and spent ₹4,096" can be checked against somebody's
   // own records. A single net figure of ₹904 cannot.
   const total = summarise([
-    { kind: "topup", amountCents: 500000, balanceAfterCents: 500000, description: "", createdAt: "" },
-    { kind: "debit", amountCents: 109, balanceAfterCents: 499891, description: "", createdAt: "" },
-    { kind: "debit", amountCents: 42, balanceAfterCents: 499849, description: "", createdAt: "" },
-    { kind: "refund", amountCents: 42, balanceAfterCents: 499891, description: "", createdAt: "" },
+    { kind: "topup", amountMicros: 5_000_000_000, balanceAfterMicros: 5_000_000_000, description: "", createdAt: "" },
+    { kind: "debit", amountMicros: 863_100, balanceAfterMicros: 4_999_136_900, description: "", createdAt: "" },
+    { kind: "debit", amountMicros: 115_000, balanceAfterMicros: 4_999_021_900, description: "", createdAt: "" },
+    { kind: "refund", amountMicros: 115_000, balanceAfterMicros: 4_999_136_900, description: "", createdAt: "" },
   ]);
-  assert.equal(total.added, 500042);
-  assert.equal(total.spent, 151);
+  assert.equal(total.added, 5_000_115_000);
+  assert.equal(total.spent, 978_100);
   // Only the debits are messages. A refund is not a message un-sent.
   assert.equal(total.messages, 2);
 });
@@ -191,19 +209,20 @@ test("added and spent are kept apart rather than netted", () => {
 // --- money on screen -------------------------------------------------------
 
 test("a total reads as money", () => {
-  assert.match(formatMoney(125000), /1,250/);
+  assert.match(formatMoney(1_250 * MICROS), /1,250/);
   assert.match(formatMoney(0), /0/);
 });
 
-test("a per-message rate keeps the decimals a total does not need", () => {
-  // ₹0.85 a message is the difference between a usable price list and one
-  // that reads "₹1" for every row.
-  assert.match(formatRate(85), /0\.85/);
+test("a per-message rate keeps all four decimals", () => {
+  // ₹0.8631 is the actual price. "₹0.86" is a different number, and over a
+  // hundred thousand messages it is a different invoice.
+  assert.match(formatRate(863_100), /0\.8631/);
+  assert.match(formatRate(115_000), /0\.115/);
 });
 
 test("an unknown currency does not take the page down", () => {
-  assert.match(formatMoney(10000, "NOTACURRENCY"), /100\.00/);
-  assert.match(formatRate(85, "NOTACURRENCY"), /0\.85/);
+  assert.match(formatMoney(100 * MICROS, "NOTACURRENCY"), /100\.00/);
+  assert.match(formatRate(863_100, "NOTACURRENCY"), /0\.8631/);
 });
 
 // --- the starting point offered in Admin -----------------------------------
@@ -215,13 +234,29 @@ test("the suggested rates actually switch the wallet on", () => {
   assert.equal(walletInUse(rates), true);
 });
 
-test("the suggestion prices marketing above utility, like Meta does", () => {
-  assert.ok(SUGGESTED_RATES.marketing > SUGGESTED_RATES.utility);
-  assert.ok(SUGGESTED_RATES.utility > 0);
+test("the defaults are Meta's published India rates, exactly", () => {
+  // The whole point of the micro unit. Neither of these is a whole number
+  // of paise, and rounding utility to 12 overcharges by 4.3% on the
+  // highest-volume message type there is.
+  assert.equal(SUGGESTED_RATES.marketing, 863_100); // ₹0.8631
+  assert.equal(SUGGESTED_RATES.utility, 115_000); // ₹0.1150
+  assert.equal(SUGGESTED_RATES.authentication, 115_000); // same as utility
 });
 
-test("the suggestion leaves service free, because a reply in the window is", () => {
+test("the defaults carry no markup over Meta's own rate", () => {
+  // If anybody ever wants a margin they add it in the box, knowingly.
+  assert.equal(SUGGESTED_RATES.marketing % 100, 0);
+  assert.ok(SUGGESTED_RATES.marketing > SUGGESTED_RATES.utility);
+});
+
+test("the defaults leave service free, because the first 1,000 a month are", () => {
   assert.equal(SUGGESTED_RATES.service, 0);
+});
+
+test("the rates carry the date they were checked against Meta's card", () => {
+  // They change — the January 2026 revision put marketing up about 10%.
+  // Undated, there is no way to tell a current rate from a stale one.
+  assert.match(RATES_CHECKED_ON, /^\d{4}-\d{2}-\d{2}$/);
 });
 
 test("there is a suggestion for every category the form shows", () => {

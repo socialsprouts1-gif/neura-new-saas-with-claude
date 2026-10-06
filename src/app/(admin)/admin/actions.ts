@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
 import { isOrgRole, roleChangeBlocked } from "@/lib/member-role";
-import { formatMoney as walletMoney, readRates, walletInUse, writeRates } from "@/lib/wallet";
+import { MICROS, formatMoney as walletMoney, readRates, walletInUse, writeRates } from "@/lib/wallet";
 import { EVENTS, readEvents, firstProblem, writeEvents } from "@/lib/whatsapp-events";
 import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
@@ -442,9 +442,11 @@ export async function saveWhatsAppEvents(formData: FormData): Promise<ActionResu
 export async function saveWalletRates(formData: FormData): Promise<ActionResult> {
   await requirePlatformAdmin();
 
+  // Typed in rupees, stored in micros. Rounded to the micro so a pasted
+  // 0.86312847 cannot become a rate no arithmetic can represent exactly.
   const number = (name: string) => {
     const value = Number(formData.get(name) ?? 0);
-    return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+    return Number.isFinite(value) && value > 0 ? Math.round(value * MICROS) : 0;
   };
 
   const rates = readRates({
@@ -493,14 +495,14 @@ export async function adjustWalletBalance(formData: FormData): Promise<ActionRes
   const reason = String(formData.get("reason") ?? "").trim();
   if (!reason) return { ok: false, error: "Say why. It goes on the customer's statement." };
 
-  const cents = Math.round(Math.abs(units) * 100);
+  const micros = Math.round(Math.abs(units) * MICROS);
   const kind = units > 0 ? "refund" : "adjustment";
 
   const supabase = createAdminClient();
   const { data, error } = await supabase.rpc("wallet_move", {
     p_org_id: orgId,
     p_kind: kind,
-    p_amount_cents: cents,
+    p_amount_micros: micros,
     p_description: reason,
     p_reference: null,
     p_allow_negative: true,

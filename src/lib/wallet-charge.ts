@@ -97,7 +97,7 @@ export async function chargeForTemplate(
     const { data, error } = await supabase.rpc("wallet_move", {
       p_org_id: input.orgId,
       p_kind: "debit",
-      p_amount_cents: cost,
+      p_amount_micros: cost,
       p_description: input.description.slice(0, 200),
       p_reference: input.reference,
       // Never refused here. By the time this runs the message has been
@@ -133,10 +133,10 @@ export async function walletStatus(
     loadRates(supabase),
     supabase
       .from("organizations")
-      .select("wallet_balance_cents")
+      .select("wallet_balance_micros")
       .eq("id", orgId)
       .maybeSingle(),
   ]);
 
-  return { balance: Number(data?.wallet_balance_cents ?? 0), rates };
+  return { balance: Number(data?.wallet_balance_micros ?? 0), rates };
 }

@@ -34,7 +34,7 @@ export default async function AdminOrganizationPage({
       supabase
         .from("organizations")
         .select(
-          "id, name, created_at, feature_overrides, suspended_at, suspended_reason, wallet_balance_cents, wallet_currency"
+          "id, name, created_at, feature_overrides, suspended_at, suspended_reason, wallet_balance_micros, wallet_currency"
         )
         .eq("id", id)
         .maybeSingle(),
@@ -147,7 +147,7 @@ export default async function AdminOrganizationPage({
         <p className="text-xs text-white/45 leading-relaxed mb-4 max-w-2xl">
           Balance:{" "}
           <span className="text-white/80 font-semibold">
-            {formatMoney(org.wallet_balance_cents ?? 0, org.wallet_currency ?? "INR")}
+            {formatMoney(org.wallet_balance_micros ?? 0, org.wallet_currency ?? "INR")}
           </span>
           . Adding money here takes no payment — use it for a customer who paid another way, or to
           put something right. A minus sign takes money off. Whatever you write as the reason is

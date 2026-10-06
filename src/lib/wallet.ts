@@ -9,9 +9,24 @@
 // than no number at all. What this counts is what this platform charges
 // its own customers for a message it sends on their behalf.
 //
-// Everything is in the smallest unit of the currency, like the rest of the
-// billing code. Paise, not rupees: a rate of ₹0.85 is 85, and holding it
-// as 0.85 is how three thousand messages end up costing ₹2,549.9999994.
+// Everything in here is in micros — millionths of a currency unit. ₹1 is
+// 1,000,000; ₹0.8631 is 863,100.
+//
+// Not paise, which is what the rest of the billing code uses, and the
+// difference is the whole reason this file exists in its own unit. Meta's
+// India rates are ₹0.8631 for a marketing message and ₹0.1150 for a
+// utility one. Neither is a whole number of paise. Rounding ₹0.115 to 12
+// paise overcharges by 4.3% on the highest-volume message type there is;
+// rounding it to 11 undercharges by the same. Over a hundred thousand
+// messages that is hundreds of rupees wrong in one direction or the other,
+// for no reason other than the unit being too coarse to say what the price
+// actually is.
+//
+// Integers throughout, and never a float: holding ₹0.8631 as 0.8631 is how
+// three thousand messages end up costing ₹2,589.2999999999997.
+
+/** Micros in one unit of currency. ₹1 = 1,000,000 micros. */
+export const MICROS = 1_000_000;
 
 export type MessageCategory = "marketing" | "utility" | "authentication" | "service";
 
@@ -66,18 +81,38 @@ export interface WalletRates {
 }
 
 /**
- * A starting point for the pricing form, not a price list.
+ * Meta's own published India rates, at cost, in micros.
  *
- * Offered as placeholders so switching the wallet on is one Save rather
- * than four guesses about what a message is worth. They are this file's
- * opinion and nothing else — not Meta's rates, which are billed to the
- * WhatsApp account separately and change by country and by year. Whoever
- * sets these should be looking at their own Meta invoice.
+ * Offered as the starting point so switching the wallet on charges what
+ * the messages actually cost rather than a number somebody made up. There
+ * is no margin in these: whoever wants one adds it themselves, knowingly,
+ * in the box.
+ *
+ * Three things they do not include, each of which makes the real invoice
+ * bigger:
+ *
+ *   - GST. India treats Meta's charges as imported digital services, so
+ *     18% goes on top. ₹0.8631 is ₹1.0185 by the time it is paid.
+ *   - Volume tiers. Utility drops below the list rate above 25 million
+ *     messages a month, which is not a number this helps with.
+ *   - Service messages. Free for the first 1,000 a month per number, and
+ *     ₹0.1150 after that from 1 October 2026 — so the zero below is right
+ *     for most businesses and wrong for a busy one.
+ *
+ * Checked against Meta's published India rate card on the date below.
+ * They change: the January 2026 revision put marketing up about 10%, from
+ * ₹0.7846. Anybody relying on these should look at their own invoice.
  */
+export const RATES_CHECKED_ON = "2026-10-06";
+
 export const SUGGESTED_RATES = {
-  marketing: 110,
-  utility: 50,
-  authentication: 40,
+  /** ₹0.8631 a message. */
+  marketing: 863_100,
+  /** ₹0.1150 a message. */
+  utility: 115_000,
+  /** ₹0.1150 a message, same as utility. */
+  authentication: 115_000,
+  /** Free for the first 1,000 a month per number. */
   service: 0,
 } as const;
 
@@ -88,7 +123,7 @@ export const DEFAULT_RATES: WalletRates = {
   authentication: 0,
   service: 0,
   blockWhenEmpty: false,
-  lowBalance: 10000,
+  lowBalance: 100 * MICROS,
 };
 
 function money(value: unknown, fallback = 0): number {
@@ -148,19 +183,19 @@ export function walletInUse(rates: WalletRates): boolean {
 
 export type BalanceState = "healthy" | "low" | "empty" | "negative" | "off";
 
-export function balanceState(balanceCents: number, rates: WalletRates): BalanceState {
+export function balanceState(balanceMicros: number, rates: WalletRates): BalanceState {
   if (!walletInUse(rates)) return "off";
-  if (balanceCents < 0) return "negative";
-  if (balanceCents === 0) return "empty";
-  if (balanceCents <= rates.lowBalance) return "low";
+  if (balanceMicros < 0) return "negative";
+  if (balanceMicros === 0) return "empty";
+  if (balanceMicros <= rates.lowBalance) return "low";
   return "healthy";
 }
 
 /** Whether a send of this cost may go ahead. */
-export function canSpend(balanceCents: number, cost: number, rates: WalletRates): boolean {
+export function canSpend(balanceMicros: number, cost: number, rates: WalletRates): boolean {
   if (!rates.blockWhenEmpty) return true;
   if (cost <= 0) return true;
-  return balanceCents - cost >= 0;
+  return balanceMicros - cost >= 0;
 }
 
 /**
@@ -171,17 +206,17 @@ export function canSpend(balanceCents: number, cost: number, rates: WalletRates)
  * nothing is priced, which is not an estimate of infinity — it is the
  * absence of a price.
  */
-export function messagesLeft(balanceCents: number, rates: WalletRates): number | null {
+export function messagesLeft(balanceMicros: number, rates: WalletRates): number | null {
   const rate = Math.max(rates.marketing, rates.utility, rates.authentication);
   if (rate <= 0) return null;
-  return Math.max(0, Math.floor(balanceCents / rate));
+  return Math.max(0, Math.floor(balanceMicros / rate));
 }
 
 // --- saying it in money ----------------------------------------------------
 
-/** "₹1,250.00" from 125000, in the currency the wallet is kept in. */
-export function formatMoney(cents: number, currency = "INR"): string {
-  const amount = (Number.isFinite(cents) ? cents : 0) / 100;
+/** "₹1,250.00" from 1,250,000,000 micros, in the wallet's own currency. */
+export function formatMoney(micros: number, currency = "INR"): string {
+  const amount = (Number.isFinite(micros) ? micros : 0) / MICROS;
   try {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -200,27 +235,33 @@ export function formatMoney(cents: number, currency = "INR"): string {
  * ₹0.85 a message is the difference between a usable price list and one
  * that reads "₹1" for every row.
  */
-export function formatRate(cents: number, currency = "INR"): string {
-  const amount = (Number.isFinite(cents) ? cents : 0) / 100;
+export function formatRate(micros: number, currency = "INR"): string {
+  const amount = (Number.isFinite(micros) ? micros : 0) / MICROS;
   try {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: currency || "INR",
       minimumFractionDigits: 2,
+      // Four, because ₹0.8631 is the actual price and "₹0.86" is not.
       maximumFractionDigits: 4,
     }).format(amount);
   } catch {
-    return `${amount.toFixed(2)} ${currency}`;
+    return `${amount.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")} ${currency}`;
   }
 }
 
-/** The top-up amounts offered as buttons, in the smallest unit. */
-export const TOPUP_PRESETS = [50000, 100000, 250000, 500000] as const;
+/** The top-up amounts offered as buttons, in micros. */
+export const TOPUP_PRESETS = [
+  500 * MICROS,
+  1_000 * MICROS,
+  2_500 * MICROS,
+  5_000 * MICROS,
+] as const;
 
-export const MIN_TOPUP = 10000;
-export const MAX_TOPUP = 50000000;
+export const MIN_TOPUP = 100 * MICROS;
+export const MAX_TOPUP = 500_000 * MICROS;
 
-export type TopupCheck = { ok: true; cents: number } | { ok: false; error: string };
+export type TopupCheck = { ok: true; micros: number } | { ok: false; error: string };
 
 /**
  * Whether this is an amount somebody can actually add.
@@ -229,8 +270,8 @@ export type TopupCheck = { ok: true; cents: number } | { ok: false; error: strin
  * and a ceiling because a mistyped amount with four extra zeros on it is a
  * refund request and a very bad afternoon.
  */
-export function checkTopup(cents: unknown, currency = "INR"): TopupCheck {
-  const amount = Number(cents);
+export function checkTopup(micros: unknown, currency = "INR"): TopupCheck {
+  const amount = Number(micros);
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, error: "Enter how much to add." };
   }
@@ -241,7 +282,10 @@ export function checkTopup(cents: unknown, currency = "INR"): TopupCheck {
   if (rounded > MAX_TOPUP) {
     return { ok: false, error: `The largest top-up is ${formatMoney(MAX_TOPUP, currency)}.` };
   }
-  return { ok: true, cents: rounded };
+  // Whole paise, because that is the unit the card gateway takes. A
+  // top-up of ₹100.00001 is not a thing anybody meant, and rounding it
+  // here beats a gateway rejecting it with a number nobody can read.
+  return { ok: true, micros: Math.round(rounded / 10_000) * 10_000 };
 }
 
 // --- the statement ---------------------------------------------------------
@@ -250,8 +294,8 @@ export type LedgerKind = "topup" | "debit" | "refund" | "adjustment";
 
 export interface LedgerRow {
   kind: LedgerKind;
-  amountCents: number;
-  balanceAfterCents: number;
+  amountMicros: number;
+  balanceAfterMicros: number;
   description: string;
   createdAt: string;
 }
@@ -262,9 +306,14 @@ export function isCredit(kind: LedgerKind): boolean {
 }
 
 /** "+₹5,000.00" or "−₹0.85", so a statement scans without reading the words. */
-export function signedAmount(row: Pick<LedgerRow, "kind" | "amountCents">, currency = "INR"): string {
+export function signedAmount(
+  row: Pick<LedgerRow, "kind" | "amountMicros">,
+  currency = "INR"
+): string {
   const sign = isCredit(row.kind) ? "+" : "−";
-  return `${sign}${formatMoney(row.amountCents, currency)}`;
+  // A single message costs less than a paisa in some categories, so the
+  // line for it needs the decimals a total does not.
+  return `${sign}${formatRate(row.amountMicros, currency)}`;
 }
 
 export const LEDGER_LABELS: Record<LedgerKind, string> = {
@@ -291,8 +340,8 @@ export function summarise(rows: LedgerRow[]): {
   let messages = 0;
 
   for (const row of rows) {
-    if (isCredit(row.kind)) added += row.amountCents;
-    else spent += row.amountCents;
+    if (isCredit(row.kind)) added += row.amountMicros;
+    else spent += row.amountMicros;
     if (row.kind === "debit") messages += 1;
   }
 

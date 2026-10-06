@@ -26,7 +26,7 @@ export interface TopupOrder {
   currency?: string;
 }
 
-export async function startTopup(amountCents: number): Promise<TopupOrder> {
+export async function startTopup(amountMicros: number): Promise<TopupOrder> {
   const { orgId } = await requireOrg();
 
   const supabase = await createClient();
@@ -38,7 +38,7 @@ export async function startTopup(amountCents: number): Promise<TopupOrder> {
 
   const currency = org?.wallet_currency || "INR";
 
-  const check = checkTopup(amountCents, currency);
+  const check = checkTopup(amountMicros, currency);
   if (!check.ok) return { ok: false, error: check.error };
 
   // The platform's own gateway, not the workspace's. A top-up is money
@@ -70,11 +70,14 @@ export async function startTopup(amountCents: number): Promise<TopupOrder> {
     .insert({
       org_id: orgId,
       kind: "wallet_topup",
-      amount_cents: check.cents,
+      // The orders table is in paise, like the rest of billing. The wallet
+      // is in micros. One hundred micros to the paisa, and checkTopup has
+      // already made sure the amount divides evenly.
+      amount_cents: check.micros / 10_000,
       currency,
       status: "pending",
       provider: gateway.provider,
-      description: `Wallet top-up — ${formatMoney(check.cents, currency)}`,
+      description: `Wallet top-up — ${formatMoney(check.micros, currency)}`,
     })
     .select("id")
     .single();
@@ -86,7 +89,7 @@ export async function startTopup(amountCents: number): Promise<TopupOrder> {
   const created = await createRazorpayOrder(
     { provider: "razorpay", credentials: stored.values, config: stored.config ?? {} },
     {
-      amountPaise: check.cents,
+      amountPaise: check.micros / 10_000,
       currency,
       receipt: `wallet-${order.id.slice(0, 20)}`,
       // What the verify route matches on, so a payment can only ever be
@@ -109,7 +112,7 @@ export async function startTopup(amountCents: number): Promise<TopupOrder> {
     ok: true,
     orderId: created.id,
     keyId: created.keyId,
-    amountPaise: check.cents,
+    amountPaise: check.micros / 10_000,
     currency,
   };
 }

@@ -69,12 +69,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "That payment could not be verified." }, { status: 400 });
   }
 
-  // The amount comes from the order row, never from the request.
+  // The amount comes from the order row, never from the request. The row
+  // is in paise, like the rest of billing; the wallet is in micros.
+  const credited = order.amount_cents * 10_000;
+
   const { data: balance, error } = await admin.rpc("wallet_move", {
     p_org_id: order.org_id,
     p_kind: "topup",
-    p_amount_cents: order.amount_cents,
-    p_description: `Top-up — ${formatMoney(order.amount_cents, order.currency)}`,
+    p_amount_micros: credited,
+    p_description: `Top-up — ${formatMoney(credited, order.currency)}`,
     // Razorpay's payment id, which is what makes a repeat harmless.
     p_reference: fields.razorpay_payment_id,
     p_allow_negative: true,

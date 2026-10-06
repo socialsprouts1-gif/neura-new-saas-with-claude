@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Loader2, Plus } from "lucide-react";
 import { startTopup } from "../wallet-actions";
-import { TOPUP_PRESETS, formatMoney } from "@/lib/wallet";
+import { MICROS, TOPUP_PRESETS, formatMoney } from "@/lib/wallet";
 import { loadRazorpay, openRazorpay } from "@/lib/razorpay-modal";
 
 // Adding money.
@@ -143,8 +143,8 @@ export default function TopupButton({
                 type="number"
                 min={100}
                 step={100}
-                value={amount / 100}
-                onChange={(e) => setAmount(Math.round(Number(e.target.value) * 100))}
+                value={amount / MICROS}
+                onChange={(e) => setAmount(Math.round(Number(e.target.value) * MICROS))}
                 className="w-full bg-white/5 border border-white/12 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50"
               />
             </div>

@@ -15,13 +15,22 @@
 -- same stale total. So the column is the truth, the ledger is the
 -- explanation, and one function writes both together under a row lock.
 --
--- The prices are the platform's own, set in Admin. They are not Meta's
--- rates and this does not try to guess them: Meta bills the WhatsApp
--- account directly, in its own currency, on its own schedule. What this
--- counts is what this business charges its own customers.
+-- Everything here is in micros — millionths of a currency unit. ₹1 is
+-- 1,000,000.
+--
+-- Not paise, and the difference is not fussiness. Meta's India rates are
+-- ₹0.8631 for a marketing message and ₹0.1150 for a utility one, and
+-- neither is a whole number of paise. Rounding ₹0.115 up to 12 paise
+-- overcharges by 4.3% on the highest-volume message type there is;
+-- rounding it down undercharges by the same. Over a hundred thousand
+-- messages that is hundreds of rupees wrong for no reason other than the
+-- unit being too coarse to hold the price.
+--
+-- bigint, because ₹1 is already seven digits and a workspace that has
+-- added a lakh of credit is at 10^11.
 
 alter table public.organizations
-  add column if not exists wallet_balance_cents integer not null default 0;
+  add column if not exists wallet_balance_micros bigint not null default 0;
 
 alter table public.organizations
   add column if not exists wallet_currency text not null default 'INR';
@@ -35,11 +44,11 @@ create table if not exists public.wallet_ledger (
   kind text not null check (kind in ('topup', 'debit', 'refund', 'adjustment')),
   -- Always positive. The kind says which way it moves, so a stray minus
   -- sign cannot turn a charge into a credit.
-  amount_cents integer not null check (amount_cents >= 0),
+  amount_micros bigint not null check (amount_micros >= 0),
   currency text not null default 'INR',
   -- The running balance after this row, so a statement reads top to bottom
   -- without replaying every row before it.
-  balance_after_cents integer not null,
+  balance_after_micros bigint not null,
   description text not null,
   -- What it was for: a WhatsApp message id, a payment id, an admin's note.
   reference text,
@@ -77,29 +86,34 @@ create policy wallet_ledger_read on public.wallet_ledger
  * that silently stops a customer's campaign the moment a rate is set
  * wrong is worse than one that goes briefly negative and says so.
  */
+-- Dropped first, because changing a parameter's type creates a second
+-- function rather than replacing the first — and then every call is
+-- ambiguous, which Postgres reports as a function that does not exist.
+drop function if exists public.wallet_move(uuid, text, integer, text, text, boolean);
+
 create or replace function public.wallet_move(
   p_org_id uuid,
   p_kind text,
-  p_amount_cents integer,
+  p_amount_micros bigint,
   p_description text,
   p_reference text default null,
   p_allow_negative boolean default true
 )
-returns integer
+returns bigint
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_balance integer;
-  v_next integer;
+  v_balance bigint;
+  v_next bigint;
   v_currency text;
 begin
-  if p_amount_cents is null or p_amount_cents < 0 then
+  if p_amount_micros is null or p_amount_micros < 0 then
     return null;
   end if;
 
-  select wallet_balance_cents, wallet_currency
+  select wallet_balance_micros, wallet_currency
     into v_balance, v_currency
   from public.organizations
   where id = p_org_id
@@ -110,9 +124,9 @@ begin
   end if;
 
   if p_kind in ('topup', 'refund') then
-    v_next := v_balance + p_amount_cents;
+    v_next := v_balance + p_amount_micros;
   elsif p_kind in ('debit', 'adjustment') then
-    v_next := v_balance - p_amount_cents;
+    v_next := v_balance - p_amount_micros;
   else
     return null;
   end if;
@@ -126,20 +140,20 @@ begin
   -- error: it means this message has already been charged for.
   begin
     insert into public.wallet_ledger
-      (org_id, kind, amount_cents, currency, balance_after_cents, description, reference)
+      (org_id, kind, amount_micros, currency, balance_after_micros, description, reference)
     values
-      (p_org_id, p_kind, p_amount_cents, coalesce(v_currency, 'INR'), v_next, p_description, p_reference);
+      (p_org_id, p_kind, p_amount_micros, coalesce(v_currency, 'INR'), v_next, p_description, p_reference);
   exception when unique_violation then
     return v_balance;
   end;
 
   update public.organizations
-  set wallet_balance_cents = v_next
+  set wallet_balance_micros = v_next
   where id = p_org_id;
 
   return v_next;
 end;
 $$;
 
-revoke all on function public.wallet_move(uuid, text, integer, text, text, boolean) from public;
-revoke all on function public.wallet_move(uuid, text, integer, text, text, boolean) from anon, authenticated;
+revoke all on function public.wallet_move(uuid, text, bigint, text, text, boolean) from public;
+revoke all on function public.wallet_move(uuid, text, bigint, text, text, boolean) from anon, authenticated;
