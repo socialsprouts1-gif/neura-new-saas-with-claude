@@ -63,10 +63,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const stored = await loadIntegration(admin, gateway.orgId, gateway.provider);
-  const secret = stored?.credentials?.key_secret ?? stored?.values?.key_secret ?? "";
+  // values is config with the decrypted credentials laid over it, which is
+  // what the subscription route reads. Reaching for credentials first
+  // worked by accident and only while the key happened to live there.
+  const secret = stored?.values?.key_secret;
 
-  if (!secret || !verifyCheckoutSignature(fields, secret)) {
-    return NextResponse.json({ ok: false, error: "That payment could not be verified." }, { status: 400 });
+  if (!secret) {
+    // A missing secret is a refusal, not a pass. A route that credits an
+    // unverifiable response is one anybody can top up their own wallet
+    // with by posting three made-up strings.
+    return NextResponse.json(
+      { ok: false, error: "The gateway secret is not available, so this cannot be verified." },
+      { status: 503 }
+    );
+  }
+
+  if (!verifyCheckoutSignature(fields, secret)) {
+    return NextResponse.json(
+      { ok: false, error: "That payment could not be verified." },
+      { status: 400 }
+    );
   }
 
   // The amount comes from the order row, never from the request. The row

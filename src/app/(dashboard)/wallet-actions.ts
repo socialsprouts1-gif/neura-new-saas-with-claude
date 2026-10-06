@@ -6,6 +6,7 @@ import { requireOrg } from "@/lib/org";
 import { loadIntegration } from "@/lib/integration-store";
 import { createRazorpayOrder } from "@/lib/payment-links";
 import { isPaymentProvider } from "@/lib/provider-meta";
+import { walletReference } from "@/lib/checkout";
 import { checkTopup, formatMoney } from "@/lib/wallet";
 
 const PLATFORM_ORG_SETTING = "platform_payment_org";
@@ -27,7 +28,7 @@ export interface TopupOrder {
 }
 
 export async function startTopup(amountMicros: number): Promise<TopupOrder> {
-  const { orgId } = await requireOrg();
+  const { orgId, isPlatformAdmin } = await requireOrg();
 
   const supabase = await createClient();
   const { data: org } = await supabase
@@ -45,13 +46,24 @@ export async function startTopup(amountMicros: number): Promise<TopupOrder> {
   // paid to this business, so it is taken on this business's account —
   // the tenant's own Razorpay keys are for charging their own customers.
   const admin = createAdminClient();
+  // The two refusals below read differently depending on who is reading
+  // them. A customer can only be told to get in touch; the person who runs
+  // this business is the one who can actually fix it, and telling them to
+  // contact themselves is how a setting stays unset for a week.
+  const asAdmin = (reason: string) =>
+    isPlatformAdmin
+      ? `${reason} Fix it under Admin → Platform settings → "Who takes subscription payments".`
+      : "Card payments are not set up yet. Get in touch and we will add the balance for you.";
+
   const gateway = await platformGateway(admin);
-  if (!gateway.ok) return { ok: false, error: gateway.error };
+  if (!gateway.ok) {
+    return { ok: false, error: asAdmin("No payment gateway is set for this deployment.") };
+  }
 
   if (gateway.provider !== "razorpay") {
     return {
       ok: false,
-      error: "Topping up needs Razorpay. Get in touch and we will add the balance for you.",
+      error: asAdmin(`Topping up needs Razorpay, and the platform gateway is ${gateway.provider}.`),
     };
   }
 
@@ -59,7 +71,9 @@ export async function startTopup(amountMicros: number): Promise<TopupOrder> {
   if (!stored) {
     return {
       ok: false,
-      error: "Card payments are not finished being set up. Get in touch and we will add the balance for you.",
+      error: asAdmin(
+        "The platform gateway names a workspace whose Razorpay is no longer connected."
+      ),
     };
   }
 
@@ -91,7 +105,11 @@ export async function startTopup(amountMicros: number): Promise<TopupOrder> {
     {
       amountPaise: check.micros / 10_000,
       currency,
-      receipt: `wallet-${order.id.slice(0, 20)}`,
+      // The shape the payments webhook matches on. Truncating the id here
+      // — which the old `wallet-${id.slice(0, 20)}` did — meant the
+      // webhook could never place the payment, so a customer who closed
+      // the tab before the browser called back paid and got nothing.
+      receipt: walletReference(order.id),
       // What the verify route matches on, so a payment can only ever be
       // credited to the workspace that asked for it.
       notes: { kind: "wallet_topup", order_id: order.id, org_id: orgId },

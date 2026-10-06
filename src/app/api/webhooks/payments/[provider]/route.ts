@@ -10,7 +10,7 @@ import { formatAmount } from "@/lib/orders";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { loadInvoiceSettings, recordInvoicePayment } from "@/lib/invoice-engine";
 import { dispatchWebhookEvent } from "@/lib/outgoing-webhooks";
-import { orderIdFromReference } from "@/lib/checkout";
+import { orderIdFromReference, walletOrderIdFromReference } from "@/lib/checkout";
 import { activateSubscription } from "@/lib/subscription-activate";
 
 // Where a gateway tells us a payment landed.
@@ -121,6 +121,81 @@ export async function POST(
     }
 
     return NextResponse.json({ ok: true, kind: "subscription" });
+  }
+
+  // A wallet top-up. Here rather than only in the browser's verify call
+  // because the browser is the one part of this that can simply walk
+  // away: somebody who pays and closes the tab has had the money taken,
+  // and without this the balance never moves.
+  //
+  // Crediting twice is refused by the ledger rather than by a check here.
+  // Both paths use the gateway's payment id as the ledger reference, and
+  // the unique index on it means whichever arrives second changes
+  // nothing.
+  const topupOrderId = walletOrderIdFromReference(reference);
+  if (topupOrderId) {
+    const { data: topup } = await supabase
+      .from("orders")
+      .select("id, org_id, amount_cents, currency, status")
+      .eq("id", topupOrderId)
+      .eq("kind", "wallet_topup")
+      .maybeSingle();
+
+    if (!topup) {
+      return NextResponse.json({ ok: true, note: "No such top-up" });
+    }
+
+    // The platform's own gateway, not the paying workspace's — a top-up is
+    // money paid to this business, so the secret that signs it is this
+    // business's.
+    const gateway = await platformGateway(supabase);
+    const stored = gateway ? await loadIntegration(supabase, gateway.orgId, provider) : null;
+    const secret = stored?.values.webhook_secret ?? process.env[envKeyFor(provider)] ?? "";
+
+    const verdict = verify(provider, request, raw, secret);
+    if (verdict !== "ok") {
+      console.error(`Refused a ${provider} webhook for top-up ${reference}: ${verdict}`);
+      return NextResponse.json({ error: verdict }, { status: 401 });
+    }
+
+    const event = eventNameOf(provider, payload, request);
+    if (FAILED_EVENTS[provider].some((name) => event.includes(name))) {
+      await supabase
+        .from("orders")
+        .update({ status: "failed" })
+        .eq("id", topup.id)
+        .eq("status", "pending");
+      return NextResponse.json({ ok: true, note: "Top-up failed" });
+    }
+    if (!PAID_EVENTS[provider].some((name) => event.includes(name))) {
+      return NextResponse.json({ ok: true, note: `Ignoring ${event}` });
+    }
+
+    const paymentId = paymentIdOf(provider, payload) ?? reference;
+
+    const { error: moveError } = await supabase.rpc("wallet_move", {
+      p_org_id: topup.org_id,
+      p_kind: "topup",
+      // From the order row, never from the webhook body. A gateway that
+      // reported the wrong amount would otherwise credit it.
+      p_amount_micros: topup.amount_cents * 10_000,
+      p_description: `Top-up — ${formatAmount(topup.amount_cents, topup.currency)}`,
+      p_reference: paymentId,
+      p_allow_negative: true,
+    });
+
+    if (moveError) {
+      console.error("Could not credit a wallet top-up from the webhook", moveError.message);
+      return NextResponse.json({ error: moveError.message }, { status: 500 });
+    }
+
+    await supabase
+      .from("orders")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("id", topup.id)
+      .eq("status", "pending");
+
+    return NextResponse.json({ ok: true, kind: "wallet_topup" });
   }
 
   const { data: order } = await supabase
@@ -411,4 +486,48 @@ function eventNameOf(
     );
   }
   return typeof payload.event === "string" ? payload.event : String(payload.type ?? "");
+}
+
+/** The gateway this business takes its own money on. */
+async function platformGateway(
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<{ orgId: string; provider: string } | null> {
+  const { data: setting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "platform_payment_org")
+    .maybeSingle();
+
+  const value = setting?.value as { org_id?: string; provider?: string } | null;
+  const orgId = value?.org_id?.trim();
+  const provider = value?.provider?.trim();
+
+  if (!orgId || !provider || !isPaymentProvider(provider)) return null;
+  return { orgId, provider };
+}
+
+/**
+ * The gateway's own id for the payment.
+ *
+ * What makes crediting idempotent across the webhook and the browser's
+ * verify call: both use it as the ledger reference, so whichever arrives
+ * second loses the insert and changes nothing.
+ */
+function paymentIdOf(provider: PaymentProvider, payload: Record<string, unknown>): string | null {
+  const read = (path: string): string | null => {
+    let current: unknown = payload;
+    for (const key of path.split(".")) {
+      if (!current || typeof current !== "object") return null;
+      current = (current as Record<string, unknown>)[key];
+    }
+    return typeof current === "string" && current.trim() ? current.trim() : null;
+  };
+
+  if (provider === "razorpay") {
+    return read("payload.payment.entity.id") ?? read("payload.payment_link.entity.payment_id");
+  }
+  if (provider === "cashfree") {
+    return read("data.payment.cf_payment_id") ?? read("data.order.order_id");
+  }
+  return read("data.object.id") ?? read("id");
 }

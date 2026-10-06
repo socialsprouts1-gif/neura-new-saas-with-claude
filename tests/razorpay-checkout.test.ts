@@ -12,6 +12,12 @@ import {
   maskKeyId,
   describeKeyRejection,
 } from "../src/lib/razorpay-checkout.ts";
+import {
+  checkoutReference,
+  orderIdFromReference,
+  walletOrderIdFromReference,
+  walletReference,
+} from "../src/lib/checkout.ts";
 
 const SECRET = "test_secret_not_a_real_key";
 
@@ -171,4 +177,45 @@ test("a malformed key is called out as malformed, not as a mode mismatch", () =>
   const message = describeKeyRejection("XJaKYBA7wYSzMl");
   assert.match(message, /does not look like a Razorpay key/);
   assert.doesNotMatch(message, /same mode/);
+});
+
+// --- what the payments webhook matches a payment to ------------------------
+
+test("a wallet top-up reference fits inside a gateway receipt", () => {
+  // Razorpay caps a receipt at 40 characters and silently truncates past
+  // it. A uuid is 36, so the prefix budget is four — "WALLET-" would
+  // arrive cut short, match nothing, and the webhook would quietly stop
+  // being able to credit anybody who closed the tab.
+  const reference = walletReference("0199a7f2-1b6e-7c4a-9f2d-3a4b5c6d7e8f");
+  assert.equal(reference.length, 40);
+});
+
+test("a top-up reference round-trips back to its order", () => {
+  const id = "0199a7f2-1b6e-7c4a-9f2d-3a4b5c6d7e8f";
+  assert.equal(walletOrderIdFromReference(walletReference(id)), id);
+});
+
+test("a subscription reference is not read as a top-up, or the other way round", () => {
+  // They land on the same webhook endpoint, so one matching the other's
+  // shape would credit a wallet for a plan payment.
+  const id = "0199a7f2-1b6e-7c4a-9f2d-3a4b5c6d7e8f";
+  assert.equal(walletOrderIdFromReference(checkoutReference(id)), null);
+  assert.equal(orderIdFromReference(walletReference(id)), null);
+});
+
+test("a reference from somewhere else matches nothing", () => {
+  for (const bad of ["", "   ", "WAL-", "WAL-nope", "order_123", "wallet-0199a7f2"]) {
+    assert.equal(walletOrderIdFromReference(bad), null, bad);
+  }
+});
+
+test("a truncated reference is refused rather than half-matched", () => {
+  // Which is exactly what the old receipt produced.
+  const id = "0199a7f2-1b6e-7c4a-9f2d-3a4b5c6d7e8f";
+  assert.equal(walletOrderIdFromReference(walletReference(id).slice(0, 30)), null);
+});
+
+test("case does not stop a reference matching", () => {
+  const id = "0199A7F2-1B6E-7C4A-9F2D-3A4B5C6D7E8F";
+  assert.equal(walletOrderIdFromReference(`wal-${id}`)?.toLowerCase(), id.toLowerCase());
 });

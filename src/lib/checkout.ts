@@ -169,3 +169,21 @@ export function orderIdFromReference(reference: string): string | null {
   const match = /^SUB-([0-9a-f-]{36})$/i.exec(reference.trim());
   return match ? match[1] : null;
 }
+
+/**
+ * The same, for a wallet top-up.
+ *
+ * "WAL-" rather than "WALLET-" for a dull but load-bearing reason:
+ * Razorpay caps a receipt at 40 characters and silently truncates past
+ * it. A uuid is 36, so a four-character prefix is the whole budget —
+ * "WALLET-" would arrive cut short, match nothing, and the webhook would
+ * quietly stop being able to credit anybody.
+ */
+export function walletReference(orderId: string): string {
+  return `WAL-${orderId}`;
+}
+
+export function walletOrderIdFromReference(reference: string): string | null {
+  const match = /^WAL-([0-9a-f-]{36})$/i.exec(reference.trim());
+  return match ? match[1] : null;
+}
