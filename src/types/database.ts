@@ -96,6 +96,9 @@ export interface Database {
           feature_overrides: Record<string, boolean>;
           suspended_at: string | null;
           suspended_reason: string | null;
+          /** The message wallet. Moved only by the wallet_move function. */
+          wallet_balance_cents: number;
+          wallet_currency: string;
         };
         Insert: { id?: string; name: string; created_at?: string };
         Update: {
@@ -634,6 +637,30 @@ export interface Database {
         Row: Coupon;
         Insert: Partial<Coupon> & { code: string; discount_value: number };
         Update: Partial<Coupon>;
+        Relationships: [];
+      };
+      wallet_ledger: {
+        Row: {
+          id: string;
+          org_id: string;
+          kind: "topup" | "debit" | "refund" | "adjustment";
+          /** Always positive. The kind says which way it moves. */
+          amount_cents: number;
+          currency: string;
+          /** The running balance after this row, so a statement reads top to bottom. */
+          balance_after_cents: number;
+          description: string;
+          reference: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["wallet_ledger"]["Row"]> & {
+          org_id: string;
+          kind: "topup" | "debit" | "refund" | "adjustment";
+          amount_cents: number;
+          balance_after_cents: number;
+          description: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["wallet_ledger"]["Row"]>;
         Relationships: [];
       };
       guest_checkouts: {
@@ -1251,6 +1278,22 @@ export interface Database {
       claim_invoice_number: {
         Args: { target_org: string };
         Returns: number;
+      };
+      /**
+       * Moves a workspace's wallet balance and writes the line that
+       * explains it, together, under a row lock on the organization.
+       * Returns the new balance, or null when the move was refused.
+       */
+      wallet_move: {
+        Args: {
+          p_org_id: string;
+          p_kind: "topup" | "debit" | "refund" | "adjustment";
+          p_amount_cents: number;
+          p_description: string;
+          p_reference?: string | null;
+          p_allow_negative?: boolean;
+        };
+        Returns: number | null;
       };
       /**
        * Creates a workspace and its owner membership for a user who has

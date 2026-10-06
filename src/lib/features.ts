@@ -94,6 +94,13 @@ export const FEATURES: readonly FeatureDef[] = [
     paths: ["/campaigns", "/templates"],
   },
   {
+    key: "wallet",
+    label: "WhatsApp Wallet",
+    group: "Money",
+    description: "The prepaid balance messages are charged against, and the statement.",
+    paths: ["/wallet"],
+  },
+  {
     key: "drip",
     label: "Drip Campaigns",
     group: "Growth",

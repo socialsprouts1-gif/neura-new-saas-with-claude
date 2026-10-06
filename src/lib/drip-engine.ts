@@ -8,6 +8,8 @@ import { sendTemplateMessage, describeMetaError, MetaApiError } from "@/lib/meta
 import { recordOutboundTemplate } from "@/lib/outbound-log";
 import { fillTemplateText } from "@/lib/template-variables";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
+import { walletStatus } from "@/lib/wallet-charge";
+import { canSpend, costOf } from "@/lib/wallet";
 import {
   advance,
   matchesKeyword,
@@ -63,8 +65,19 @@ export async function dispatchDueDrips(): Promise<DripRunResult> {
   let finished = 0;
 
   const cache = new Map<string, Awaited<ReturnType<typeof loadCampaign>>>();
+  const wallets = new Map<string, boolean>();
 
   for (const row of due ?? []) {
+    if (!wallets.has(row.org_id)) {
+      const { balance, rates } = await walletStatus(supabase, row.org_id);
+      wallets.set(row.org_id, canSpend(balance, costOf("marketing", rates), rates));
+    }
+
+    // Left where it is, not failed. A sequence somebody is half way
+    // through must pick up when the wallet is topped up, rather than
+    // dropping them at step three for the want of a few rupees.
+    if (!wallets.get(row.org_id)) continue;
+
     if (!cache.has(row.campaign_id)) {
       cache.set(row.campaign_id, await loadCampaign(supabase, row.campaign_id));
     }

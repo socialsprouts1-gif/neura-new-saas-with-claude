@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SubscriptionStatus } from "@/types/admin";
 import { isOrgRole, roleChangeBlocked } from "@/lib/member-role";
+import { readRates, walletInUse, writeRates } from "@/lib/wallet";
 import { EVENTS, readEvents, firstProblem, writeEvents } from "@/lib/whatsapp-events";
 import { resolveFeatures, togglableKeys } from "@/lib/features";
 import { createClient } from "@/lib/supabase/server";
@@ -435,6 +436,35 @@ export async function saveWhatsAppEvents(formData: FormData): Promise<ActionResu
     on === 0
       ? "Saved. No WhatsApp messages will be sent."
       : `Saved. ${on} WhatsApp message${on === 1 ? "" : "s"} switched on.`
+  );
+}
+
+export async function saveWalletRates(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const number = (name: string) => {
+    const value = Number(formData.get(name) ?? 0);
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+  };
+
+  const rates = readRates({
+    currency: String(formData.get("currency") ?? "INR").trim().toUpperCase(),
+    marketing: number("marketing"),
+    utility: number("utility"),
+    authentication: number("authentication"),
+    service: number("service"),
+    low_balance: number("low_balance"),
+    block_when_empty: formData.get("block_when_empty") === "on",
+  });
+
+  const on = walletInUse(rates);
+
+  return mergeSetting(
+    "wallet_rates",
+    writeRates(rates),
+    on
+      ? `Saved. Messages are now charged${rates.blockWhenEmpty ? ", and sending stops when a wallet is empty" : ""}.`
+      : "Saved. Every rate is zero, so the wallet is off and customers see nothing about it."
   );
 }
 

@@ -12,6 +12,7 @@ import PaymentCheck from "./PaymentCheck";
 import KnownSettings from "./KnownSettings";
 import EmailCheck from "./EmailCheck";
 import WhatsAppEvents from "./WhatsAppEvents";
+import WalletRates from "./WalletRates";
 
 export default async function AdminSettingsPage() {
   await requirePlatformAdmin();
@@ -98,6 +99,8 @@ export default async function AdminSettingsPage() {
 
       <KnownSettings />
       <WhatsAppEvents />
+
+      <WalletRates />
 
       <PaymentCheck />
       <PlatformGateway />

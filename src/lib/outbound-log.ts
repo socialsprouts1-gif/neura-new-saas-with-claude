@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { templateMessageContent } from "@/lib/message-preview";
+import { chargeForTemplate } from "@/lib/wallet-charge";
 
 // Putting an outbound template into the inbox.
 //
@@ -40,6 +41,14 @@ export interface OutboundTemplateLog {
   /** The campaign or automation this came from, for the thread to name. */
   source?: string;
   waMessageId?: string | null;
+  /**
+   * The template's Meta category, for the wallet.
+   *
+   * Passed in where the caller already has the template row, looked up
+   * here where it does not. Absent and unfindable costs the utility rate
+   * rather than nothing — see costOf.
+   */
+  category?: string | null;
   /**
    * When it was sent. Defaults to now, which is right for a live send and
    * wrong for a backfill — a message from last Tuesday must not sort to
@@ -102,6 +111,21 @@ export async function recordOutboundTemplate(
       }
     }
 
+    // And off the wallet. Here rather than in each of the four senders:
+    // four call sites would be four chances to charge twice and four to
+    // charge nothing, with no single place to read to find out which.
+    //
+    // Not awaited for its result and never allowed to fail the log — the
+    // message is already with the customer. The charge is idempotent on
+    // the WhatsApp message id, so the retry that produced the 23505 above
+    // does not charge a second time either.
+    await chargeForTemplate(supabase, {
+      orgId: input.orgId,
+      category: input.category ?? (await categoryOf(supabase, input)),
+      reference: input.waMessageId ?? null,
+      description: `${input.templateName} to ${input.waId}`,
+    });
+
     // last_message_at is what orders the conversation list, so without
     // this the new thread sorts to the bottom of the inbox — present, but
     // below every old conversation, which is close enough to missing.
@@ -127,6 +151,25 @@ export async function recordOutboundTemplate(
     console.error("Could not record an outbound template", error);
     return null;
   }
+}
+
+/**
+ * The template's category, when the caller did not carry one.
+ *
+ * One extra read on a path that already does several, and only on the
+ * senders that have not been given it. Missing entirely is not free — see
+ * costOf, which charges the utility rate for anything it does not know.
+ */
+async function categoryOf(supabase: Client, input: OutboundTemplateLog): Promise<string> {
+  const { data } = await supabase
+    .from("message_templates")
+    .select("category")
+    .eq("org_id", input.orgId)
+    .eq("name", input.templateName)
+    .eq("language", input.language)
+    .maybeSingle();
+
+  return String(data?.category ?? "").toLowerCase();
 }
 
 /** The contact for this number, created on first contact. */

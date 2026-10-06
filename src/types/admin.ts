@@ -7,7 +7,7 @@
 
 export type PlanInterval = "monthly" | "yearly";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "cancelled" | "expired";
-export type OrderKind = "subscription" | "onboarding_fee" | "add_on" | "other";
+export type OrderKind = "subscription" | "onboarding_fee" | "add_on" | "wallet_topup" | "other";
 export type OrderStatus = "pending" | "paid" | "failed" | "refunded";
 export type TicketStatus = "open" | "pending" | "resolved" | "closed";
 export type TicketPriority = "low" | "normal" | "high" | "urgent";

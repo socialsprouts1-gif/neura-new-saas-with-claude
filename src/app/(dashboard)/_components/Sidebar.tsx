@@ -126,7 +126,7 @@ const MAIN: NavItem[] = [
   { icon: Building2, label: "Organizations", href: "/organizations" },
   { icon: Code2, label: "API Endpoints", href: "/api-endpoints" },
   { icon: CreditCard, label: "Billing", href: "/billing" },
-  { icon: Wallet, label: "WhatsApp Wallet", href: "/wallet", soon: true },
+  { icon: Wallet, label: "WhatsApp Wallet", href: "/wallet" },
   // Last, under Billing. Reference rather than daily work — somebody who
   // needs it goes looking, and it should not sit between the Dashboard
   // and the Inbox for everyone who does not.

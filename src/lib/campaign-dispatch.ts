@@ -13,6 +13,8 @@ import {
 import { describeReadiness, templateReadiness } from "@/lib/template-readiness";
 import { recordOutboundTemplate } from "@/lib/outbound-log";
 import { fillTemplateText } from "@/lib/template-variables";
+import { walletStatus } from "@/lib/wallet-charge";
+import { canSpend, costOf } from "@/lib/wallet";
 
 // Draining the campaign queue.
 //
@@ -66,8 +68,23 @@ export async function dispatchDueCampaigns(): Promise<DispatchResult> {
   let sent = 0;
   let failed = 0;
   const cache = new Map<string, Awaited<ReturnType<typeof loadSendContext>>>();
+  // One wallet check per workspace per batch, not one per recipient. The
+  // balance moves while this loop runs, which is exactly why the check is
+  // "is there anything left" rather than "is there enough for all of them"
+  // — the latter would stop a campaign that could have sent most of itself.
+  const wallets = new Map<string, boolean>();
 
   for (const recipient of due ?? []) {
+    if (!wallets.has(recipient.org_id)) {
+      const { balance, rates } = await walletStatus(supabase, recipient.org_id);
+      wallets.set(recipient.org_id, canSpend(balance, costOf("marketing", rates), rates));
+    }
+
+    // Left pending rather than failed. The money is the only thing missing,
+    // and a top-up ten minutes from now should send it — marking it failed
+    // would mean somebody has to find and re-queue every one of them.
+    if (!wallets.get(recipient.org_id)) continue;
+
     const key = `${recipient.campaign_id}:${recipient.step_index}`;
     if (!cache.has(key)) {
       cache.set(key, await loadSendContext(supabase, recipient.campaign_id, recipient.step_index));
