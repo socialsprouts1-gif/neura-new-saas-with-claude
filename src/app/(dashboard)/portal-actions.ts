@@ -19,6 +19,7 @@ import {
   presetById,
   providerById,
 } from "@/lib/ai-providers";
+import { isLanguage, isTone } from "@/lib/agent-setup";
 import { parseClock } from "@/lib/working-hours";
 import {
   KNOWLEDGE_SOURCE_TYPES,
@@ -211,9 +212,6 @@ export async function saveAssistantSettings(formData: FormData): Promise<ActionR
   const { orgId } = await requireOrg();
   const id = String(formData.get("id") ?? "");
 
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { ok: false, error: "Assistant name is required." };
-
   const providerId = String(formData.get("provider") ?? "anthropic");
   if (!isProviderId(providerId)) return { ok: false, error: "Unknown provider." };
   const provider = providerById(providerId)!;
@@ -242,18 +240,11 @@ export async function saveAssistantSettings(formData: FormData): Promise<ActionR
     return { ok: false, error: "The base URL must start with https:// (or http://localhost)." };
   }
 
-  const handoffKeywords = String(formData.get("handoff_keywords") ?? "")
-    .split(",")
-    .map((word) => word.trim().toLowerCase())
-    .filter(Boolean);
-
+  // Only what this step shows. It used to write the name, the role, the
+  // prompt and the handoff keywords too — which was correct while one form
+  // owned every field, and became a way to silently undo the Persona step
+  // the moment a second form owned some of them.
   const update: Partial<AiAssistant> = {
-    name,
-    role: String(formData.get("role") ?? "").trim() || "Support agent",
-    system_prompt: String(formData.get("system_prompt") ?? "").trim(),
-    prompt_preset: String(formData.get("prompt_preset") ?? "custom"),
-    handoff_keywords: handoffKeywords,
-    is_active: String(formData.get("is_active") ?? "") === "true",
     provider: providerId,
     model,
     api_base_url: provider.needsBaseUrl ? baseUrl : null,
@@ -301,26 +292,6 @@ export async function saveAssistantRules(formData: FormData): Promise<ActionResu
     return { ok: false, error: "Memory must be between 0 and 100 messages." };
   }
 
-  const start = String(formData.get("working_hours_start") ?? "09:00");
-  const end = String(formData.get("working_hours_end") ?? "18:00");
-  const enabled = String(formData.get("working_hours_enabled") ?? "") === "true";
-  if (enabled) {
-    if (parseClock(start) === null || parseClock(end) === null) {
-      return { ok: false, error: "Working hours must be times like 09:00 and 18:00." };
-    }
-    if (start === end) {
-      return { ok: false, error: "The opening and closing time cannot be the same." };
-    }
-  }
-
-  const workingDays = formData
-    .getAll("working_days")
-    .map((day) => Number(day))
-    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
-  if (enabled && workingDays.length === 0) {
-    return { ok: false, error: "Pick at least one working day, or turn working hours off." };
-  }
-
   const delay = Number(formData.get("followup_delay_minutes") ?? 60);
   const maxFollowups = Number(formData.get("max_followups") ?? 1);
   const followupEnabled = String(formData.get("followup_enabled") ?? "") === "true";
@@ -342,17 +313,10 @@ export async function saveAssistantRules(formData: FormData): Promise<ActionResu
     .update({
       memory_turns: Math.round(memoryTurns),
       use_knowledge_base: String(formData.get("use_knowledge_base") ?? "") === "true",
-      stop_on_human: String(formData.get("stop_on_human") ?? "") === "true",
       // Which forms this assistant may open. Absent from the payload means
       // none were ticked, which is a real answer — the assistant loses the
       // forms it had, rather than keeping them because nothing was sent.
       form_ids: formData.getAll("form_ids").map((id) => String(id)).filter(Boolean),
-      working_hours_enabled: enabled,
-      working_hours_timezone: String(formData.get("working_hours_timezone") ?? "UTC"),
-      working_hours_start: start,
-      working_hours_end: end,
-      working_days: workingDays,
-      off_hours_message: String(formData.get("off_hours_message") ?? "").trim(),
       followup_enabled: followupEnabled,
       followup_delay_minutes: Math.round(delay),
       followup_message: String(formData.get("followup_message") ?? "").trim(),
@@ -365,6 +329,110 @@ export async function saveAssistantRules(formData: FormData): Promise<ActionResu
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/ai-assistant/${id}`);
   return { ok: true, message: "Agent rules saved." };
+}
+
+/**
+ * Step one of the agent builder: who it is and how it speaks.
+ *
+ * A targeted update — only the columns this screen owns. Every other save
+ * action in here fills a missing field with a default, which is correct
+ * when one form owns every field and catastrophic when two do: the second
+ * screen's save would quietly reset the first screen's work. So this one
+ * names what it writes and touches nothing else.
+ */
+export async function saveAssistantPersona(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "");
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, error: "Give the agent a name." };
+
+  const language = String(formData.get("primary_language") ?? "en");
+  if (!isLanguage(language)) return { ok: false, error: "Pick a language from the list." };
+
+  const tone = String(formData.get("tone") ?? "professional");
+  if (!isTone(tone)) return { ok: false, error: "Pick a tone from the list." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ai_assistants")
+    .update({
+      name,
+      role: String(formData.get("role") ?? "").trim() || "Support agent",
+      system_prompt: String(formData.get("system_prompt") ?? "").trim(),
+      prompt_preset: String(formData.get("prompt_preset") ?? "custom"),
+      primary_language: language,
+      multilingual_reply: String(formData.get("multilingual_reply") ?? "") === "true",
+      tone,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/ai-assistant/${id}`);
+  return { ok: true, message: "Persona saved." };
+}
+
+/**
+ * Step four: when the agent stands down.
+ *
+ * The handoff keywords and the working hours, which used to live three
+ * screens apart and are the same decision asked twice. A targeted update,
+ * like the persona one: it names what it writes, so a save here cannot
+ * reset what another step owns.
+ */
+export async function saveAssistantSafety(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "");
+
+  const start = String(formData.get("working_hours_start") ?? "09:00");
+  const end = String(formData.get("working_hours_end") ?? "18:00");
+  const enabled = String(formData.get("working_hours_enabled") ?? "") === "true";
+
+  if (enabled) {
+    if (parseClock(start) === null || parseClock(end) === null) {
+      return { ok: false, error: "Working hours must be times like 09:00 and 18:00." };
+    }
+    if (start === end) {
+      return { ok: false, error: "The opening and closing time cannot be the same." };
+    }
+  }
+
+  const workingDays = formData
+    .getAll("working_days")
+    .map((day) => Number(day))
+    .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+  if (enabled && workingDays.length === 0) {
+    return { ok: false, error: "Pick at least one working day, or turn working hours off." };
+  }
+
+  const handoffKeywords = String(formData.get("handoff_keywords") ?? "")
+    .split(",")
+    .map((word) => word.trim().toLowerCase())
+    .filter(Boolean);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("ai_assistants")
+    .update({
+      handoff_keywords: handoffKeywords,
+      stop_on_human: String(formData.get("stop_on_human") ?? "") === "true",
+      working_hours_enabled: enabled,
+      working_hours_timezone: String(formData.get("working_hours_timezone") ?? "UTC"),
+      working_hours_start: start,
+      working_hours_end: end,
+      working_days: workingDays,
+      off_hours_message: String(formData.get("off_hours_message") ?? "").trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/ai-assistant/${id}`);
+  return { ok: true, message: "Safety rules saved." };
 }
 
 export async function toggleAiAssistant(formData: FormData): Promise<ActionResult> {

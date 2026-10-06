@@ -22,6 +22,12 @@ export type AiAssistant = {
   api_base_url: string | null;
   system_prompt: string;
   prompt_preset: string;
+  /** A code from LANGUAGES in @/lib/agent-setup. */
+  primary_language: string;
+  /** Answer in the customer's language instead, when they write in another. */
+  multilingual_reply: boolean;
+  /** A key from TONES in @/lib/agent-setup. */
+  tone: string;
   temperature: number;
   max_tokens: number;
   handoff_keywords: string[];

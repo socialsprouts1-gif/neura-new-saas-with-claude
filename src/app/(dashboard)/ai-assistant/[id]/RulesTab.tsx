@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { saveAssistantRules } from "@/app/(dashboard)/portal-actions";
-import { DAY_LABELS, TIMEZONES } from "@/lib/working-hours";
 import type { AiAssistant } from "@/types/portal";
 import {
   SaveForm,
   SectionCard,
-  Select,
   SliderRow,
   TextArea,
   TextInput,
@@ -32,13 +30,6 @@ export default function RulesTab({
 }) {
   const [memoryTurns, setMemoryTurns] = useState(assistant.memory_turns);
   const [useKnowledge, setUseKnowledge] = useState(assistant.use_knowledge_base);
-  const [stopOnHuman, setStopOnHuman] = useState(assistant.stop_on_human);
-
-  const [hoursOn, setHoursOn] = useState(assistant.working_hours_enabled);
-  const [days, setDays] = useState<number[]>(assistant.working_days ?? []);
-  const [timezone, setTimezone] = useState(assistant.working_hours_timezone);
-  const [start, setStart] = useState(assistant.working_hours_start);
-  const [end, setEnd] = useState(assistant.working_hours_end);
 
   const [followupOn, setFollowupOn] = useState(assistant.followup_enabled);
   const [maxFollowups, setMaxFollowups] = useState(assistant.max_followups);
@@ -49,32 +40,20 @@ export default function RulesTab({
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
     );
 
-  const toggleDay = (day: number) =>
-    setDays((current) =>
-      current.includes(day) ? current.filter((value) => value !== day) : [...current, day].sort()
-    );
-
   // What most businesses want, in one click. Only touches the controlled
   // fields — the uncontrolled ones keep whatever is typed in them.
   const applyDefaults = () => {
     setMemoryTurns(10);
     setUseKnowledge(true);
-    setStopOnHuman(true);
-    setDays([1, 2, 3, 4, 5]);
-    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-    setStart("09:00");
-    setEnd("18:00");
   };
 
   return (
-    // One form across all three cards: the rules read as a single policy,
-    // and saving a working-hours change without the message that goes with
-    // it would leave the assistant silent at 6pm.
+    // One form across the cards that are left. Working hours and the
+    // handoff moved to the Safety step — they are the two rules about
+    // when to stop, and they belong with each other rather than with
+    // memory and forms.
     <SaveForm action={saveAssistantRules} label="Save Assistant">
       <input type="hidden" name="id" value={assistant.id} />
-      {days.map((day) => (
-        <input key={day} type="hidden" name="working_days" value={day} />
-      ))}
 
       <div className="flex justify-end mb-4">
         <button
@@ -116,13 +95,6 @@ export default function RulesTab({
               onChange={setUseKnowledge}
               label="Smart knowledge search"
               description="Send the entries from the Knowledge Base tab with every reply, as the assistant's only source of fact about your business."
-            />
-            <Toggle
-              name="stop_on_human"
-              checked={stopOnHuman}
-              onChange={setStopOnHuman}
-              label="Stop when human replies"
-              description="The agent stops when your team sends a message from the inbox, until you resume the bot on that chat."
             />
           </div>
         </SectionCard>
@@ -188,85 +160,6 @@ export default function RulesTab({
               </p>
             </>
           )}
-        </SectionCard>
-
-        <SectionCard
-          title="Working Hours"
-          description="Auto-reply with an after-hours message outside business hours."
-        >
-          <div className="border-b border-white/8 pb-1 mb-4">
-            <Toggle
-              name="working_hours_enabled"
-              checked={hoursOn}
-              onChange={setHoursOn}
-              label="Enable working hours"
-              description="Off means the assistant answers around the clock."
-            />
-          </div>
-
-          <fieldset disabled={!hoursOn} className={hoursOn ? "" : "opacity-40"}>
-            <div className="grid md:grid-cols-3 gap-4">
-              <Select
-                label="Timezone"
-                name="working_hours_timezone"
-                value={timezone}
-                onChange={(event) => setTimezone(event.target.value)}
-                options={TIMEZONES.map((zone) => ({
-                  value: zone,
-                  label: zone.replace(/_/g, " "),
-                }))}
-              />
-              <TextInput
-                label="Start time"
-                name="working_hours_start"
-                type="time"
-                value={start}
-                onChange={(event) => setStart(event.target.value)}
-              />
-              <TextInput
-                label="End time"
-                name="working_hours_end"
-                type="time"
-                value={end}
-                onChange={(event) => setEnd(event.target.value)}
-                hint="An end time before the start one runs overnight."
-              />
-            </div>
-
-            <div className="mt-4">
-              <span className="block text-xs font-medium text-white/70 mb-2">
-                Weekdays (0 = Sun … 6 = Sat)
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {DAY_LABELS.map((label, day) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => toggleDay(day)}
-                    aria-pressed={days.includes(day)}
-                    className={`w-12 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                      days.includes(day)
-                        ? "border-accent/50 bg-accent/12 text-accent-ink"
-                        : "border-white/10 bg-white/3 text-white/45 hover:border-white/20"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <TextArea
-                label="After-hours message"
-                name="off_hours_message"
-                rows={3}
-                defaultValue={assistant.off_hours_message}
-                placeholder="Thank you for contacting us. Kindly drop your query, and we will contact you soon."
-                hint="Leave this empty and the assistant simply stays quiet outside working hours, and the chat waits for a human."
-              />
-            </div>
-          </fieldset>
         </SectionCard>
 
         <SectionCard

@@ -1,28 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { ExternalLink, Loader2, Sparkles, Wand2, X } from "lucide-react";
-import {
-  generateAssistantInstructions,
-  saveAssistantSettings,
-} from "@/app/(dashboard)/portal-actions";
-import { PROMPT_PRESETS, PROVIDERS, defaultModelFor, providerById } from "@/lib/ai-providers";
+import { useState } from "react";
+import { ExternalLink } from "lucide-react";
+import { saveAssistantSettings } from "@/app/(dashboard)/portal-actions";
+import { PROVIDERS, defaultModelFor, providerById } from "@/lib/ai-providers";
 import type { ProviderId } from "@/lib/ai-providers";
 import type { AiAssistant } from "@/types/portal";
-import { SaveForm, SectionCard, SliderRow, TextInput, Toggle } from "./EditorControls";
+import { SaveForm, SectionCard, SliderRow, TextInput } from "./EditorControls";
 
-// One form across all three cards, one Save Assistant at the bottom. The
-// prompt, the provider and the key are a single decision — saving them apart
-// leaves an assistant pointing at a model it has no key for.
+// Step two: which AI answers, and how freely.
+//
+// The provider, the model and the key are one decision — saving them apart
+// leaves an assistant pointing at a model it has no key for — so they stay
+// on one form with one Save. Who the agent is and what it is told moved to
+// the Persona step, because two screens writing the same prompt box is how
+// one of them silently overwrites the other.
 export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
-  const [isActive, setIsActive] = useState(assistant.is_active);
-  const [mode, setMode] = useState<"predefined" | "custom">(
-    assistant.prompt_preset === "custom" ? "custom" : "predefined"
-  );
-  const [preset, setPreset] = useState(assistant.prompt_preset);
-  const [prompt, setPrompt] = useState(assistant.system_prompt);
-  const [role, setRole] = useState(assistant.role);
-  const [building, setBuilding] = useState(false);
 
   const [providerId, setProviderId] = useState<ProviderId>(
     (providerById(assistant.provider)?.id ?? "anthropic") as ProviderId
@@ -36,17 +29,6 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
   const provider = providerById(providerId)!;
   const hasStoredKey = Boolean(assistant.api_key_encrypted);
 
-  // Picking a role card replaces the prompt. Editing the text afterwards
-  // makes it custom — leaving a card highlighted next to a prompt it no
-  // longer matches is the kind of small lie that costs trust.
-  const choosePreset = (id: string) => {
-    const chosen = PROMPT_PRESETS.find((option) => option.id === id);
-    if (!chosen) return;
-    setPreset(id);
-    setPrompt(chosen.prompt);
-    setRole(chosen.role);
-  };
-
   const changeProvider = (next: ProviderId) => {
     setProviderId(next);
     // The old model name means nothing to the new provider, so move to that
@@ -58,127 +40,10 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
   return (
     <SaveForm action={saveAssistantSettings} label="Save Assistant">
       <input type="hidden" name="id" value={assistant.id} />
-      <input type="hidden" name="prompt_preset" value={mode === "custom" ? "custom" : preset} />
       <input type="hidden" name="provider" value={providerId} />
       <input type="hidden" name="remove_api_key" value={String(removeKey)} />
 
       <div className="space-y-5">
-        <SectionCard
-          title="Basic Information"
-          description="Who this assistant is, and whether it is answering customers right now."
-        >
-          <div className="grid md:grid-cols-2 gap-4">
-            <TextInput
-              label="Assistant name"
-              name="name"
-              defaultValue={assistant.name}
-              placeholder="Support Sam"
-              required
-              hint="Choose a descriptive name for your AI assistant"
-            />
-            <TextInput
-              label="Role"
-              name="role"
-              value={role}
-              onChange={(event) => setRole(event.target.value)}
-              placeholder="Support agent"
-              hint="Named in the prompt: “You are the … for this business.”"
-            />
-          </div>
-
-          <div className="mt-4">
-            <TextInput
-              label="Handoff keywords"
-              name="handoff_keywords"
-              defaultValue={assistant.handoff_keywords.join(", ")}
-              placeholder="human, agent, talk to someone"
-              hint="Comma separated. Any of these in a message stops the bot on that chat and flags it for a human."
-            />
-          </div>
-
-          <div className="mt-2 border-t border-white/8 pt-2">
-            <Toggle
-              name="is_active"
-              checked={isActive}
-              onChange={setIsActive}
-              label="Assistant is live"
-              description="When off it is saved but never replies. Chatbots, FAQ and automations keep working."
-            />
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Prompt Configuration"
-          description="Choose between predefined prompts, write your own, or describe the job and have it written for you."
-        >
-          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-white/10 mb-5">
-            {(["predefined", "custom"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setMode(option)}
-                className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  mode === option ? "bg-accent text-[#050508]" : "text-white/55 hover:text-white/85"
-                }`}
-              >
-                {option === "predefined" ? "Predefined Prompts" : "Custom Prompt"}
-              </button>
-            ))}
-          </div>
-
-          {mode === "predefined" && (
-            <div className="mb-5">
-              <span className="block text-xs font-medium text-white/70 mb-2">
-                Select agent role
-              </span>
-              <div className="space-y-2">
-                {PROMPT_PRESETS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => choosePreset(option.id)}
-                    className={`w-full text-left p-3.5 rounded-xl border transition-colors ${
-                      preset === option.id
-                        ? "border-accent/50 bg-accent/8"
-                        : "border-white/10 bg-white/3 hover:border-white/20"
-                    }`}
-                  >
-                    <div className="text-sm font-medium">{option.label}</div>
-                    <div className="text-[12px] text-white/45 mt-0.5">{option.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-3 mb-1.5">
-            <span className="text-xs font-medium text-white/70">Customize prompt</span>
-            <button
-              type="button"
-              onClick={() => setBuilding(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-accent-ink hover:underline"
-            >
-              <Wand2 className="w-3.5 h-3.5" />
-              Build with AI
-            </button>
-          </div>
-          <textarea
-            name="system_prompt"
-            rows={12}
-            value={prompt}
-            onChange={(event) => {
-              setPrompt(event.target.value);
-              if (mode === "predefined") setMode("custom");
-            }}
-            placeholder="You are the support agent for a fashion brand. Be warm and concise. Never promise delivery dates. If asked about refunds, hand off to a human."
-            className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y leading-relaxed font-mono"
-          />
-          <span className="block text-[12px] text-white/35 mt-1">
-            {prompt.length} characters. Start with a predefined prompt and customize it to fit
-            your specific needs — editing makes it custom.
-          </span>
-        </SectionCard>
-
         <SectionCard
           title="AI Configuration"
           description="Select your AI provider and model preferences."
@@ -348,133 +213,6 @@ export default function SettingsTab({ assistant }: { assistant: AiAssistant }) {
         </SectionCard>
       </div>
 
-      {building && (
-        <InstructionBuilder
-          role={role}
-          onClose={() => setBuilding(false)}
-          onBuilt={(text) => {
-            setPrompt(text);
-            setMode("custom");
-            setBuilding(false);
-          }}
-        />
-      )}
     </SaveForm>
-  );
-}
-
-/**
- * Describe the job, get the system prompt. The empty prompt box is where
- * people stall, and what goes in it decides every reply the assistant sends.
- */
-function InstructionBuilder({
-  role,
-  onClose,
-  onBuilt,
-}: {
-  role: string;
-  onClose: () => void;
-  onBuilt: (prompt: string) => void;
-}) {
-  const [brief, setBrief] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  const build = () => {
-    setError(null);
-    startTransition(async () => {
-      const result = await generateAssistantInstructions(brief, role);
-      if (!result.ok || !result.prompt) {
-        setError(result.error ?? "Could not write the instructions.");
-        return;
-      }
-      onBuilt(result.prompt);
-    });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 md:p-8 overflow-y-auto"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Build instructions with AI"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !pending) onClose();
-      }}
-    >
-      <div className="glass-card w-full max-w-2xl p-6 my-auto">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Sparkles className="w-4.5 h-4.5 text-accent-ink" />
-              Build the instructions
-            </h3>
-            <p className="text-xs text-white/45 mt-1.5 leading-relaxed">
-              Describe the business and what this assistant should handle. You get a full prompt
-              in the box, which you can then edit before saving.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            aria-label="Close"
-            className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/8 transition-colors flex-shrink-0 disabled:opacity-50"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <label className="block">
-          <span className="block text-xs font-medium text-white/70 mb-1.5">
-            What should this assistant do?
-          </span>
-          <textarea
-            value={brief}
-            onChange={(event) => setBrief(event.target.value)}
-            rows={6}
-            autoFocus
-            disabled={pending}
-            placeholder="We're a women's clothing boutique in Pune. Answer questions about sizing, fabric and what's in stock, help people find something for an occasion, and explain the 7-day exchange policy. Anything about a specific order or a refund goes to a human."
-            className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all resize-y leading-relaxed disabled:opacity-60"
-          />
-        </label>
-
-        <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
-          Say what the business is, what the assistant should answer, and what it must never
-          decide on its own. Facts it will need but you don&apos;t give are written as
-          placeholders for you to fill in.
-        </p>
-
-        {error && (
-          <p className="text-sm text-red-400 mt-4" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="flex items-center justify-end gap-3 mt-6 pt-5 border-t border-white/8">
-          <span className="text-[12px] text-white/35 mr-auto">
-            Runs on your own AI key if you have one saved, otherwise the platform&apos;s.
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/55 hover:text-white transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={build}
-            disabled={pending || brief.trim().length < 10}
-            className="btn-primary text-sm disabled:opacity-50"
-          >
-            {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-            {pending ? "Writing…" : "Write it"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

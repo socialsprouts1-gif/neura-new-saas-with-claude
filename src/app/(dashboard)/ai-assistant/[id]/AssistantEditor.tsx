@@ -10,9 +10,10 @@ import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
 import SettingsTab from "./SettingsTab";
 import KnowledgeTab from "./KnowledgeTab";
 import RulesTab from "./RulesTab";
-
-const TABS = ["Settings", "Knowledge Base", "Agent Rules"] as const;
-type Tab = (typeof TABS)[number];
+import PersonaTab from "./PersonaTab";
+import SafetyTab from "./SafetyTab";
+import SetupChecklist from "./SetupChecklist";
+import { STEPS, checkSummary, checklist, stepsNeedingWork, type StepKey } from "@/lib/agent-setup";
 
 export default function AssistantEditor({
   assistant,
@@ -34,10 +35,24 @@ export default function AssistantEditor({
   hasKey: boolean;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("Settings");
+  const [step, setStep] = useState<StepKey>("persona");
   const [pending, startTransition] = useTransition();
 
   const provider = providerById(assistant.provider);
+
+  const items = checklist({
+    name: assistant.name,
+    systemPrompt: assistant.system_prompt,
+    primaryLanguage: assistant.primary_language,
+    handoffKeywords: assistant.handoff_keywords,
+    offHoursMessage: assistant.off_hours_message,
+    workingHoursEnabled: assistant.working_hours_enabled,
+    useKnowledgeBase: assistant.use_knowledge_base,
+    knowledgeCount: knowledge.length,
+    hasKey,
+  });
+  const summary = checkSummary(items);
+  const outstanding = stepsNeedingWork(items);
 
   const toggle = () => {
     const data = new FormData();
@@ -50,7 +65,7 @@ export default function AssistantEditor({
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl">
+    <div className="p-6 md:p-8 max-w-6xl">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div className="flex items-start gap-3 min-w-0">
           <Link
@@ -71,7 +86,7 @@ export default function AssistantEditor({
               </Link>
               {" > Edit"}
             </nav>
-            <h1 className="text-2xl font-bold tracking-tight truncate">Edit AI Assistant</h1>
+            <h1 className="text-2xl font-bold tracking-tight truncate">Build your AI agent</h1>
           </div>
         </div>
 
@@ -90,26 +105,55 @@ export default function AssistantEditor({
         </button>
       </div>
 
-      <div className="flex gap-6 border-b border-white/10 mb-6 overflow-x-auto">
-        {TABS.map((option) => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => setTab(option)}
-            className={`pb-3 -mb-px text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-              tab === option
-                ? "border-accent text-accent-ink"
-                : "border-transparent text-white/50 hover:text-white/80"
-            }`}
-          >
-            {option}
-            {option === "Knowledge Base" && knowledge.length > 0 && (
-              <span className="ml-2 text-[11px] px-1.5 py-0.5 rounded-md bg-white/8 text-white/50">
-                {knowledge.length}
+      {/* Five numbered steps in the order the decisions depend on each
+          other. The editor used to be three tabs with no opinion about
+          order, and an agent could be saved with no instructions, no key
+          and no handoff — none of which announce themselves until a real
+          customer is on the other end. */}
+      <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
+        {STEPS.map((entry, index) => {
+          const here = step === entry.key;
+          const needsWork = outstanding.has(entry.key);
+
+          return (
+            <button
+              key={entry.key}
+              type="button"
+              onClick={() => setStep(entry.key)}
+              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border whitespace-nowrap transition-all ${
+                here
+                  ? "border-accent/50 bg-accent/10"
+                  : "border-white/10 bg-white/3 hover:border-white/20"
+              }`}
+            >
+              <span
+                className={`w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold shrink-0 ${
+                  here ? "bg-accent text-[#050508]" : "bg-white/8 text-white/50"
+                }`}
+              >
+                {index + 1}
               </span>
-            )}
-          </button>
-        ))}
+              <span className="text-left">
+                <span
+                  className={`block text-[13px] font-semibold leading-tight ${
+                    here ? "text-white" : "text-white/60"
+                  }`}
+                >
+                  {entry.label}
+                  {needsWork && (
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full bg-[#FACC15] ml-1.5 align-middle"
+                      aria-label="Something is still missing on this step"
+                    />
+                  )}
+                </span>
+                <span className="block text-[10.5px] text-white/35 leading-tight">
+                  {entry.hint}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* The two states that make an assistant look fine and answer nothing. */}
@@ -120,7 +164,7 @@ export default function AssistantEditor({
           </div>
           <p className="text-xs text-white/50 leading-relaxed">
             This assistant is saved but cannot generate a single reply. Paste a key under AI
-            Configuration on the Settings tab
+            Configuration on the Model step
             {provider?.envVar ? `, or set ${provider.envVar} in the environment.` : "."}
           </p>
         </div>
@@ -135,15 +179,25 @@ export default function AssistantEditor({
         </div>
       )}
 
-      {tab === "Settings" && <SettingsTab assistant={assistant} />}
-      {tab === "Knowledge Base" && (
-        <KnowledgeTab
-          assistantId={assistant.id}
-          entries={knowledge}
-          enabled={assistant.use_knowledge_base}
-        />
-      )}
-      {tab === "Agent Rules" && <RulesTab assistant={assistant} forms={forms} />}
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
+        <div className="min-w-0">
+          {step === "persona" && <PersonaTab assistant={assistant} />}
+          {step === "model" && <SettingsTab assistant={assistant} />}
+          {step === "knowledge" && (
+            <KnowledgeTab
+              assistantId={assistant.id}
+              entries={knowledge}
+              enabled={assistant.use_knowledge_base}
+            />
+          )}
+          {step === "safety" && <SafetyTab assistant={assistant} />}
+          {step === "settings" && <RulesTab assistant={assistant} forms={forms} />}
+        </div>
+
+        {/* The part that earns its space. A step rail says where you are;
+            only this says what to do next. */}
+        <SetupChecklist items={items} summary={summary} onGo={setStep} />
+      </div>
     </div>
   );
 }

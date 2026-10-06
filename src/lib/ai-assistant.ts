@@ -3,6 +3,7 @@ import { callProvider, resolveApiKey } from "@/lib/ai-call";
 import { isWithinWorkingHours } from "@/lib/working-hours";
 import { formInstructions, readFormOffer } from "@/lib/assistant-forms";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
+import { styleInstructions } from "@/lib/agent-setup";
 
 // The AI Assistant reply path. Everything else in the runner answers from
 // rules the customer wrote; this is the fallback that answers anything
@@ -66,6 +67,18 @@ function buildSystemPrompt({
     "You are replying inside a WhatsApp conversation with a real customer.",
   ];
 
+  // Language and tone, from the pickers rather than from whatever somebody
+  // remembered to type into the instructions box. Placed before the
+  // business's own instructions so those can still override them — the
+  // person who wrote three paragraphs about how to talk to their customers
+  // meant it more than a dropdown did.
+  const style = styleInstructions({
+    language: assistant.primary_language,
+    multilingual: assistant.multilingual_reply,
+    tone: assistant.tone,
+  });
+  if (style) parts.push("", style);
+
   if (assistant.system_prompt.trim()) {
     parts.push("", "Instructions from the business:", assistant.system_prompt.trim());
   }
@@ -86,9 +99,9 @@ function buildSystemPrompt({
   parts.push(
     "",
     "How to write:",
+    ...(style ? [] : ["- Answer in the language the customer wrote in."]),
     "- Keep replies short — two or three sentences is usually right. This is a chat, not an email.",
     "- Plain text only. WhatsApp does not render markdown, so no headings, bullets, tables or code fences.",
-    "- Answer in the language the customer wrote in.",
     "- Never invent prices, stock, order status, delivery dates or policies. If you were not told it, say you will check with the team.",
     "- Do not claim to have performed an action you cannot perform, such as placing an order or issuing a refund.",
     "- If the customer needs a human, say a team member will follow up rather than guessing."
