@@ -22,15 +22,18 @@ import {
 import {
   describeMetaError,
   MetaApiError,
+  sendContactCard,
   sendCtaUrl,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendLocationMessage,
   sendMediaMessage,
   sendTemplateMessage,
   sendTextMessage,
   type MetaMediaType,
 } from "@/lib/meta-whatsapp";
 import { generateAssistantReply } from "@/lib/ai-assistant";
+import { coordsFromMapsUrl, locationProblem, mediaProblem } from "@/lib/media-kinds";
 import { FORM_SEND_COLUMNS, sendFormToContact } from "@/lib/form-send";
 import { nodeDef } from "@/types/flow";
 import type { OrgConnection, RunnerClient } from "@/lib/whatsapp-send";
@@ -289,6 +292,16 @@ async function executeNode(
       const url = text("url");
       if (!url) return { variables };
       const mediaType = String(node.data.mediaType ?? "image") as MetaMediaType;
+
+      // Checked here rather than discovered as Meta's 400, which names a
+      // numeric code and not a file — and arrives after the bot has already
+      // moved on to its next node.
+      const wrong = mediaProblem(mediaType, url);
+      if (wrong) {
+        console.warn(`Flow ${node.id} did not send its media: ${wrong}`);
+        return { variables };
+      }
+
       const caption = text("caption");
       const result = await sendMediaMessage(
         connection.phoneNumberId,
@@ -300,6 +313,56 @@ async function executeNode(
       );
       await logOutbound(context, mediaType, { link: url, caption }, result.messages[0]?.id ?? null);
       return { variables, reply: caption || `[${mediaType}]` };
+    }
+
+    case "send_location": {
+      // The link is read first, because that is what somebody actually has
+      // — the two number boxes are there for the rare case of knowing the
+      // coordinates and for correcting what the link gave.
+      const fromUrl = coordsFromMapsUrl(text("mapsUrl"));
+      const latitude = fromUrl ? fromUrl.latitude : Number(text("latitude"));
+      const longitude = fromUrl ? fromUrl.longitude : Number(text("longitude"));
+
+      // Refused rather than defaulted: 0,0 is a real place, in the
+      // Atlantic, and sending somebody there is worse than sending nothing.
+      if (locationProblem({ latitude, longitude })) return { variables };
+
+      const name = text("name");
+      const address = text("address");
+
+      const result = await sendLocationMessage(
+        connection.phoneNumberId,
+        contactWaId,
+        { latitude, longitude, name, address },
+        connection.accessToken
+      );
+      await logOutbound(
+        context,
+        "location",
+        { latitude, longitude, name, address },
+        result.messages[0]?.id ?? null
+      );
+      return { variables, reply: name || address || `${latitude}, ${longitude}` };
+    }
+
+    case "send_contact": {
+      const name = text("name");
+      const phone = text("phone");
+      if (!name || !phone) return { variables };
+
+      const result = await sendContactCard(
+        connection.phoneNumberId,
+        contactWaId,
+        {
+          name,
+          phone,
+          organisation: text("organisation") || undefined,
+          email: text("email") || undefined,
+        },
+        connection.accessToken
+      );
+      await logOutbound(context, "contacts", { name, phone }, result.messages[0]?.id ?? null);
+      return { variables, reply: name };
     }
 
     case "send_cta": {

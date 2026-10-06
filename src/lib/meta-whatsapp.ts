@@ -210,6 +210,68 @@ export function sendMediaMessage(
   });
 }
 
+/**
+ * A pin on a map.
+ *
+ * The coordinates are the message; the name and the address are labels
+ * WhatsApp draws on the card. Both are optional, and both are worth
+ * sending — a pin with no name is a dot somebody has to guess at.
+ */
+export function sendLocationMessage(
+  phoneNumberId: string,
+  to: string,
+  location: { latitude: number; longitude: number; name?: string; address?: string },
+  accessToken: string
+): Promise<MetaSendMessageResponse> {
+  const payload: Record<string, unknown> = {
+    latitude: location.latitude,
+    longitude: location.longitude,
+  };
+  if (location.name?.trim()) payload.name = location.name.trim();
+  if (location.address?.trim()) payload.address = location.address.trim();
+
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "location",
+    location: payload,
+  });
+}
+
+/**
+ * A contact card — the kind you can tap to save or to call.
+ *
+ * Meta wants a list even for one, and wants the name broken up: a
+ * formatted_name on its own is accepted, but a card with no first name
+ * saves to a phone's address book as a blank entry.
+ */
+export function sendContactCard(
+  phoneNumberId: string,
+  to: string,
+  card: { name: string; phone: string; organisation?: string; email?: string },
+  accessToken: string
+): Promise<MetaSendMessageResponse> {
+  const name = card.name.trim();
+  const [first = name, ...rest] = name.split(/\s+/);
+
+  const contact: Record<string, unknown> = {
+    name: {
+      formatted_name: name,
+      first_name: first,
+      ...(rest.length ? { last_name: rest.join(" ") } : {}),
+    },
+    phones: [{ phone: card.phone.trim(), type: "WORK", wa_id: card.phone.replace(/\D/g, "") }],
+  };
+
+  if (card.organisation?.trim()) contact.org = { company: card.organisation.trim() };
+  if (card.email?.trim()) contact.emails = [{ email: card.email.trim(), type: "WORK" }];
+
+  return postToMessagesEndpoint(phoneNumberId, accessToken, {
+    to,
+    type: "contacts",
+    contacts: [contact],
+  });
+}
+
 // A single button that opens a URL. Distinct from quick replies: the tap
 // leaves WhatsApp, so there is no reply event and no path to branch on.
 export function sendCtaUrl(

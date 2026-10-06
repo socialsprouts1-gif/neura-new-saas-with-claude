@@ -23,6 +23,8 @@ export type FlowNodeKind =
   | "send_cta"
   | "send_form"
   | "send_product"
+  | "send_location"
+  | "send_contact"
   // asking
   | "ask_question"
   | "ask_location"
@@ -210,7 +212,8 @@ export const NODE_DEFS: NodeDef[] = [
     kind: "send_media",
     label: "Send Media Message",
     group: "Send",
-    description: "Sends an image, video, document or audio file by URL.",
+    description:
+      "Sends an image, video, document or audio file by URL. An OGG or OPUS file arrives as a voice note; anything else arrives as a file.",
     runtime: "ready",
     fields: [
       {
@@ -224,8 +227,20 @@ export const NODE_DEFS: NodeDef[] = [
           { value: "audio", label: "Audio" },
         ],
       },
-      { name: "url", label: "Media URL", kind: "text", placeholder: "https://…" },
-      { name: "caption", label: "Caption (optional)", kind: "textarea", maxLength: 1024 },
+      {
+        name: "url",
+        label: "Media URL",
+        kind: "text",
+        placeholder: "https://…",
+        hint: "A direct link that ends in the file's extension. A Drive or Dropbox sharing page is a web page, not a file, and WhatsApp refuses it.",
+      },
+      {
+        name: "caption",
+        label: "Caption (optional)",
+        kind: "textarea",
+        maxLength: 1024,
+        hint: "Not for audio — WhatsApp refuses an audio message that carries one.",
+      },
       { name: "filename", label: "Filename (documents only)", kind: "text", placeholder: "invoice.pdf" },
     ],
     accent: "#00D4FF",
@@ -292,6 +307,55 @@ export const NODE_DEFS: NodeDef[] = [
   },
 
   // ---------------- Ask ----------------
+  {
+    kind: "send_location",
+    label: "Send Location",
+    group: "Send",
+    description: "Sends a pin on a map — your shop, a pickup point, the venue.",
+    runtime: "ready",
+    fields: [
+      {
+        name: "mapsUrl",
+        label: "Paste a Google Maps link",
+        kind: "text",
+        placeholder: "https://maps.google.com/…  or  18.5204, 73.8567",
+        hint: "The coordinates are read out of it. Nobody has latitude and longitude to hand; everybody has the link.",
+      },
+      { name: "latitude", label: "Latitude", kind: "text", placeholder: "18.5204" },
+      { name: "longitude", label: "Longitude", kind: "text", placeholder: "73.8567" },
+      {
+        name: "name",
+        label: "Place name",
+        kind: "text",
+        placeholder: "Our store",
+        hint: "Drawn on the card. A pin with no name is a dot somebody has to guess at.",
+      },
+      { name: "address", label: "Address", kind: "text", placeholder: "FC Road, Pune 411005" },
+    ],
+    accent: "#00D4FF",
+    defaults: { mapsUrl: "", latitude: "", longitude: "", name: "", address: "" },
+  },
+  {
+    kind: "send_contact",
+    label: "Send Contact Card",
+    group: "Send",
+    description: "A tappable card the customer can save or call — a salesperson, a branch, a courier.",
+    runtime: "ready",
+    fields: [
+      { name: "name", label: "Name", kind: "text", placeholder: "Vivek Borkar" },
+      {
+        name: "phone",
+        label: "Phone number",
+        kind: "text",
+        placeholder: "+91 82379 82569",
+        hint: "In international format, so tapping it actually dials.",
+      },
+      { name: "organisation", label: "Company (optional)", kind: "text", placeholder: "Neura Chat" },
+      { name: "email", label: "Email (optional)", kind: "text", placeholder: "hello@example.com" },
+    ],
+    accent: "#00D4FF",
+    defaults: { name: "", phone: "", organisation: "", email: "" },
+  },
   {
     kind: "ask_question",
     label: "Ask Question",
