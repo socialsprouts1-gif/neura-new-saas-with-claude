@@ -724,6 +724,80 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["signup_otps"]["Insert"]>;
         Relationships: [];
       };
+      drip_campaigns: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          description: string | null;
+          status: "draft" | "active" | "paused" | "archived";
+          trigger_type: "manual" | "keyword" | "api";
+          trigger_keywords: string[];
+          exit_on_keyword: boolean;
+          exit_keywords: string[];
+          exit_on_reply: boolean;
+          skip_missed_steps: boolean;
+          time_zone: string;
+          connection_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["drip_campaigns"]["Row"]> & {
+          org_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["drip_campaigns"]["Row"]>;
+        Relationships: [];
+      };
+      drip_steps: {
+        Row: {
+          id: string;
+          org_id: string;
+          campaign_id: string;
+          step_index: number;
+          template_id: string | null;
+          variables: string[];
+          /** The gap *after* this step. Never read on the last one. */
+          wait_kind: "duration" | "time_of_day";
+          wait_minutes: number;
+          send_at_minutes: number;
+          send_at_days: number;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["drip_steps"]["Row"]> & {
+          org_id: string;
+          campaign_id: string;
+          step_index: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["drip_steps"]["Row"]>;
+        Relationships: [];
+      };
+      drip_enrollments: {
+        Row: {
+          id: string;
+          org_id: string;
+          campaign_id: string;
+          contact_id: string | null;
+          wa_id: string;
+          status: "active" | "completed" | "exited" | "failed";
+          /** The step that goes out next, and when. The whole state machine. */
+          next_step_index: number;
+          next_send_at: string;
+          last_sent_at: string | null;
+          last_error: string | null;
+          exited_reason: string | null;
+          enrolled_via: "manual" | "keyword" | "api" | "import";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["drip_enrollments"]["Row"]> & {
+          org_id: string;
+          campaign_id: string;
+          wa_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["drip_enrollments"]["Row"]>;
+        Relationships: [];
+      };
       orders: {
         Row: Order;
         Insert: Partial<Order> & { org_id: string };

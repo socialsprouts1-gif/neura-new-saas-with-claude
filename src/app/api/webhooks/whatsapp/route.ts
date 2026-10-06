@@ -21,6 +21,7 @@ import {
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { readFlowReply } from "@/lib/flow-reply";
 import { resumeParkedFlows } from "@/lib/flow-resume";
+import { applyInboundToDrips } from "@/lib/drip-engine";
 
 // --- Meta webhook payload shapes (loose — only the fields we read) -------
 
@@ -575,8 +576,22 @@ async function handleInboundMessages(
     // The words, not the payload: a text message keeps them under `body`
     // and a tapped button reply under `text`, and the same helper the bot
     // runner uses is what keeps those two agreeing.
-    const intent = readOptIntent(extractInboundText(message.type, content).text);
+    const inboundText = extractInboundText(message.type, content).text;
+
+    // Drip sequences, started here and collected below. An inbound message
+    // is how somebody joins one by keyword and how they leave one — and
+    // the leaving has to happen even on the opt-out path, which returns
+    // early, so the promise is held rather than fired and forgotten.
+    const dripWork = applyInboundToDrips({
+      orgId,
+      waId,
+      contactId: contact.id,
+      text: inboundText,
+    });
+
+    const intent = readOptIntent(inboundText);
     if (intent) {
+      await dripWork;
       await applyOptIntent(supabase, {
         orgId,
         connectionId,
@@ -641,6 +656,7 @@ async function handleInboundMessages(
     }
 
     sideEffects.push(
+      dripWork,
       notifyInboundMessage(supabase, orgId, {
         conversationId: conversation.id,
         contactId: contact.id,

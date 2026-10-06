@@ -94,6 +94,13 @@ export const FEATURES: readonly FeatureDef[] = [
     paths: ["/campaigns", "/templates"],
   },
   {
+    key: "drip",
+    label: "Drip Campaigns",
+    group: "Growth",
+    description: "Follow-up sequences people join one at a time and walk through on their own clock.",
+    paths: ["/drip"],
+  },
+  {
     key: "forms",
     label: "WhatsApp Forms",
     group: "Growth",
