@@ -52,7 +52,7 @@ export async function startTopup(amountMicros: number): Promise<TopupOrder> {
   // contact themselves is how a setting stays unset for a week.
   const asAdmin = (reason: string) =>
     isPlatformAdmin
-      ? `${reason} Fix it under Admin → Platform settings → "Who takes subscription payments".`
+      ? `${reason} Fix it under Admin → Payments.`
       : "Card payments are not set up yet. Get in touch and we will add the balance for you.";
 
   const gateway = await platformGateway(admin);

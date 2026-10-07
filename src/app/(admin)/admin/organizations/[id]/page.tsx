@@ -200,7 +200,7 @@ export default async function AdminOrganizationPage({
                 ? `Starts from what the ${plan.name} plan includes. Anything you change here is stored as an exception for this workspace alone, and marked "override" — so if they move to another tier, only the exceptions follow them.`
                 : "This workspace has no plan, so it currently gets everything. Anything you switch off here is stored as an exception for this workspace alone.",
               withdrawn.length > 0
-                ? `${withdrawn.join(", ")} ${withdrawn.length === 1 ? "is" : "are"} switched off for the whole platform under Platform settings, and cannot be turned back on from here.`
+                ? `${withdrawn.join(", ")} ${withdrawn.length === 1 ? "is" : "are"} switched off for the whole platform under Admin → Features, and cannot be turned back on from here.`
                 : null,
             ]
               .filter(Boolean)

@@ -4,22 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
+  AtSign,
   Building2,
+  Coins,
   CreditCard,
+  Database,
   LayoutDashboard,
   LifeBuoy,
   Mail,
+  MessageCircle,
   Package,
   Palette,
   Receipt,
-  Database,
   ScrollText,
   Settings,
   Shield,
   Ticket,
+  ToggleLeft,
   Users,
+  Wallet,
 } from "lucide-react";
 
+// Every configurable thing gets its own entry.
+//
+// Nine of these were sections of one Platform settings page, which meant
+// changing the message price was: open settings, scroll past features,
+// email, WhatsApp, find pricing. A setting nobody can find is a setting
+// nobody sets, so each is now one click from anywhere.
 const SECTIONS = [
   {
     label: "Overview",
@@ -33,23 +44,33 @@ const SECTIONS = [
     ],
   },
   {
-    label: "Billing",
+    label: "Money",
     items: [
       { icon: CreditCard, label: "Plans", href: "/admin/plans" },
       { icon: Package, label: "Add-ons", href: "/admin/add-ons" },
       { icon: Ticket, label: "Coupons", href: "/admin/coupons" },
       { icon: Receipt, label: "Orders", href: "/admin/orders" },
+      { icon: Wallet, label: "Payments", href: "/admin/payments" },
+      { icon: Coins, label: "Message pricing", href: "/admin/pricing" },
     ],
   },
   {
-    label: "Operations",
+    label: "Setup",
     items: [
+      { icon: ToggleLeft, label: "Features", href: "/admin/features" },
+      { icon: MessageCircle, label: "WhatsApp messages", href: "/admin/whatsapp" },
+      { icon: AtSign, label: "Email setup", href: "/admin/email" },
       { icon: Palette, label: "Landing page", href: "/admin/landing" },
+      { icon: Settings, label: "Advanced settings", href: "/admin/settings" },
+    ],
+  },
+  {
+    label: "Logs",
+    items: [
       { icon: LifeBuoy, label: "Support tickets", href: "/admin/tickets" },
       { icon: Mail, label: "Email log", href: "/admin/emails" },
       { icon: ScrollText, label: "Webhook logs", href: "/admin/webhook-logs" },
       { icon: Database, label: "Database", href: "/admin/database" },
-      { icon: Settings, label: "Platform settings", href: "/admin/settings" },
     ],
   },
 ];
@@ -85,9 +106,12 @@ export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
             </div>
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                // /admin would otherwise light up for every child route.
+                // A plain startsWith lights up /admin for every child route,
+                // and lights up Email setup when you are on the Email log —
+                // /admin/email is a prefix of /admin/emails. Matching the
+                // whole segment is the only reading that gets both right.
                 const isActive =
-                  item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+                  pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
                   <Link
                     key={item.href}

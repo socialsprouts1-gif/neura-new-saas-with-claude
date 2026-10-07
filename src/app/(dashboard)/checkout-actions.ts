@@ -72,7 +72,7 @@ async function platformGateway(): Promise<
     return {
       ok: false,
       error:
-        "Online payment is not set up yet. Platform staff need to name the workspace and gateway that take payments, under Admin → Platform settings.",
+        "Online payment is not set up yet. Platform staff need to name the workspace and gateway that take payments, under Admin → Payments.",
     };
   }
 

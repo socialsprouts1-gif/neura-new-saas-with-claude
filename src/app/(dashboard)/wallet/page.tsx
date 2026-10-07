@@ -109,11 +109,11 @@ export default async function WalletPage() {
             <div className="mt-4 pt-4 border-t border-white/8">
               <p className="text-sm text-white/60 leading-relaxed mb-3">
                 To start charging for messages, set a price per category under{" "}
-                <span className="text-white/85">Admin → Platform settings → Message pricing</span>.
+                <span className="text-white/85">Admin → Message pricing</span>.
                 Until at least one of them is above zero, nobody sees a wallet at all — including
                 you.
               </p>
-              <Link href="/admin/settings" className="btn-primary text-sm">
+              <Link href="/admin/pricing" className="btn-primary text-sm">
                 Set message pricing
                 <ArrowRight className="w-4 h-4" />
               </Link>

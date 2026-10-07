@@ -294,7 +294,7 @@ export async function savePlatformGateway(formData: FormData): Promise<ActionRes
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/payments");
   return { ok: true, message: "Saved. Self-serve checkout will charge through that gateway." };
 }
 
@@ -550,7 +550,23 @@ async function mergeSetting(
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/admin/settings");
+  // Every screen that reads a platform setting, because this one function
+  // serves all of them and the alternative is each caller remembering
+  // which page it came from. Five cheap revalidations beat one screen
+  // showing a value it no longer holds.
+  for (const path of [
+    "/admin/settings",
+    "/admin/payments",
+    "/admin/pricing",
+    "/admin/whatsapp",
+    "/admin/email",
+    "/admin/features",
+  ]) {
+    revalidatePath(path);
+  }
+  // The wallet chip in the bar above every page reads the rates.
+  revalidatePath("/", "layout");
+
   return { ok: true, message };
 }
 
@@ -969,7 +985,7 @@ export async function saveDefaultFeatures(formData: FormData): Promise<ActionRes
 
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/features");
   revalidatePath("/", "layout");
   return {
     ok: true,
@@ -1017,7 +1033,7 @@ export async function saveKilledFeatures(formData: FormData): Promise<ActionResu
 
   // Every dashboard layout re-reads features, so this has to clear all of
   // them rather than only the admin screen that set it.
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/features");
   revalidatePath("/", "layout");
 
   const off = Object.keys(value).length;

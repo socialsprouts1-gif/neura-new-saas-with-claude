@@ -273,7 +273,7 @@ export async function sendOtpTemplate(
         sent: false,
         setup: true,
         reason:
-          "Sending codes is not switched on yet. Choose a template under Admin → Platform settings.",
+          "Sending codes is not switched on yet. Choose a template under Admin → WhatsApp messages.",
       };
     }
 
