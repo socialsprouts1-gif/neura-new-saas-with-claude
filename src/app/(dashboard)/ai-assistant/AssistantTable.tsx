@@ -4,10 +4,11 @@ import { useState, useTransition } from "react";
 import NumberPicker, { type NumberOption } from "../numbers/NumberPicker";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { createAiAssistant, deleteAiAssistant } from "../portal-actions";
 import { providerById } from "@/lib/ai-providers";
 import BrandLogo from "@/components/ui/BrandLogo";
+import Modal from "@/components/ui/Modal";
 
 /** The colour behind each provider's mark, for the ones with no solid tile. */
 const PROVIDER_BRAND: Record<string, string> = {
@@ -51,13 +52,18 @@ export default function AssistantTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[40rem]">
             <thead>
-              <tr className="text-left text-sm font-semibold bg-accent/8 border-b border-accent/15">
-                <th className="px-5 py-4">Name</th>
-                <th className="px-5 py-4">Role</th>
-                <th className="px-5 py-4">Model</th>
+              {/* Matches <Table> in primitives. These two screens had
+                  their own header — solid accent wash, full-size bold
+                  text — which made the column labels compete with the
+                  rows they label, and made these the only two tables in
+                  the app that look like this. */}
+              <tr className="border-b border-white/8 text-left text-[12px] font-semibold uppercase tracking-widest text-white/40">
+                <th className="px-5 py-3 whitespace-nowrap">Name</th>
+                <th className="px-5 py-3 whitespace-nowrap">Role</th>
+                <th className="px-5 py-3 whitespace-nowrap">Model</th>
                 {/* Only earns a column once the workspace has a choice. */}
-                {numbers.length > 1 && <th className="px-5 py-4">Number</th>}
-                <th className="px-5 py-4 text-right">Actions</th>
+                {numbers.length > 1 && <th className="px-5 py-3 whitespace-nowrap">Number</th>}
+                <th className="px-5 py-3 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -223,62 +229,26 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 md:p-8 overflow-y-auto"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create AI Assistant"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !pending) onClose();
-      }}
-    >
-      <div className="glass-card w-full max-w-md p-6 my-auto">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div>
-            <h3 className="text-lg font-semibold">Create AI Assistant</h3>
-            <p className="text-xs text-white/45 mt-1.5 leading-relaxed">
-              Give your AI assistant a name. You choose the provider, paste a key, write the
-              instructions and add knowledge on the next screen.
-            </p>
-          </div>
+    /* The shared dialog rather than another hand-rolled `fixed inset-0`.
+       That shape has bitten this codebase before — it has no Escape key,
+       it does not lock the page behind it, and it is laid out against
+       the nearest ancestor with a backdrop-filter rather than against
+       the window, which is how a dialog ends up clipped inside a card.
+       One implementation means one place where that is right. */
+    <Modal
+      open
+      onClose={onClose}
+      title="Create AI assistant"
+      description="Give it a name. The provider, the key, the instructions and its knowledge are all on the next screen, where there is room to explain what each one does."
+      size="sm"
+      dismissable={!pending}
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
             disabled={pending}
-            aria-label="Close"
-            className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/8 transition-colors flex-shrink-0 disabled:opacity-50"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <label className="block">
-          <span className="block text-xs font-medium text-white/70 mb-1.5">Assistant name</span>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") create();
-            }}
-            autoFocus
-            disabled={pending}
-            placeholder="Support Sam"
-            className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all disabled:opacity-60"
-          />
-        </label>
-
-        {error && (
-          <p className="text-sm text-red-400 mt-3" role="alert">
-            {error}
-          </p>
-        )}
-
-        <div className="flex items-center justify-end gap-3 mt-6">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/55 hover:text-white transition-colors disabled:opacity-50"
+            className="btn-quiet text-sm disabled:opacity-50"
           >
             Cancel
           </button>
@@ -291,8 +261,29 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
             {pending && <Loader2 className="w-4 h-4 animate-spin" />}
             {pending ? "Creating…" : "Create"}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <label className="block">
+        <span className="block text-xs font-medium text-white/70 mb-1.5">Assistant name</span>
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") create();
+          }}
+          autoFocus
+          disabled={pending}
+          placeholder="Support Sam"
+          className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-accent/50 transition-all disabled:opacity-60"
+        />
+      </label>
+
+      {error && (
+        <p className="text-sm text-red-400 mt-3" role="alert">
+          {error}
+        </p>
+      )}
+    </Modal>
   );
 }

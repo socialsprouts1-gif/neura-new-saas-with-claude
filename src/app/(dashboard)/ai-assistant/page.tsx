@@ -33,8 +33,15 @@ export default async function AiAssistantPage() {
   return (
     <div className="p-6 md:p-8">
       <HeroHeader
-        title="AI Assistants"
-        subtitle="Configure AI assistants for your team and automations."
+        eyebrow="Intelligence"
+        title="AI assistants"
+        subtitle="An assistant reads what the customer actually wrote and answers in their language. Give it a persona, a model and the things it is allowed to say."
+        scene="agent"
+        stats={[
+          { label: assistants.length === 1 ? "Assistant" : "Assistants", value: assistants.length },
+          { label: "Switched on", value: assistants.filter((row) => row.is_active).length },
+          { label: numbers.length === 1 ? "Number" : "Numbers", value: numbers.length },
+        ]}
       />
 
       {error ? (

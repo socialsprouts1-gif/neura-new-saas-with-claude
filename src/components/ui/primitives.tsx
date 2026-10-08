@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { Banner, type SceneName } from "./Dimension";
+
+export { Banner, Scene, Tile, Spark, Grain } from "./Dimension";
+export type { SceneName } from "./Dimension";
 
 // Shared shells so every page in the app lands on the same grid, spacing and
 // glass treatment rather than each screen inventing its own.
@@ -27,29 +31,43 @@ export function PageHeader({
 }
 
 /**
- * The wide gradient banner that opens a section screen. Distinct from
- * PageHeader, which is a plain title row for screens that lead with data.
+ * The wide banner that opens a section screen. Distinct from PageHeader,
+ * which is a plain title row for screens that lead with data.
+ *
+ * This is now a thin wrapper over <Banner>, which is where the light,
+ * the grain and the isometric artwork live. Sixteen screens call this,
+ * so rewriting it was the cheapest way to lift all sixteen at once —
+ * and keeping the old signature means none of them had to change.
+ *
+ * `scene` is opt-in rather than defaulted on purpose. One illustration
+ * repeated on sixteen screens is wallpaper: it stops carrying meaning by
+ * the third time somebody sees it, and then it is just weight. A screen
+ * gets a drawing when there is a drawing that is about that screen.
  */
 export function HeroHeader({
   title,
   subtitle,
   action,
+  scene,
+  eyebrow,
+  stats,
 }: {
   title: string;
   subtitle?: string;
   action?: ReactNode;
+  scene?: SceneName;
+  eyebrow?: ReactNode;
+  stats?: { label: string; value: string | number }[];
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-accent/15 via-accent/8 to-accent2/10 border border-accent/20 p-7 md:p-9 mb-6">
-      <div className="absolute -top-20 -right-16 w-64 h-64 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-white/60 mt-2">{subtitle}</p>}
-        </div>
-        {action}
-      </div>
-    </div>
+    <Banner
+      title={title}
+      subtitle={subtitle}
+      eyebrow={eyebrow}
+      stats={stats}
+      scene={scene}
+      actions={action}
+    />
   );
 }
 

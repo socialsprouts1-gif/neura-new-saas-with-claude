@@ -42,9 +42,20 @@ export default async function ChatbotPage() {
 
   return (
     <div className="p-6 md:p-8">
+      {/* The counts belong up here rather than being arrived at by
+          scanning the table: "six bots" and "six bots, one of them
+          switched on" are different situations, and the second one is
+          the reason somebody says the automation is not replying. */}
       <HeroHeader
+        eyebrow="Automation"
         title="Chatbots"
-        subtitle="Build and manage conversational chatbot flows."
+        subtitle="A flow answers on its own — a keyword arrives, it runs, it replies. Build one by describing it, or drag the steps onto a canvas."
+        scene="flow"
+        stats={[
+          { label: rows.length === 1 ? "Flow" : "Flows", value: rows.length },
+          { label: "Switched on", value: rows.filter((row) => row.is_active).length },
+          { label: numbers.length === 1 ? "Number" : "Numbers", value: numbers.length },
+        ]}
       />
 
       <div className="mb-5">

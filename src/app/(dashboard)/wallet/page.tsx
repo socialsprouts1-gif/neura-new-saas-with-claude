@@ -78,8 +78,10 @@ export default async function WalletPage() {
   return (
     <div className="p-6 md:p-8 space-y-6">
       <HeroHeader
+        eyebrow="Billing"
         title="WhatsApp Wallet"
-        subtitle="What you have added, and what every message has taken off it."
+        subtitle="What you have added, and what every message has taken off it. Meta charges per conversation; this is that bill, shown as it is spent rather than at the end of the month."
+        scene="wallet"
       />
 
       {needsMigration ? (

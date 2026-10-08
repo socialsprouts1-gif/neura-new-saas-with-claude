@@ -12,7 +12,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { featureDef } from "@/lib/features";
-import { Card, Badge } from "@/components/ui/primitives";
+import { Card, Badge, Banner, Tile } from "@/components/ui/primitives";
+import AreaChart from "@/components/ui/Chart";
 import { formatDateTime } from "@/types/admin";
 import { upcoming, whenDue, answerRate, topAnswers } from "@/lib/dashboard-insights";
 
@@ -188,7 +189,6 @@ export default async function DashboardPage({
       received: inRange.filter((m) => m.direction === "inbound").length,
     };
   });
-  const peak = Math.max(1, ...buckets.map((b) => b.sent + b.received));
 
   const setup = [
     { done: connected, label: "Connect a WhatsApp number", href: "/integrations" },
@@ -211,115 +211,126 @@ export default async function DashboardPage({
         </div>
       )}
 
-      {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-[var(--surface-1)] to-accent2/8 p-6 md:p-8 mb-6">
-        <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
-        <div className="relative flex flex-wrap items-start justify-between gap-5">
-          <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Welcome back, {orgName}</h1>
-            <p className="text-sm text-white/55 max-w-xl leading-relaxed">
-              {connected ? (
-                <>
-                  Your WhatsApp number is connected. {activeBots} bot
-                  {activeBots === 1 ? "" : "s"} active, {open} open conversation
-                  {open === 1 ? "" : "s"}, {needsHuman} waiting on a human.
-                </>
-              ) : (
-                <>
-                  No WhatsApp number connected yet — that is the one thing standing between this
-                  and a working inbox.
-                </>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <Link href="/inbox" className="btn-secondary text-sm">
-              Open inbox
-            </Link>
+      {/* The top of the screen.
+          ------------------------------------------------------------
+          The figures are in the banner as well as in the tiles below it
+          on purpose. The old banner said "3 bots active, 12 open
+          conversations" in a sentence, which is the slowest possible way
+          to read two numbers, and the tiles underneath said something
+          else again. These are the four that answer "is it working" —
+          read before the page, not after it. */}
+      <Banner
+        eyebrow="Overview"
+        title={`Welcome back, ${orgName}`}
+        subtitle={
+          connected ? (
+            <>
+              Your WhatsApp number is connected and answering. {activeBots} bot
+              {activeBots === 1 ? "" : "s"} running, {needsHuman} conversation
+              {needsHuman === 1 ? "" : "s"} waiting on a human.
+            </>
+          ) : (
+            <>
+              No WhatsApp number connected yet — that is the one thing standing between this and a
+              working inbox.
+            </>
+          )
+        }
+        scene="console"
+        stats={[
+          { label: `Sent · ${DAYS} days`, value: sent },
+          { label: "Received", value: received },
+          { label: "Open conversations", value: open },
+          {
+            label: "Answered automatically",
+            value: answers.rate === null ? "—" : `${Math.round(answers.rate * 100)}%`,
+          },
+        ]}
+        actions={
+          <>
             <Link href={connected ? "/chatbot" : "/integrations"} className="btn-primary text-sm">
               {connected ? "Build a bot" : "Connect WhatsApp"}
               <ArrowRight className="w-4 h-4" />
             </Link>
-          </div>
-        </div>
-      </div>
+            <Link href="/inbox" className="btn-quiet text-sm">
+              Open inbox
+            </Link>
+          </>
+        }
+      />
 
-      {/* Headline numbers */}
+      {/* Headline numbers.
+          ------------------------------------------------------------
+          Each carries the shape of its own fortnight along the bottom.
+          A bare total cannot tell "80 messages, steady" from "80
+          messages, all of them last Tuesday", and those are different
+          businesses. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          { icon: Send, label: "Messages sent", value: sent, delta: delta(sent, priorSent), accent: "#00FF87" },
-          { icon: InboxIcon, label: "Messages received", value: received, delta: delta(received, priorReceived), accent: "#00D4FF" },
-          { icon: Users, label: "Contacts", value: contactCount ?? 0, accent: "#A855F7" },
-          { icon: Bot, label: "Active bots", value: activeBots, accent: "#FACC15" },
-        ].map(({ icon: Icon, label, value, delta: change, accent }) => (
-          <Card key={label}>
-            <div className="flex items-start justify-between mb-3">
-              <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center"
-                style={{ background: `${accent}14`, border: `1px solid ${accent}2A` }}
-              >
-                <Icon className="w-4 h-4" style={{ color: accent }} />
-              </div>
-              {change && (
-                <span
-                  className={`text-[12px] px-2 py-0.5 rounded-md ${
-                    change.startsWith("-") ? "text-red-400 bg-red-400/10" : "text-accent-ink bg-accent/10"
-                  }`}
-                >
-                  {change}
-                </span>
-              )}
-            </div>
-            <div className="text-2xl font-bold">{value}</div>
-            <div className="text-xs text-white/45 mt-0.5">{label}</div>
-          </Card>
-        ))}
+        <Tile
+          icon={Send}
+          label="Messages sent"
+          value={sent}
+          delta={delta(sent, priorSent)}
+          tint="#00B86B"
+          spark={buckets.map((bucket) => bucket.sent)}
+        />
+        <Tile
+          icon={InboxIcon}
+          label="Messages received"
+          value={received}
+          delta={delta(received, priorReceived)}
+          tint="#00A9CC"
+          spark={buckets.map((bucket) => bucket.received)}
+        />
+        <Tile icon={Users} label="Contacts" value={contactCount ?? 0} tint="#A855F7" />
+        <Tile
+          icon={Bot}
+          label="Active bots"
+          value={activeBots}
+          hint={(bots ?? []).length > activeBots ? `${(bots ?? []).length - activeBots} switched off` : undefined}
+          tint="#E0A106"
+        />
       </div>
 
       <div className="grid lg:grid-cols-[1.6fr_1fr] gap-6 items-start mb-6">
-        {/* Activity chart */}
+        {/* Activity chart.
+            ------------------------------------------------------------
+            Was fourteen stacked bars scaled to the busiest day, which on
+            real traffic puts every ordinary day at the 2px floor and
+            renders a working fortnight as one bar and thirteen stubs.
+            An area keeps the shape whatever the spread, and the totals
+            are stated in the header so the panel can never appear to
+            disagree with the tiles directly above it. */}
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             <div>
               <h2 className="font-semibold">Message activity</h2>
-              <p className="text-xs text-white/40 mt-0.5">Sent and received over the last {DAYS} days</p>
+              <p className="text-xs text-white/40 mt-0.5">
+                {sent + received === 0
+                  ? `Last ${DAYS} days`
+                  : `${sent + received} messages over ${DAYS} days`}
+              </p>
             </div>
             <div className="flex items-center gap-4 text-[12px]">
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-accent" /> Sent
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#00B86B" }} /> Sent
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-accent2" /> Received
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#00A9CC" }} />{" "}
+                Received
               </span>
             </div>
           </div>
 
-          {sent + received === 0 ? (
-            <div className="h-44 grid place-items-center text-sm text-white/35">
-              No messages yet. The chart fills in once your number starts receiving.
-            </div>
-          ) : (
-            <div className="flex items-end gap-1.5 h-44">
-              {buckets.map((bucket, index) => {
-                const total = bucket.sent + bucket.received;
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-                    <div
-                      className="w-full flex flex-col justify-end rounded-t-md overflow-hidden"
-                      style={{ height: `${Math.max(2, (total / peak) * 100)}%` }}
-                      title={`${bucket.sent} sent · ${bucket.received} received`}
-                    >
-                      <div className="bg-accent2/70" style={{ flexGrow: bucket.received || 0 }} />
-                      <div className="bg-accent/70" style={{ flexGrow: bucket.sent || 0 }} />
-                    </div>
-                    <span className="text-[11px] text-white/25 truncate">
-                      {bucket.day.getDate()}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <AreaChart
+            labels={buckets.map((bucket) => `${bucket.day.getDate()}`)}
+            series={[
+              { label: "Sent", color: "#00B86B", values: buckets.map((b) => b.sent) },
+              { label: "Received", color: "#00A9CC", values: buckets.map((b) => b.received) },
+            ]}
+            unit="msgs"
+            empty="No messages yet. The chart fills in once your number starts receiving."
+          />
         </Card>
 
         {/* Setup checklist — more useful than a placeholder while empty */}

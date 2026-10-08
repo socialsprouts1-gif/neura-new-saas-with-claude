@@ -82,12 +82,17 @@ export default function ChatbotTable({
               is: how many steps, and the words that set it off. */}
           <table className="w-full text-sm min-w-[40rem]">
             <thead>
-              <tr className="text-left text-sm font-semibold bg-accent/8 border-b border-accent/15">
-                <th className="px-6 py-4">Bot</th>
+              {/* Matches <Table> in primitives. These two screens had
+                  their own header — solid accent wash, full-size bold
+                  text — which made the column labels compete with the
+                  rows they label, and made these the only two tables in
+                  the app that look like this. */}
+              <tr className="border-b border-white/8 text-left text-[12px] font-semibold uppercase tracking-widest text-white/40">
+                <th className="px-6 py-3 whitespace-nowrap">Bot</th>
                 {/* Only earns a column once the workspace has a choice. */}
-                {numbers.length > 1 && <th className="px-6 py-4">Number</th>}
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                {numbers.length > 1 && <th className="px-6 py-3 whitespace-nowrap">Number</th>}
+                <th className="px-6 py-3 whitespace-nowrap">Status</th>
+                <th className="px-6 py-3 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>

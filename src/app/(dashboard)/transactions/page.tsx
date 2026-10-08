@@ -55,8 +55,10 @@ export default async function TransactionsPage() {
   return (
     <div className="p-6 md:p-8">
       <HeroHeader
+        eyebrow="Money"
         title="Transactions"
         subtitle="What your customers have paid you, and what you have paid back."
+        scene="wallet"
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
