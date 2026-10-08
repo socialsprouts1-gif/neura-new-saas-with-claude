@@ -158,52 +158,175 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
   result.skipped += collapsed.length;
 
   for (const row of send) {
-    const to = row.email;
-    const due = row.due;
+    const outcome = await deliverDue(row, fromPrice);
 
-    if (!to) {
-      result.skipped += 1;
-      continue;
-    }
-
-    const outcome = await sendEmail({
-      to,
-      orgId: row.orgId,
-      kind: due.kind,
-      dedupeKey: due.dedupeKey,
-      // A function rather than a built body, so the template is handed a
-      // brand carrying this recipient's unsubscribe link — it is signed
-      // over their address, so it differs for every person and cannot be
-      // known here.
-      body: (withOptOut) =>
-        bodyFor(due.kind, withOptOut, {
-          planName: due.planName,
-          daysLeft: due.daysLeft,
-          renewsOn: longDate(row.periodEnd ?? ""),
-          step: due.step ?? 0,
-          fromPrice,
-        }),
-    });
-
-    if (outcome.skipped) result.skipped += 1;
+    if (!outcome) result.skipped += 1;
+    else if (outcome.skipped) result.skipped += 1;
     else if (outcome.ok) result.sent += 1;
     else result.failed += 1;
-
-    // The same news on WhatsApp, for the one kind where it is worth
-    // interrupting somebody: sending has stopped. Sent alongside the
-    // email rather than on its own schedule, so the two cannot disagree
-    // about who has been told, and never able to fail the sweep.
-    if (due.kind === "trial_expired") {
-      try {
-        const { sendPlatformEventToOwner } = await import("@/lib/platform-message");
-        await sendPlatformEventToOwner("trial_ended", row.orgId);
-      } catch (error) {
-        console.error("Could not send the trial-ended WhatsApp message", error);
-      }
-    }
   }
 
   return result;
+}
+
+interface PendingSend {
+  orgId: string;
+  email: string | null;
+  periodEnd: string | null;
+  due: DueEmail;
+}
+
+/**
+ * One message out, and the WhatsApp that goes with the one kind that
+ * earns an interruption.
+ *
+ * Pulled out of the sweep loop when the admin screen gained a send button
+ * per row. Two call sites writing their own version of this is how the
+ * manual send ends up without the unsubscribe link, or without the
+ * WhatsApp, or keyed differently so the duplicate guard stops working —
+ * and all three of those only show up in a customer's inbox.
+ *
+ * Returns null when there was no address to write to, which is a skip
+ * rather than a failure: a trial with nobody on it is not a fault.
+ */
+async function deliverDue(row: PendingSend, fromPrice: string | null) {
+  const to = row.email;
+  if (!to) return null;
+
+  const due = row.due;
+
+  const outcome = await sendEmail({
+    to,
+    orgId: row.orgId,
+    kind: due.kind,
+    dedupeKey: due.dedupeKey,
+    // A function rather than a built body, so the template is handed a
+    // brand carrying this recipient's unsubscribe link — it is signed
+    // over their address, so it differs for every person and cannot be
+    // known here.
+    body: (withOptOut) =>
+      bodyFor(due.kind, withOptOut, {
+        planName: due.planName,
+        daysLeft: due.daysLeft,
+        renewsOn: longDate(row.periodEnd ?? ""),
+        step: due.step ?? 0,
+        fromPrice,
+      }),
+  });
+
+  // The same news on WhatsApp, for the one kind where it is worth
+  // interrupting somebody: sending has stopped. Sent alongside the email
+  // rather than on its own schedule, so the two cannot disagree about who
+  // has been told, and never able to fail the send.
+  if (due.kind === "trial_expired") {
+    try {
+      const { sendPlatformEventToOwner } = await import("@/lib/platform-message");
+      await sendPlatformEventToOwner("trial_ended", row.orgId);
+    } catch (error) {
+      console.error("Could not send the trial-ended WhatsApp message", error);
+    }
+  }
+
+  return outcome;
+}
+
+/**
+ * The same thing the sweep would do, for one workspace only.
+ *
+ * The sweep is all-or-nothing, and that is the wrong shape for the job it
+ * is usually doing by hand: ten workspaces are owed a follow-up, one of
+ * them is the customer actually on the phone, and the other nine are not
+ * supposed to hear from us this minute. This sends that one row.
+ *
+ * It is deliberately not a separate path. It resolves what is owed with
+ * the same planner, writes through the same sender under the same dedupe
+ * key, and so is refused by the same guard — pressing a row's button
+ * after the nightly sweep already sent it does nothing, and says so.
+ */
+export async function sendBillingEmailForOrg(
+  orgId: string,
+  now: Date = new Date()
+): Promise<{ ok: boolean; message: string }> {
+  const admin = createAdminClient();
+
+  const { data: row, error } = await admin
+    .from("subscriptions")
+    .select("org_id, status, current_period_end, plans(name), organizations(name)")
+    .eq("org_id", orgId)
+    .in("status", ["trialing", "active", "past_due"])
+    .maybeSingle();
+
+  if (error) return { ok: false, message: error.message };
+
+  const name = (row?.organizations as { name: string } | null)?.name ?? "That workspace";
+
+  if (!row) {
+    return {
+      ok: false,
+      message: `${name} is not on a trial or a paid plan any more, so there is nothing owed to it.`,
+    };
+  }
+
+  const due = dueBillingEmail(
+    row.org_id,
+    {
+      status: row.status,
+      current_period_end: row.current_period_end,
+      plans: row.plans as { name: string } | null,
+    },
+    now
+  );
+
+  if (!due) {
+    return { ok: false, message: `Nothing is owed to ${name} today.` };
+  }
+
+  const email = await ownerEmail(admin, orgId);
+  if (!email) {
+    return {
+      ok: false,
+      message: `${name} has no owner address on file, so there is nobody to write to. Only the owner is written to — a bill sent to somebody who cannot pay it is worse than one that did not arrive.`,
+    };
+  }
+
+  const outcome = await deliverDue(
+    { orgId, email, periodEnd: row.current_period_end, due },
+    await cheapestPlan(admin)
+  );
+
+  if (!outcome) {
+    return { ok: false, message: `${name} has no owner address on file.` };
+  }
+
+  // Said precisely. "Sent" when nothing left is the one answer this
+  // button must never give, because the next thing somebody does is wait
+  // for a reply to a message that was never delivered.
+  if (outcome.skipped === "duplicate") {
+    return {
+      ok: false,
+      message: `Already sent to ${email} for this period. Every message is keyed to the workspace, the period and the day, so a repeat is refused rather than sent.`,
+    };
+  }
+  if (outcome.skipped === "unsubscribed") {
+    return { ok: false, message: `${email} has unsubscribed, so nothing was sent.` };
+  }
+  if (outcome.skipped === "not_configured") {
+    return { ok: false, message: "Email is not configured on this deployment." };
+  }
+  if (outcome.skipped === "no_address") {
+    return { ok: false, message: `${name} has no owner address on file.` };
+  }
+  if (!outcome.ok) {
+    return {
+      ok: false,
+      message: `The provider refused it: ${outcome.error ?? "no reason given"}. The email log below has what came back.`,
+    };
+  }
+
+  return {
+    ok: true,
+    message: `Sent the ${due.kind.replace(/_/g, " ")} message to ${email}.`,
+  };
 }
 
 /**
@@ -237,6 +360,8 @@ export async function ownerEmail(
 }
 
 export interface DuePreview {
+  /** What the row's own send button posts back. */
+  orgId: string;
   orgName: string;
   email: string | null;
   kind: string;
@@ -282,6 +407,7 @@ export async function previewBillingEmails(now: Date = new Date()): Promise<DueP
       .maybeSingle();
 
     preview.push({
+      orgId: row.org_id,
       orgName: (row.organizations as { name: string } | null)?.name ?? "—",
       email: await ownerEmail(admin, row.org_id),
       kind: due.kind,

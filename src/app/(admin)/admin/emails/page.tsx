@@ -4,9 +4,10 @@ import { PageHeader, StatCard, Card, Badge, Table, Td, EmptyState } from "@/comp
 import { explainEmailFailure, NEVER_ATTEMPTED } from "@/lib/email-errors";
 import { checkFrom, ACCEPTED_NOT_DELIVERED } from "@/lib/deliverability";
 import { isEmailConfigured, emailIdentity } from "@/lib/email";
-import { sendWelcomeToEveryone, runBillingEmailsNow } from "../actions";
+import { sendWelcomeToEveryone } from "../actions";
 import { previewBillingEmails } from "@/lib/billing-emails";
 import ActionForm from "@/components/ui/ActionForm";
+import DueEmails from "../_components/DueEmails";
 
 /**
  * Every message this deployment tried to send, and what came back.
@@ -152,36 +153,7 @@ export default async function AdminEmailsPage() {
             after that. It fires from a daily schedule — this runs it now instead of waiting.
           </p>
 
-          {due.length > 0 ? (
-            <ul className="text-xs space-y-1.5 mb-4">
-              {due.map((row, index) => (
-                <li key={`${row.orgName}-${index}`} className="flex flex-wrap items-center gap-2">
-                  <Badge tone="purple">{row.kind.replace(/_/g, " ")}</Badge>
-                  <span className="text-white/70">{row.orgName}</span>
-                  <span className="text-white/35">{row.email ?? "no address on file"}</span>
-                  <span className="text-white/30">
-                    {row.daysLeft >= 0
-                      ? `${row.daysLeft} day${row.daysLeft === 1 ? "" : "s"} left`
-                      : `${-row.daysLeft} day${row.daysLeft === -1 ? "" : "s"} since it ended`}
-                  </span>
-                  {row.alreadySent && <Badge tone="grey">already sent</Badge>}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-white/40 mb-4 leading-relaxed">
-              Nothing is owed today. On a fresh seven-day trial the first countdown message is due
-              on the sixth day, so this staying empty for a day is the schedule working.
-            </p>
-          )}
-
-          <ActionForm action={runBillingEmailsNow} submitLabel="Run the sweep now">
-            <span className="sr-only">Sends whatever the schedule owes today.</span>
-          </ActionForm>
-          <p className="text-[12px] text-white/30 mt-2.5 leading-relaxed">
-            Safe to press twice — every message is keyed to the workspace, the period and the day,
-            so a repeat is refused rather than sent.
-          </p>
+          <DueEmails due={due} />
         </Card>
       )}
 

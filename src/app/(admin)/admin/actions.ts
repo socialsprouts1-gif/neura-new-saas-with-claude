@@ -13,7 +13,7 @@ import { isPaymentProvider } from "@/lib/provider-meta";
 import { emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/email-templates";
 import { planBroadcast, explainSkip, BROADCAST_KIND } from "@/lib/broadcast";
-import { sweepBillingEmails } from "@/lib/billing-emails";
+import { sweepBillingEmails, sendBillingEmailForOrg } from "@/lib/billing-emails";
 import { fillFor } from "@/lib/plan-templates";
 import { readTrialDays } from "@/lib/trial";
 import type { ActionResult } from "@/app/(dashboard)/actions";
@@ -1330,6 +1330,35 @@ export async function runBillingEmailsNow(_formData: FormData): Promise<ActionRe
   }
 
   return { ok: true, message: parts.join(" ") };
+}
+
+/**
+ * The same send, for one workspace only.
+ *
+ * The sweep is all-or-nothing, and that is the wrong shape for what this
+ * screen is usually being used for: ten workspaces are owed a follow-up,
+ * one of them is the customer on the phone right now, and the other nine
+ * are not supposed to hear from us this minute.
+ *
+ * Nothing is relaxed to make it work. It resolves what is owed with the
+ * same planner and writes under the same dedupe key, so the duplicate
+ * guard still applies and a row the nightly sweep already sent is
+ * refused — and the refusal is reported rather than dressed up as a send.
+ */
+export async function sendOneBillingEmail(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  if (!isEmailConfigured()) {
+    return { ok: false, error: "Email is not configured on this deployment, so nothing was sent." };
+  }
+
+  const orgId = String(formData.get("orgId") ?? "").trim();
+  if (!orgId) return { ok: false, error: "No workspace was named, so nothing was sent." };
+
+  const result = await sendBillingEmailForOrg(orgId);
+  revalidatePath("/admin/emails");
+
+  return result.ok ? { ok: true, message: result.message } : { ok: false, error: result.message };
 }
 
 /**
