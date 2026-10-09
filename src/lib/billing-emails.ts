@@ -8,6 +8,7 @@ import {
   type DueEmail,
 } from "@/lib/billing-email-plan";
 import { sendEmail } from "@/lib/email";
+import { maySend } from "@/lib/email-overrides";
 import {
   renewalReminderEmail,
   subscriptionExpiredEmail,
@@ -109,7 +110,7 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
 
   const { data: subscriptions, error } = await admin
     .from("subscriptions")
-    .select("org_id, status, current_period_end, plans(name)")
+    .select("org_id, status, current_period_end, plans(name), organizations(name)")
     // Only states that can owe a message. A cancelled workspace has
     // already said no and should not be chased.
     .in("status", ["trialing", "active", "past_due"]);
@@ -123,12 +124,7 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
   // several workspaces can be collapsed to one message before anything
   // leaves. Four identical "your trial ends tomorrow" arriving together is
   // what teaches somebody to filter everything this product sends.
-  const pending: Array<{
-    orgId: string;
-    email: string | null;
-    periodEnd: string | null;
-    due: DueEmail;
-  }> = [];
+  const pending: PendingSend[] = [];
 
   for (const row of subscriptions) {
     result.checked += 1;
@@ -146,6 +142,7 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
 
     pending.push({
       orgId: row.org_id,
+      orgName: (row.organizations as { name: string } | null)?.name ?? null,
       email: await ownerEmail(admin, row.org_id),
       periodEnd: row.current_period_end,
       due,
@@ -171,6 +168,8 @@ export async function sweepBillingEmails(now: Date = new Date()): Promise<SweepR
 
 interface PendingSend {
   orgId: string;
+  /** For the operator's own wording, which may greet them by name. */
+  orgName?: string | null;
   email: string | null;
   periodEnd: string | null;
   due: DueEmail;
@@ -212,6 +211,17 @@ async function deliverDue(row: PendingSend, fromPrice: string | null) {
         step: due.step ?? 0,
         fromPrice,
       }),
+    // Only read if somebody has rewritten this message in the admin
+    // screen. The built-in wording above already has these values; this
+    // is the same set, named the way a template refers to them.
+    vars: {
+      workspace: row.orgName,
+      plan: due.planName,
+      days_left: String(Math.max(0, due.daysLeft)),
+      days_since: String(Math.max(0, -due.daysLeft)),
+      renews_on: longDate(row.periodEnd ?? ""),
+      price: fromPrice,
+    },
   });
 
   // The same news on WhatsApp, for the one kind where it is worth
@@ -281,6 +291,13 @@ export async function sendBillingEmailForOrg(
     return { ok: false, message: `Nothing is owed to ${name} today.` };
   }
 
+  if (!(await maySend(due.kind))) {
+    return {
+      ok: false,
+      message: `That message is switched off for this deployment, so nothing was sent. Switch it back on under Email templates.`,
+    };
+  }
+
   const email = await ownerEmail(admin, orgId);
   if (!email) {
     return {
@@ -290,7 +307,13 @@ export async function sendBillingEmailForOrg(
   }
 
   const outcome = await deliverDue(
-    { orgId, email, periodEnd: row.current_period_end, due },
+    {
+      orgId,
+      orgName: (row.organizations as { name: string } | null)?.name ?? null,
+      email,
+      periodEnd: row.current_period_end,
+      due,
+    },
     await cheapestPlan(admin)
   );
 
@@ -315,6 +338,9 @@ export async function sendBillingEmailForOrg(
   }
   if (outcome.skipped === "no_address") {
     return { ok: false, message: `${name} has no owner address on file.` };
+  }
+  if (outcome.skipped === "switched_off") {
+    return { ok: false, message: "That message is switched off for this deployment." };
   }
   if (!outcome.ok) {
     return {
@@ -399,6 +425,11 @@ export async function previewBillingEmails(now: Date = new Date()): Promise<DueP
       now
     );
     if (!due) continue;
+
+    // A kind that has been switched off is not owed, however the dates
+    // fall. Listing it as due and then having the sweep decline to send
+    // it is the screen contradicting itself.
+    if (!(await maySend(due.kind))) continue;
 
     const { data: log } = await admin
       .from("email_log")

@@ -356,3 +356,42 @@ export function subscriptionExpiredEmail(
     text: plain(lines, action),
   };
 }
+
+/**
+ * A message whose words came from the operator rather than from here.
+ *
+ * The shell is the same one every built-in message uses, and that is the
+ * point: whatever somebody types in the admin screen arrives inside the
+ * banner, the spacing and the footer that were tuned against Gmail and
+ * Outlook, rather than as a bare paragraph on a white page.
+ *
+ * The body is escaped, so a template is text and never markup. That is a
+ * restriction worth keeping even though the only person who can write one
+ * is the operator: a stray `<div>` typed into a textarea would be nested
+ * inside Outlook's table scaffolding, and what comes out the other side is
+ * not a broken paragraph but a broken message.
+ *
+ * Single newlines survive as line breaks because people type addresses and
+ * short lists that way; blank lines were already turned into separate
+ * paragraphs before this is called.
+ */
+export function customEmail(
+  brand: EmailBrand,
+  input: {
+    subject: string;
+    preheader: string;
+    paragraphs: string[];
+    action?: { label: string; href: string } | null;
+  }
+): EmailBody {
+  const action = input.action ?? undefined;
+  const html = input.paragraphs
+    .map((block) => p(escape(block).replace(/\n/g, "<br>")))
+    .join("");
+
+  return {
+    subject: input.subject,
+    html: layout(brand, input.preheader, html, action),
+    text: plain(input.paragraphs, action),
+  };
+}

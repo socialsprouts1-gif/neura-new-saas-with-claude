@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/primitives";
+import Link from "next/link";
 import ActionForm from "@/components/ui/ActionForm";
 import { runBillingEmailsNow, sendOneBillingEmail } from "../actions";
 import type { ActionResult } from "@/app/(dashboard)/actions";
@@ -34,7 +35,7 @@ export interface DueRow {
 function blocked(row: DueRow): string | null {
   if (!row.email) return "No owner address on file, so there is nobody to write to.";
   if (row.alreadySent)
-    return "Already sent for this period — a repeat is refused rather than sent.";
+    return "Already sent for this period. The guard is keyed to the workspace, the period and the day, so the schedule cannot send it twice — to write to them again, use Send an email.";
   return null;
 }
 
@@ -135,7 +136,16 @@ export default function DueEmails({ due }: { due: DueRow[] }) {
 
       <p className="text-[12px] text-white/30 mt-2.5 leading-relaxed">
         Safe to press twice — every message is keyed to the workspace, the period and the day, so a
-        repeat is refused rather than sent.
+        repeat is refused rather than sent. To write something else to the same person, or to send
+        the same thing again, use{" "}
+        <Link href="/admin/email-send" className="text-accent-ink hover:underline">
+          Send an email
+        </Link>
+        , which has no such guard. To stop these going out at all, untick them under{" "}
+        <Link href="/admin/email-templates" className="text-accent-ink hover:underline">
+          Email templates
+        </Link>
+        .
       </p>
     </>
   );

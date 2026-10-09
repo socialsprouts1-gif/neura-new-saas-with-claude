@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { EmailBody, EmailBrand } from "@/lib/email-templates";
 import type { EmailTransport } from "@/lib/deliverability";
 import { suppressible, unsubscribeUrl } from "@/lib/email-kinds";
+import { maySend, overrideBody } from "@/lib/email-overrides";
 
 // Sending mail, and remembering that we did.
 //
@@ -20,7 +21,7 @@ import { suppressible, unsubscribeUrl } from "@/lib/email-kinds";
 
 export interface SendResult {
   ok: boolean;
-  skipped?: "duplicate" | "not_configured" | "no_address" | "unsubscribed";
+  skipped?: "duplicate" | "not_configured" | "no_address" | "unsubscribed" | "switched_off";
   error?: string;
 }
 
@@ -134,12 +135,26 @@ export async function sendEmail(input: {
    * a plain body stays valid and simply has no link.
    */
   body: EmailBody | ((brand: EmailBrand) => EmailBody);
+  /**
+   * What the operator's own wording may refer to, for this recipient.
+   *
+   * Only read when somebody has rewritten this kind of message in the
+   * admin screen; a caller that passes nothing simply cannot have its
+   * wording personalised beyond the shared values.
+   */
+  vars?: Record<string, string | null | undefined>;
 }): Promise<SendResult> {
   const to = input.to?.trim();
   if (!to) return { ok: false, skipped: "no_address" };
 
   const settings = config();
   if (!settings) return { ok: false, skipped: "not_configured" };
+
+  // Asked here rather than at each of the eight call sites, so the next
+  // automatic email somebody adds cannot quietly bypass the switch. A
+  // kind that is not on the automatic list — a campaign, a sign-up code —
+  // is never blocked by this.
+  if (!(await maySend(input.kind))) return { ok: true, skipped: "switched_off" };
 
   const supabase = createAdminClient();
 
@@ -198,10 +213,22 @@ export async function sendEmail(input: {
   // have no business awaiting one.
   const logoUrl = await brandLogo(supabase);
 
+  const brand = { ...emailBrand(), logoUrl, unsubscribeUrl: optOut };
+
+  // The operator's wording wins when there is some. Falling back to the
+  // built-in rather than failing is deliberate: a rewritten template that
+  // cannot be rendered must not be able to stop a trial countdown, and an
+  // operator who deletes their override gets the default back with no
+  // further action.
   const message =
-    typeof input.body === "function"
-      ? input.body({ ...emailBrand(), logoUrl, unsubscribeUrl: optOut })
-      : input.body;
+    (await overrideBody(input.kind, brand, {
+      workspace: input.vars?.workspace,
+      email: to,
+      brand: brand.name,
+      app_url: brand.appUrl,
+      ...input.vars,
+    })) ??
+    (typeof input.body === "function" ? input.body(brand) : input.body);
 
   try {
     if (settings.kind === "resend") {

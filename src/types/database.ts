@@ -209,6 +209,89 @@ export interface Database {
         };
         Relationships: [];
       };
+      email_templates: {
+        Row: {
+          id: string;
+          slug: string;
+          name: string;
+          subject: string;
+          body: string;
+          action_label: string | null;
+          action_path: string | null;
+          overrides_kind: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          name: string;
+          subject: string;
+          body: string;
+          action_label?: string | null;
+          action_path?: string | null;
+          overrides_kind?: string | null;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          slug?: string;
+          name?: string;
+          subject?: string;
+          body?: string;
+          action_label?: string | null;
+          action_path?: string | null;
+          overrides_kind?: string | null;
+          is_active?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      email_groups: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+        };
+        Insert: { id?: string; name: string; description?: string | null };
+        Update: { name?: string; description?: string | null };
+        Relationships: [];
+      };
+      email_group_members: {
+        Row: { group_id: string; org_id: string; added_at: string };
+        Insert: { group_id: string; org_id: string };
+        Update: { group_id?: string; org_id?: string };
+        Relationships: [];
+      };
+      email_campaigns: {
+        Row: {
+          id: string;
+          template_id: string | null;
+          subject: string;
+          audience: string;
+          audience_label: string;
+          sent: number;
+          skipped: number;
+          failed: number;
+          sent_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          template_id?: string | null;
+          subject: string;
+          audience: string;
+          audience_label: string;
+          sent?: number;
+          skipped?: number;
+          failed?: number;
+          sent_by?: string | null;
+        };
+        Update: { sent?: number; skipped?: number; failed?: number };
+        Relationships: [];
+      };
       waba_connections: {
         Row: {
           id: string;

@@ -10,8 +10,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { isPaymentProvider } from "@/lib/provider-meta";
-import { emailTransportName, isEmailConfigured, sendEmail } from "@/lib/email";
-import { welcomeEmail } from "@/lib/email-templates";
+import { emailTransportName, isEmailConfigured, sendEmail, emailBrand } from "@/lib/email";
+import { welcomeEmail, customEmail } from "@/lib/email-templates";
+import { AUTOMATIC_BY_KIND, offSummary, switchesFromTicked } from "@/lib/email-automation";
+import { fillIn, paragraphs, preheaderFrom, templateProblem } from "@/lib/email-compose";
+import { forgetEmailPolicy } from "@/lib/email-overrides";
+import { sendCampaign } from "@/lib/email-campaigns";
 import { planBroadcast, explainSkip, BROADCAST_KIND } from "@/lib/broadcast";
 import { sweepBillingEmails, sendBillingEmailForOrg } from "@/lib/billing-emails";
 import { fillFor } from "@/lib/plan-templates";
@@ -1424,5 +1428,343 @@ export async function applyPlanTemplates(formData: FormData): Promise<ActionResu
       untouched.length > 0
         ? `${done} Left alone: ${untouched.join(", ")} — already written, or no template for that name.`
         : done,
+  };
+}
+
+// --- email templates, audiences and one-off sends -------------------------
+//
+// requirePlatformAdmin() first in every one, as everywhere else in this
+// file. These reach into email_templates and email_groups, which have RLS
+// enabled and no policy at all, so the service role is the only way in and
+// that check is the only thing standing in front of it.
+
+/** Which automatic messages this deployment sends at all. */
+export async function saveEmailAutomation(formData: FormData): Promise<ActionResult> {
+  const user = await requirePlatformAdmin();
+
+  const switches = switchesFromTicked(formData.getAll("on").map(String));
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("platform_settings").upsert(
+    {
+      key: "email_automation",
+      value: switches,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id,
+    },
+    { onConflict: "key" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+
+  // The policy is cached for a minute inside the sender. Without this a
+  // switch appears to do nothing for up to sixty seconds, which is long
+  // enough for somebody to press it again and assume it is broken.
+  forgetEmailPolicy();
+  revalidatePath("/admin/email-templates");
+  revalidatePath("/admin/emails");
+
+  const off = offSummary(switches);
+  return {
+    ok: true,
+    message: off ? `Saved. Switched off: ${off}.` : "Saved. Every automatic message is sending.",
+  };
+}
+
+/**
+ * Create or rewrite a template.
+ *
+ * An override — a template that replaces an automatic message — is the
+ * same row with overrides_kind set, so there is one editor rather than
+ * two that drift apart.
+ */
+export async function saveEmailTemplate(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const draft = {
+    name: String(formData.get("name") ?? "").trim(),
+    subject: String(formData.get("subject") ?? "").trim(),
+    body: String(formData.get("body") ?? ""),
+    actionLabel: String(formData.get("action_label") ?? "").trim() || null,
+    actionPath: String(formData.get("action_path") ?? "").trim() || null,
+  };
+
+  const problem = templateProblem(draft);
+  if (problem) return { ok: false, error: problem };
+
+  const overridesKind = String(formData.get("overrides_kind") ?? "").trim() || null;
+  if (overridesKind && !AUTOMATIC_BY_KIND.has(overridesKind)) {
+    return { ok: false, error: "That is not a message this product sends." };
+  }
+
+  const admin = createAdminClient();
+  const row = {
+    name: draft.name,
+    subject: draft.subject,
+    body: draft.body,
+    action_label: draft.actionLabel,
+    action_path: draft.actionPath,
+    overrides_kind: overridesKind,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = id
+    ? await admin.from("email_templates").update(row).eq("id", id)
+    : await admin
+        .from("email_templates")
+        .insert({ ...row, slug: `${slugify(draft.name)}-${Date.now().toString(36)}` });
+
+  if (error) {
+    // 23505 on the override index: another template already claims this
+    // message. Two rows claiming to be the trial follow-up is a coin toss
+    // over what a customer receives, which is why the database refuses it.
+    if (error.code === "23505" && overridesKind) {
+      return {
+        ok: false,
+        error:
+          "Another template already replaces that message. Edit that one, or set this to a one-off template.",
+      };
+    }
+    if (error.code === "42P01") {
+      return {
+        ok: false,
+        error:
+          "The email_templates table does not exist yet. Run supabase/updates/run-me-latest.sql in the SQL editor.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  forgetEmailPolicy();
+  revalidatePath("/admin/email-templates");
+  revalidatePath("/admin/email-send");
+  return { ok: true, message: id ? "Saved." : "Template created." };
+}
+
+/** Delete a template. An override deleted puts the built-in wording back. */
+export async function deleteEmailTemplate(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No template was named." };
+
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("email_templates")
+    .select("overrides_kind")
+    .eq("id", id)
+    .maybeSingle();
+
+  const { error } = await admin.from("email_templates").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  forgetEmailPolicy();
+  revalidatePath("/admin/email-templates");
+  revalidatePath("/admin/email-send");
+
+  return {
+    ok: true,
+    message: row?.overrides_kind
+      ? "Deleted. That message goes back to the wording built into the product."
+      : "Template deleted.",
+  };
+}
+
+/** A named list of workspaces to write to. */
+export async function saveEmailGroup(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim() || null;
+  if (!name) return { ok: false, error: "Give the group a name." };
+
+  const admin = createAdminClient();
+  const { error } = id
+    ? await admin.from("email_groups").update({ name, description }).eq("id", id)
+    : await admin.from("email_groups").insert({ name, description });
+
+  if (error) {
+    if (error.code === "42P01") {
+      return {
+        ok: false,
+        error:
+          "The email_groups table does not exist yet. Run supabase/updates/run-me-latest.sql in the SQL editor.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/email-send");
+  return { ok: true, message: id ? "Saved." : `Created "${name}".` };
+}
+
+export async function deleteEmailGroup(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No group was named." };
+
+  const { error } = await createAdminClient().from("email_groups").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/admin/email-send");
+  return { ok: true, message: "Group deleted. No workspace was changed." };
+}
+
+/**
+ * Replace a group's membership outright.
+ *
+ * Whole-list rather than add-one/remove-one: the screen is a set of
+ * tickboxes showing the current state, so what it posts is the answer,
+ * and reconciling it here means an unticked box actually removes somebody
+ * instead of being silently ignored.
+ */
+export async function setEmailGroupMembers(formData: FormData): Promise<ActionResult> {
+  await requirePlatformAdmin();
+
+  const groupId = String(formData.get("group_id") ?? "").trim();
+  if (!groupId) return { ok: false, error: "No group was named." };
+
+  const wanted = [...new Set(formData.getAll("org").map(String).filter(Boolean))];
+  const admin = createAdminClient();
+
+  const { error: clearError } = await admin
+    .from("email_group_members")
+    .delete()
+    .eq("group_id", groupId);
+  if (clearError) return { ok: false, error: clearError.message };
+
+  if (wanted.length > 0) {
+    const { error } = await admin
+      .from("email_group_members")
+      .insert(wanted.map((orgId) => ({ group_id: groupId, org_id: orgId })));
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/admin/email-send");
+  return {
+    ok: true,
+    message:
+      wanted.length === 0
+        ? "Group emptied."
+        : `${wanted.length} workspace${wanted.length === 1 ? "" : "s"} in the group.`,
+  };
+}
+
+/**
+ * Send a template to an audience, now.
+ *
+ * The box has to be ticked. Mail cannot be recalled, and the difference
+ * between writing to one customer and writing to four hundred is one
+ * dropdown — so the thing being confirmed is the number, written out,
+ * rather than the word "send".
+ */
+export async function sendEmailCampaign(formData: FormData): Promise<ActionResult> {
+  const user = await requirePlatformAdmin();
+
+  if (!isEmailConfigured()) {
+    return { ok: false, error: "Email is not configured on this deployment, so nothing was sent." };
+  }
+
+  if (formData.get("confirm") === null) {
+    return { ok: false, error: "Tick the box to confirm before sending." };
+  }
+
+  const templateId = String(formData.get("template") ?? "").trim();
+  const audience = String(formData.get("audience") ?? "").trim();
+  if (!templateId) return { ok: false, error: "Choose a template first." };
+  if (!audience) return { ok: false, error: "Choose who it goes to." };
+
+  const result = await sendCampaign({ templateId, audience, sentBy: user.id });
+  revalidatePath("/admin/email-send");
+  revalidatePath("/admin/emails");
+
+  if ("error" in result) return { ok: false, error: result.error };
+
+  const parts = [`Sent ${result.sent}.`];
+  if (result.skipped > 0) {
+    parts.push(`${result.skipped} skipped — unsubscribed, or no address on file.`);
+  }
+  if (result.failed > 0) {
+    parts.push(`${result.failed} failed; the email log has what the provider said.`);
+  }
+  return { ok: true, message: parts.join(" ") };
+}
+
+/**
+ * One copy, to the person pressing the button.
+ *
+ * The cheapest way to stop a typo reaching four hundred people, and the
+ * only way to see what the template actually looks like in a real inbox —
+ * a preview in the browser cannot tell you what Gmail will do to it.
+ */
+export async function sendTemplateTest(formData: FormData): Promise<ActionResult> {
+  const user = await requirePlatformAdmin();
+
+  if (!isEmailConfigured()) {
+    return { ok: false, error: "Email is not configured on this deployment, so nothing was sent." };
+  }
+  if (!user.email) {
+    return { ok: false, error: "Your account has no email address, so there is nowhere to send it." };
+  }
+
+  const templateId = String(formData.get("template") ?? "").trim();
+  if (!templateId) return { ok: false, error: "Choose a template first." };
+
+  const admin = createAdminClient();
+  const { data: template } = await admin
+    .from("email_templates")
+    .select("subject, body, action_label, action_path")
+    .eq("id", templateId)
+    .maybeSingle();
+
+  if (!template) return { ok: false, error: "That template no longer exists." };
+
+  const values = {
+    workspace: "Your workspace",
+    email: user.email,
+    brand: emailBrand().name,
+    app_url: emailBrand().appUrl,
+    price: "₹999 a month",
+    plan: "Growth",
+    days_left: "3",
+    days_since: "12",
+    renews_on: "16 October 2026",
+    trial_days: "7",
+    bot_name: "Support Sam",
+    amount: "₹999",
+  };
+  const body = fillIn(template.body, values);
+  const label = template.action_label?.trim();
+  const path = template.action_path?.trim();
+
+  // kind "test" is transactional, so it carries no unsubscribe link and
+  // cannot be suppressed — an operator who unsubscribed themselves from
+  // marketing should still be able to see their own template. The key is
+  // unique per press, so it can be sent as many times as it takes.
+  const outcome = await sendEmail({
+    to: user.email,
+    orgId: null,
+    kind: "test",
+    dedupeKey: `template-test:${templateId}:${Date.now()}`,
+    body: (brand) =>
+      customEmail(brand, {
+        subject: `[Test] ${fillIn(template.subject, values)}`,
+        preheader: preheaderFrom(body),
+        paragraphs: paragraphs(body),
+        action: label && path ? { label, href: `${brand.appUrl}${path}` } : null,
+      }),
+  });
+
+  revalidatePath("/admin/emails");
+
+  if (outcome.ok && !outcome.skipped) {
+    return { ok: true, message: `Sent to ${user.email}. Check Spam and Promotions too.` };
+  }
+  return {
+    ok: false,
+    error: outcome.error ?? `Nothing was sent (${outcome.skipped ?? "unknown reason"}).`,
   };
 }
