@@ -12,6 +12,8 @@ import {
   Briefcase,
   Stethoscope,
 } from "lucide-react";
+import Link from "next/link";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 
 const useCases = [
   {
@@ -100,7 +102,7 @@ const useCases = [
   },
 ];
 
-export default function UseCases() {
+export default function UseCases({ trialDays = DEFAULT_TRIAL_DAYS }: { trialDays?: number }) {
   const [active, setActive] = useState(useCases[0]);
 
   return (
@@ -190,9 +192,9 @@ export default function UseCases() {
                 ))}
               </div>
 
-              <a href="#pricing" className="btn-primary inline-flex">
-                Choose a plan
-              </a>
+              <Link href="/auth/register" data-track="usecases:trial" className="btn-primary inline-flex">
+                Start {trialDays}-day free trial
+              </Link>
             </div>
 
             {/* Right — flows */}

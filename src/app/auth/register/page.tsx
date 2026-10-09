@@ -25,6 +25,7 @@ import { describeClaim, claimGuestCheckout } from "../claim-actions";
 import { splitName } from "@/lib/guest-checkout";
 import Steps, { type StepKey } from "./Steps";
 import OtpInput from "./OtpInput";
+import { track } from "@/lib/track-client";
 
 // Sign-up, in three steps: who you are, the WhatsApp number proved with a
 // code, then a password.
@@ -205,6 +206,12 @@ function RegisterForm() {
     setError(null);
     setBusy("account");
 
+    // The third step of the funnel: they filled it in and pressed the
+    // button. Recorded before the call rather than after it, because the
+    // interesting number is how many people who try fail — and a failed
+    // sign-up that was never counted as an attempt is invisible.
+    track("signup_submit");
+
     const result = await completeSignup({
       token,
       email,
@@ -232,6 +239,9 @@ function RegisterForm() {
     // workspace exists either way — the trigger fires on the auth.users
     // insert — and the WhatsApp welcome has already gone out from the
     // server, which is why it no longer depends on there being a session.
+    // The account exists from here on, whichever branch is taken below.
+    track("signup_done");
+
     if ("needsEmailConfirmation" in result && result.needsEmailConfirmation) {
       setBusy(null);
       setCheckEmail(true);

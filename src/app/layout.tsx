@@ -3,6 +3,8 @@ import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { loadSiteContent } from "@/lib/site-content-server";
 import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
+import { Suspense } from "react";
+import Track from "@/components/analytics/Track";
 
 // Meta's domain verification token. Public by design — it proves control of
 // the domain to Meta and nothing else. Meta fetches the home page and reads
@@ -121,6 +123,13 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-[var(--app-bg)] text-[var(--color-white)]">
         {children}
+        {/* Renders nothing. Here rather than on the landing page because
+            the sign-up pages are the half of the funnel worth measuring,
+            and they are not under it. Admin's own traffic is excluded in
+            the tracker itself. */}
+        <Suspense fallback={null}>
+          <Track />
+        </Suspense>
       </body>
     </html>
   );

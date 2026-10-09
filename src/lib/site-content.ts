@@ -94,7 +94,7 @@ export const DEFAULT_HERO: HeroContent = {
   // Not "Start Free Trial". The trial is what every sign-up gets anyway,
   // so a button promising it sent people who were ready to pay into a
   // fourteen-day holding pattern instead of to a payment window.
-  primaryCta: { label: "Choose a plan", href: "/#pricing" },
+  primaryCta: { label: "Start 7-day free trial", href: "/auth/register" },
   // Booking, not a video. "Watch Demo" promised one and scrolled the
   // page; the href here is only a fallback — the button resolves to a
   // configured booking page, or to WhatsApp.
@@ -165,6 +165,10 @@ export function mergeSection<T extends object>(defaults: T, saved: unknown): T {
 const STALE_CTA: Array<{ label: string; href: string }> = [
   { label: "Start Free Trial", href: "/auth/register" },
   { label: "Watch Demo", href: "#how-it-works" },
+  // Sent people to the price list before they had seen the product work.
+  // A free trial asks for nothing, so it is the lower step to take first;
+  // the price is still two scrolls down for anybody who wants it.
+  { label: "Choose a plan", href: "/#pricing" },
 ];
 
 function freshenCta(
@@ -197,4 +201,19 @@ export function buildSiteContent(rows: Array<{ key: string; value: unknown }>): 
 /** The full brand name, for a page title or an alt attribute. */
 export function brandName(brand: BrandContent): string {
   return [brand.name, brand.nameAccent].filter(Boolean).join(" ").trim() || "Neura Chat";
+}
+
+/**
+ * Keeps the number in a trial CTA honest.
+ *
+ * The default button says "Start 7-day free trial" and the trial length
+ * is a setting, so the two can disagree — and a button promising seven
+ * days on a fourteen-day trial is the product lying on its own front
+ * page. Only the default shape is rewritten: anything somebody has
+ * actually typed is left exactly as they typed it.
+ */
+export function ctaForTrial(cta: CtaContent, days: number): CtaContent {
+  return /^start \d+-day free trial$/i.test(cta.label.trim())
+    ? { ...cta, label: `Start ${days}-day free trial` }
+    : cta;
 }

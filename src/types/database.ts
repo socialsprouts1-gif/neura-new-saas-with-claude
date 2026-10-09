@@ -209,6 +209,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      site_events: {
+        Row: {
+          id: number;
+          visitor_id: string;
+          session_id: string;
+          event: string;
+          path: string | null;
+          label: string | null;
+          referrer_host: string | null;
+          source: string | null;
+          medium: string | null;
+          campaign: string | null;
+          device: string | null;
+          created_at: string;
+        };
+        Insert: {
+          visitor_id: string;
+          session_id: string;
+          event: string;
+          path?: string | null;
+          label?: string | null;
+          referrer_host?: string | null;
+          source?: string | null;
+          medium?: string | null;
+          campaign?: string | null;
+          device?: string | null;
+        };
+        Update: { event?: string };
+        Relationships: [];
+      };
       email_templates: {
         Row: {
           id: string;

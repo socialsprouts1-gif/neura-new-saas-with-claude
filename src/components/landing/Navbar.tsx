@@ -6,6 +6,7 @@ import BrandWordmark from "./BrandWordmark";
 import { DEFAULT_BRAND, type BrandContent } from "@/lib/site-content";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, ChevronDown, ArrowRight } from "lucide-react";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 
 const navItems = [
   {
@@ -25,7 +26,13 @@ const navItems = [
   { label: "Docs", href: "#" },
 ];
 
-export default function Navbar({ brand = DEFAULT_BRAND }: { brand?: BrandContent }) {
+export default function Navbar({
+  brand = DEFAULT_BRAND,
+  trialDays = DEFAULT_TRIAL_DAYS,
+}: {
+  brand?: BrandContent;
+  trialDays?: number;
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -102,12 +109,17 @@ export default function Navbar({ brand = DEFAULT_BRAND }: { brand?: BrandContent
           <div className="hidden md:flex items-center gap-3">
             <Link
               href="/auth/login"
+              data-track="nav:signin"
               className="text-[15px] font-medium text-white/65 hover:text-white transition-colors px-4 py-2"
             >
               Sign In
             </Link>
-            <Link href="/#pricing" className="btn-primary text-[15px] py-2.5 px-6 group">
-              Choose a plan
+            <Link
+              href="/auth/register"
+              data-track="nav:trial"
+              className="btn-primary text-[15px] py-2.5 px-6 group"
+            >
+              Start {trialDays}-day free trial
               <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
           </div>
@@ -146,8 +158,12 @@ export default function Navbar({ brand = DEFAULT_BRAND }: { brand?: BrandContent
                 <Link href="/auth/login" className="btn-secondary text-sm text-center justify-center">
                   Sign In
                 </Link>
-                <Link href="/#pricing" className="btn-primary text-sm text-center justify-center">
-                  Choose a plan
+                <Link
+                  href="/auth/register"
+                  data-track="nav-mobile:trial"
+                  className="btn-primary text-sm text-center justify-center"
+                >
+                  Start {trialDays}-day free trial
                 </Link>
               </div>
             </div>

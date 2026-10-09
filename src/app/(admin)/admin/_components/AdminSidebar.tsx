@@ -23,6 +23,7 @@ import {
   Shield,
   Ticket,
   ToggleLeft,
+  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -36,7 +37,10 @@ import {
 const SECTIONS = [
   {
     label: "Overview",
-    items: [{ icon: LayoutDashboard, label: "Dashboard", href: "/admin" }],
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", href: "/admin" },
+      { icon: TrendingUp, label: "Analytics", href: "/admin/analytics" },
+    ],
   },
   {
     label: "Tenants",

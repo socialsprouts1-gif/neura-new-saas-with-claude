@@ -3,6 +3,7 @@ import Link from "next/link";
 import BrandWordmark from "./BrandWordmark";
 import { DEFAULT_BRAND, brandName, type BrandContent } from "@/lib/site-content";
 import { Share2, Link2, GitFork, PlaySquare, ArrowRight } from "lucide-react";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 
 const footerLinks = {
   Product: ["Features", "Pricing", "Integrations", "Changelog", "Roadmap", "Status"],
@@ -11,7 +12,13 @@ const footerLinks = {
   Company: ["About", "Careers", "Partners", "Press", "Contact", "Legal"],
 };
 
-export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent }) {
+export default function Footer({
+  brand = DEFAULT_BRAND,
+  trialDays = DEFAULT_TRIAL_DAYS,
+}: {
+  brand?: BrandContent;
+  trialDays?: number;
+}) {
   return (
     <footer className="relative border-t border-white/8 pt-20 pb-10 overflow-hidden">
       {/* Background */}
@@ -34,8 +41,8 @@ export default function Footer({ brand = DEFAULT_BRAND }: { brand?: BrandContent
               AI handle the repetitive half of every conversation.
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Link href="/#pricing" className="btn-primary px-8 py-3.5">
-                Choose a plan
+              <Link href="/auth/register" data-track="footer:trial" className="btn-primary px-8 py-3.5">
+                Start {trialDays}-day free trial
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link href="#" className="btn-secondary px-8 py-3.5">

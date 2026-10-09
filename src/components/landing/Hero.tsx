@@ -7,6 +7,8 @@ import { ArrowRight, CalendarCheck, Bot, Send, Database, Clock, BarChart3 } from
 import { WhatsAppGlyph } from "./BrandGlyphs";
 import HeroShowcase from "./HeroShowcase";
 import { demoTarget, demoHint } from "@/lib/book-demo";
+import { ctaForTrial } from "@/lib/site-content";
+import { DEFAULT_TRIAL_DAYS } from "@/lib/trial";
 
 // Icon and tint are layout, not copy, so they stay here and pair with the
 // editable pills by position — the same arrangement the floating cards
@@ -21,10 +23,12 @@ const pillChrome = [
 ];
 
 export default function Hero({
+  trialDays = DEFAULT_TRIAL_DAYS,
   content = DEFAULT_HERO,
   demoUrl = "",
   whatsappNumber = "",
 }: {
+  trialDays?: number;
   content?: HeroContent;
   /** A Calendly or other booking page. Empty falls back to WhatsApp. */
   demoUrl?: string;
@@ -35,6 +39,13 @@ export default function Hero({
   const pills = content.pills
     .slice(0, pillChrome.length)
     .map((label, i) => ({ label, ...pillChrome[i] }));
+
+  // The number in the default button follows the trial length that is
+
+  // actually configured; wording somebody typed themselves is untouched.
+
+  const cta = ctaForTrial(content.primaryCta, trialDays);
+
 
   return (
     <section className="relative overflow-hidden pt-28 pb-16 lg:pt-32 lg:pb-24">
@@ -87,9 +98,13 @@ export default function Hero({
               transition={{ duration: 0.6, delay: 0.24 }}
               className="flex flex-wrap gap-3.5 pt-1"
             >
-              <Link href={content.primaryCta.href} className="btn-primary text-[15px] group">
+              <Link
+                href={cta.href}
+                data-track="hero:primary"
+                className="btn-primary text-[15px] group"
+              >
                 <WhatsAppGlyph className="w-[18px] h-[18px]" />
-                {content.primaryCta.label}
+                {cta.label}
                 <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Link>
               {/* Booking, not a video. Opens the configured booking page

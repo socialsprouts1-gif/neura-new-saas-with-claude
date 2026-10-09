@@ -27,9 +27,10 @@ export default async function HomePage() {
     // behind the login stays dark. See globals.css — redefining --color-white
     // inside this element re-themes every text-white/60 under it.
     <main className="marketing marketing-canvas overflow-x-hidden">
-      <Navbar brand={content.brand} />
+      <Navbar brand={content.brand} trialDays={pricing.trialDays} />
       <Hero
         content={content.hero}
+        trialDays={pricing.trialDays}
         demoUrl={content.brand.demoUrl}
         whatsappNumber={content.brand.whatsappNumber}
       />
@@ -37,7 +38,7 @@ export default async function HomePage() {
       <StatsBand stats={content.hero.stats} />
       <Features />
       <HowItWorks />
-      <UseCases />
+      <UseCases trialDays={pricing.trialDays} />
       <Testimonials />
       <Integrations />
       <Pricing
@@ -49,7 +50,7 @@ export default async function HomePage() {
           is the one asking "compared to what". */}
       <Comparison tiers={pricing.tiers} trialDays={pricing.trialDays} />
       <FAQ />
-      <Footer brand={content.brand} />
+      <Footer brand={content.brand} trialDays={pricing.trialDays} />
 
       {/* On a site that sells WhatsApp automation, a contact form would be
           an argument against the product. */}
