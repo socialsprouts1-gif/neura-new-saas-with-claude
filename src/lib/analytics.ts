@@ -9,6 +9,41 @@
 // rows in and a reduce over them is nothing. If this ever stops being
 // true the answer is a nightly rollup table, not a cleverer query.
 
+// Relative and with the extension: the test runner strips types but
+// does not resolve the "@/" alias, and this is a value import.
+import { isCredit, type LedgerKind } from "./wallet.ts";
+
+/**
+ * What a wallet ledger means in money terms.
+ *
+ * Separate and pure so it can be tested, because the shape of this data
+ * invites exactly one mistake: amount_micros is always positive and the
+ * direction lives in `kind`. Reading the sign gives three numbers that
+ * are all wrong and all look plausible — nothing ever spent, every
+ * workspace at zero, and top-ups quietly including every debit.
+ */
+export function foldLedger(
+  rows: readonly { org_id: string; kind: LedgerKind; amount_micros: number | null }[]
+): { spentBy: Map<string, number>; spent: number; toppedUp: number; debits: number } {
+  const spentBy = new Map<string, number>();
+  let spent = 0;
+  let toppedUp = 0;
+  let debits = 0;
+
+  for (const row of rows) {
+    const amount = Math.abs(Number(row.amount_micros ?? 0));
+    if (isCredit(row.kind)) {
+      toppedUp += amount;
+      continue;
+    }
+    debits += 1;
+    spentBy.set(row.org_id, (spentBy.get(row.org_id) ?? 0) + amount);
+    spent += amount;
+  }
+
+  return { spentBy, spent, toppedUp, debits };
+}
+
 export interface SiteEvent {
   visitor_id: string;
   session_id: string;

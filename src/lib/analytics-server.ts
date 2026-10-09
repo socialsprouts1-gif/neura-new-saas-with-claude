@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { SiteEvent } from "@/lib/analytics";
 import { MICROS } from "@/lib/wallet";
+import { foldLedger, type SiteEvent } from "@/lib/analytics";
 
 // Everything the analytics screen reads, in one place.
 //
@@ -139,20 +139,9 @@ export async function loadBusiness(window: Window): Promise<Business> {
     ])
   );
 
-  // A debit is money spent; a top-up is money in. Both are stored signed,
-  // so the sum of the negatives is the spend.
-  const spentBy = new Map<string, number>();
-  let walletSpentMicros = 0;
-  let walletToppedUpMicros = 0;
-  for (const row of ledger.data ?? []) {
-    const amount = Number(row.amount_micros ?? 0);
-    if (amount < 0) {
-      spentBy.set(row.org_id, (spentBy.get(row.org_id) ?? 0) + -amount);
-      walletSpentMicros += -amount;
-    } else {
-      walletToppedUpMicros += amount;
-    }
-  }
+  // The direction is in `kind`, not in the sign — folded by a pure
+  // function so the rule has a test against it.
+  const wallet = foldLedger(ledger.data ?? []);
 
   const workspaces: WorkspaceRow[] = (orgs.data ?? []).map((org) => {
     const sub = subBy.get(org.id);
@@ -168,7 +157,7 @@ export async function loadBusiness(window: Window): Promise<Business> {
       assistants: assistantsBy.get(org.id) ?? 0,
       sent: sentBy.get(org.id) ?? 0,
       received: receivedBy.get(org.id) ?? 0,
-      spentMicros: spentBy.get(org.id) ?? 0,
+      spentMicros: wallet.spentBy.get(org.id) ?? 0,
       balanceMicros: Number(org.wallet_balance_micros ?? 0),
     };
   });
@@ -189,9 +178,12 @@ export async function loadBusiness(window: Window): Promise<Business> {
     revenueCurrency: paid[0]?.currency ?? "INR",
     // Every wallet debit is one template that went out, which is the
     // closest thing to a true count — the ledger is written per send.
-    templatesSent: (ledger.data ?? []).filter((row) => Number(row.amount_micros ?? 0) < 0).length,
-    walletSpentMicros,
-    walletToppedUpMicros,
+    // An adjustment made by hand is a debit too, which over-counts by
+    // however many of those there have been; that is a far smaller lie
+    // than counting none of them.
+    templatesSent: wallet.debits,
+    walletSpentMicros: wallet.spent,
+    walletToppedUpMicros: wallet.toppedUp,
     messagesCapped: (messages.data ?? []).length >= MESSAGE_CAP,
   };
 }

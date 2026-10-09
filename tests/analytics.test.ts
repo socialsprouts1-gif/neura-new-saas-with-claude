@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   daily,
+  foldLedger,
   funnel,
   percent,
   rank,
@@ -165,4 +166,39 @@ test("a tagged campaign beats the referrer, and direct is the fallback", () => {
   assert.equal(sourceOf({ source: "instagram", referrer_host: "t.co" }), "instagram");
   assert.equal(sourceOf({ source: null, referrer_host: "t.co" }), "t.co");
   assert.equal(sourceOf({ source: "  ", referrer_host: null }), "Direct");
+});
+
+
+test("the ledger's direction is in kind, never in the sign", () => {
+  // Every amount_micros is positive; `kind` says which way it moves. The
+  // first version of this read the sign, which made spend zero on every
+  // workspace and folded every debit into "topped up" — three numbers
+  // that were all wrong and all looked plausible.
+  const out = foldLedger([
+    { org_id: "a", kind: "topup", amount_micros: 5_000_000 },
+    { org_id: "a", kind: "debit", amount_micros: 115_000 },
+    { org_id: "a", kind: "debit", amount_micros: 863_100 },
+    { org_id: "b", kind: "debit", amount_micros: 115_000 },
+    { org_id: "b", kind: "refund", amount_micros: 115_000 },
+  ]);
+
+  assert.equal(out.toppedUp, 5_115_000);
+  assert.equal(out.spent, 1_093_100);
+  assert.equal(out.spentBy.get("a"), 978_100);
+  assert.equal(out.spentBy.get("b"), 115_000);
+  // One debit is one message that went out.
+  assert.equal(out.debits, 3);
+});
+
+test("a ledger of nothing but top-ups has spent nothing", () => {
+  const out = foldLedger([{ org_id: "a", kind: "topup", amount_micros: 1_000_000 }]);
+  assert.equal(out.spent, 0);
+  assert.equal(out.debits, 0);
+  assert.equal(out.spentBy.size, 0);
+});
+
+test("a null amount is zero rather than NaN spreading through the totals", () => {
+  const out = foldLedger([{ org_id: "a", kind: "debit", amount_micros: null }]);
+  assert.equal(out.spent, 0);
+  assert.equal(out.debits, 1);
 });
