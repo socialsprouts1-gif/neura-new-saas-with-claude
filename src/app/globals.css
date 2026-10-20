@@ -872,3 +872,61 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/* Entrances that do not need a megabyte of JavaScript first
+   ======================================================================
+   The hero used Framer Motion to fade itself in, which means the browser
+   has to download, parse and run the whole client bundle — 864KB on this
+   route — before the headline is visible at all. On a phone opening the
+   site cold from a link, that was twenty seconds of blank page.
+
+   CSS animations run as soon as the stylesheet lands, which on this page
+   is about a fifth of the bytes and none of the main-thread work. Same
+   movement, visible roughly four times sooner.
+
+   `both` matters: it holds the opening frame through the delay and the
+   closing frame afterwards, so a staggered row does not flash into view
+   all at once and then animate. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.rise-1 { animation-delay: 0.08s; }
+.rise-2 { animation-delay: 0.16s; }
+.rise-3 { animation-delay: 0.24s; }
+.rise-4 { animation-delay: 0.32s; }
+
+/* Somebody who has asked for less movement gets the content, immediately,
+   with none of it. */
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .rise-1,
+  .rise-2,
+  .rise-3,
+  .rise-4 {
+    animation: none;
+  }
+}
+
+/* The canvas behind the marketing pages.
+   ----------------------------------------------------------------------
+   The product is dark, so <body> carries the dark app background — and a
+   phone in dark mode therefore paints near-black for however long the
+   page takes to arrive. On a slow connection that is several seconds of
+   black screen before the first pixel of the site.
+
+   The marketing pages are light, so the body under them says so too. */
+body:has(.marketing) {
+  background: #FDFBFF;
+}

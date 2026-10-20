@@ -60,44 +60,29 @@ export default function Hero({
         <div className="grid lg:grid-cols-2 xl:grid-cols-[minmax(0,500px)_minmax(0,1fr)] gap-14 lg:gap-8 items-center">
           {/* ---------------------------------------------------------- */}
           <div className="space-y-7 max-w-xl">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
+            {/* Plain elements with a CSS entrance, not motion.*: everything
+                above the fold has to be readable the moment the stylesheet
+                lands, rather than after the client bundle has downloaded
+                and run. Same movement, a fraction of the wait. */}
+            <div className="rise">
               <span className="section-badge normal-case sm:uppercase">
                 <span className="w-6 h-6 rounded-full bg-[#25D366] flex items-center justify-center shrink-0">
                   <WhatsAppGlyph className="w-3.5 h-3.5 text-[#FFFFFF]" />
                 </span>
                 {content.badge}
               </span>
-            </motion.div>
+            </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.08 }}
-              className="text-[2.75rem] sm:text-6xl xl:text-[4.25rem] font-black leading-[1.03] tracking-[-0.035em]"
-            >
+            <h1 className="rise rise-1 text-[2.75rem] sm:text-6xl xl:text-[4.25rem] font-black leading-[1.03] tracking-[-0.035em]">
               {content.headline}{" "}
               <span className="gradient-text-green">{content.headlineAccent}</span>
-            </motion.h1>
+            </h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.16 }}
-              className="text-[17px] sm:text-lg text-white/55 leading-relaxed max-w-lg"
-            >
+            <p className="rise rise-2 text-[17px] sm:text-lg text-white/55 leading-relaxed max-w-lg">
               {content.subheadline}
-            </motion.p>
+            </p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.24 }}
-              className="flex flex-wrap gap-3.5 pt-1"
-            >
+            <div className="rise rise-3 flex flex-wrap gap-3.5 pt-1">
               <Link
                 href={cta.href}
                 data-track="hero:primary"
@@ -129,14 +114,9 @@ export default function Hero({
                   {content.secondaryCta.label}
                 </a>
               )}
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.32 }}
-              className="flex flex-wrap gap-2.5 pt-2"
-            >
+            <div className="rise rise-4 flex flex-wrap gap-2.5 pt-2">
               {pills.map((pill) => {
                 const Icon = pill.icon;
                 return (
@@ -154,7 +134,7 @@ export default function Hero({
                   </span>
                 );
               })}
-            </motion.div>
+            </div>
 
             {/* A customer count and a star rating are claims a buyer can
                 check, so they stay switched off until they are true. */}
