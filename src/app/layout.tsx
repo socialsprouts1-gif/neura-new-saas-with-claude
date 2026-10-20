@@ -3,6 +3,7 @@ import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { loadSiteContent } from "@/lib/site-content-server";
 import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
+import MotionFallback, { MOTION_FALLBACK_SCRIPT } from "@/components/MotionFallback";
 import { Suspense } from "react";
 import Track from "@/components/analytics/Track";
 
@@ -120,8 +121,14 @@ export default function RootLayout({
         {/* Applies the stored theme before first paint. Without it the dark
             default renders and then snaps to light on hydration. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Reveals the page if the client bundle never runs. Every
+            section animates itself in, so its starting state — opacity 0
+            — is what the server sends; one script error and the visitor
+            gets a white page. See MotionFallback. */}
+        <script dangerouslySetInnerHTML={{ __html: MOTION_FALLBACK_SCRIPT }} />
       </head>
       <body className="antialiased bg-[var(--app-bg)] text-[var(--color-white)]">
+        <MotionFallback />
         {children}
         {/* Renders nothing. Here rather than on the landing page because
             the sign-up pages are the half of the funnel worth measuring,

@@ -819,3 +819,56 @@ body {
     ),
     var(--surface-2);
 }
+
+/* Safari, and the white page
+   ======================================================================
+   Two unrelated problems, both of which only ever showed up on an
+   iPhone. */
+
+/* The page when the bundle never runs.
+   ----------------------------------------------------------------------
+   Framer Motion renders its starting state into the server's HTML, so
+   every animated section arrives as style="opacity:0;transform:…" and
+   waits for JavaScript to animate it away. One script error anywhere and
+   that wait is permanent: a white page with a logo on it, which is what
+   an iPhone was showing while Chrome was fine.
+
+   data-motion-stalled is set by a blocking script in <head> when React
+   has not mounted after four seconds — see MotionFallback. Nothing in
+   the bundle participates, because the bundle is the thing that failed.
+
+   The selectors match opacity:0 and nothing else. A substring match on
+   "opacity:0" would also catch opacity:0.5 and force every deliberately
+   faded element to full strength, so the semicolon and the end-of-value
+   anchor are doing real work here. */
+html[data-motion-stalled] [style*="opacity:0;"],
+html[data-motion-stalled] [style$="opacity:0"],
+html[data-motion-stalled] [style*="opacity: 0;"],
+html[data-motion-stalled] [style$="opacity: 0"] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Frosted glass on iOS.
+   ----------------------------------------------------------------------
+   Safari only dropped the prefix in version 18, and a good share of
+   iPhones in use are still on 16 or 17. Without it every .glass-card in
+   the product — which is most of the product — renders as a flat
+   translucent panel with whatever is behind it showing through sharp.
+   The prefixed property must come first so a browser that understands
+   both ends up on the standard one. */
+.glass,
+.btn-secondary {
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-card {
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* iOS inflates text in landscape unless told not to, which quietly
+   breaks any layout tuned at a fixed size. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
