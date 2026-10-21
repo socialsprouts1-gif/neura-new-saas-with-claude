@@ -52,6 +52,7 @@ import {
   MessageSquare,
   MousePointerClick,
   Navigation,
+  Plus,
   Save,
   Search,
   ShoppingCart,
@@ -834,6 +835,9 @@ function Builder({
   const [name, setName] = useState(initialName);
   const [active, setActive] = useState(initialActive);
   const [query, setQuery] = useState("");
+  // The palette is a column on a desktop and a drawer on a phone, where a
+  // permanent 256px of it would leave about 130px of canvas to work in.
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
@@ -861,6 +865,30 @@ function Builder({
       ]);
     },
     [setNodes]
+  );
+
+  /**
+   * Add a component by tapping it, rather than by dragging it.
+   *
+   * HTML5 drag and drop does not exist on touch — dragstart never fires
+   * on iOS — so on a phone the palette was a list of things that could
+   * not be used at all. A tap drops the node in the middle of whatever
+   * part of the canvas is currently on screen, which is also quicker
+   * with a mouse than aiming at empty space.
+   */
+  const tapToAdd = useCallback(
+    (kind: FlowNodeKind) => {
+      const box = wrapper.current?.getBoundingClientRect();
+      const centre = box
+        ? { x: box.left + box.width / 2, y: box.top + box.height / 2 }
+        : { x: 0, y: 0 };
+      // Scattered a little, so tapping three in a row does not stack them
+      // exactly on top of each other with only the last one reachable.
+      const spot = screenToFlowPosition(centre);
+      addNode(kind, { x: spot.x + Math.random() * 60 - 30, y: spot.y + Math.random() * 60 - 30 });
+      setPaletteOpen(false);
+    },
+    [addNode, screenToFlowPosition]
   );
 
   const onDrop = useCallback(
@@ -929,9 +957,24 @@ function Builder({
 
   return (
     <ListeningContext.Provider value={listening}>
-    <div className="flex h-full min-h-0">
-      {/* Palette */}
-      <aside className="w-64 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0 bg-[var(--surface-2)]">
+    <div className="flex h-full min-h-0 relative">
+      {/* Dims the canvas behind the drawer, and closes it when tapped.
+          Only ever present on the sizes where the palette is a drawer. */}
+      {paletteOpen && (
+        <button
+          type="button"
+          aria-label="Close components"
+          onClick={() => setPaletteOpen(false)}
+          className="lg:hidden fixed inset-0 z-30 bg-black/50"
+        />
+      )}
+
+      {/* Palette: a column on a desktop, a drawer on a phone. */}
+      <aside
+        className={`w-64 border-r border-white/8 flex flex-col flex-shrink-0 min-h-0 bg-[var(--surface-2)] max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40 max-lg:shadow-2xl transition-transform duration-200 lg:translate-x-0 ${
+          paletteOpen ? "translate-x-0" : "max-lg:-translate-x-full"
+        }`}
+      >
         <div className="p-3 border-b border-white/8">
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-white/30 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -956,13 +999,16 @@ function Builder({
                     key={def.kind}
                     type="button"
                     draggable
+                    // Click also adds: dragging is fiddly on a trackpad and
+                    // impossible on touch. This used to drop the node at a
+                    // fixed coordinate, which lands off screen as soon as
+                    // the canvas has been panned anywhere — tapToAdd uses
+                    // the middle of whatever is actually in view.
+                    onClick={() => tapToAdd(def.kind)}
                     onDragStart={(e) => {
                       e.dataTransfer.setData("application/neura-node", def.kind);
                       e.dataTransfer.effectAllowed = "move";
                     }}
-                    // Click also adds, dropped near the middle: dragging is
-                    // fiddly on a trackpad and this is the same action.
-                    onClick={() => addNode(def.kind, { x: 260 + Math.random() * 120, y: 120 + Math.random() * 200 })}
                     className="group w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl border border-white/8 bg-white/3 hover:border-white/20 hover:bg-white/[0.07] transition-colors text-left cursor-grab active:cursor-grabbing"
                     title={def.description}
                   >
@@ -998,6 +1044,15 @@ function Builder({
       {/* Canvas */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <header className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/8 flex-shrink-0">
+          {/* The only way to reach the palette once it is a drawer. */}
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="lg:hidden btn-quiet btn-compact text-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Components
+          </button>
           <input
             className="bg-white/4 border border-white/10 rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:outline-none focus:border-accent/40 min-w-0"
             value={name}
@@ -1091,10 +1146,13 @@ function Builder({
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="color-mix(in oklab, var(--color-white) 16%, transparent)" />
             <Controls className="!bg-[var(--surface-1)] !border !border-white/10 [&_button]:!bg-transparent [&_button]:!border-white/10 [&_button]:!fill-white/60" />
+            {/* Hidden on a phone: it covers a corner of a canvas that is
+                already small, and panning a map of a map is nobody's idea
+                of a feature. */}
             <MiniMap
               pannable
               zoomable
-              className="!bg-[var(--surface-1)] !border !border-white/10"
+              className="!hidden lg:!block !bg-[var(--surface-1)] !border !border-white/10"
               nodeColor={(n) => nodeDef((n.data as NodeData).kind)?.accent ?? "#ffffff30"}
               maskColor="color-mix(in oklab, var(--app-bg) 60%, transparent)"
             />
