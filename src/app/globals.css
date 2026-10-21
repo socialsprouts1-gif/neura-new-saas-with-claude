@@ -930,3 +930,44 @@ html {
 body:has(.marketing) {
   background: #FDFBFF;
 }
+
+/* Phones
+   ======================================================================
+   Written after watching a screen recording of the dashboard on an
+   iPhone, where the page was zoomed in and scrolled sideways into empty
+   black space. */
+
+/* The reason the page was zoomed.
+   ----------------------------------------------------------------------
+   iOS Safari zooms the whole document when a text field smaller than 16px
+   is focused — and it does not zoom back out when the field is blurred.
+   The app's --text-sm is 15px and 253 form controls use it or smaller, so
+   tapping any search box, any name field, anywhere, left the viewport
+   wider than the screen and the layout apparently broken.
+   
+   16px here rather than editing 253 call sites, because the rule is about
+   the device and not about any one field. Desktop keeps the smaller type:
+   the problem does not exist there, and 16px inputs in a dense admin
+   table look like a form built for a toddler. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Nothing in the product area may widen the page.
+   ----------------------------------------------------------------------
+   Tables are wrapped in their own scrollers, which is right — a wide
+   table should scroll inside its card. But a flex or grid child defaults
+   to min-width:auto, so one that forgets `min-w-0` grows to fit its
+   contents instead of letting the scroller do its job, and the whole
+   screen slides sideways. This is the backstop for the one that gets
+   missed. */
+@media (max-width: 1023px) {
+  main > * {
+    max-width: 100%;
+    min-width: 0;
+  }
+}
