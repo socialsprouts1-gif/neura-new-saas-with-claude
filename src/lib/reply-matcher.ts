@@ -241,6 +241,36 @@ export const HANDOFF_REPLY =
   "Got it — I'm passing this to a team member. Someone will reply here shortly.";
 
 /**
+ * Whatever is pinned to this number, before whatever answers on any of them.
+ *
+ * Both kinds arrive together: the query asks for rows pinned to this
+ * number OR pinned to none, because "any number" is what everything
+ * created before numbers existed means. Which of them then answers was
+ * decided by whichever the database happened to hand back first — by
+ * age for assistants, and by nothing at all for chatbots, where Postgres
+ * is free to return a different order on any given call.
+ *
+ * That is wrong in a way nobody would report as a bug, because it looks
+ * like it works: a workspace with one catch-all assistant and a second
+ * pinned to a particular number gets the catch-all on that number, every
+ * time, purely because it was created first. Pinning something to a
+ * number is the operator saying "this one, here", so it wins.
+ *
+ * Age is the tie-break only once specificity has had its say — not
+ * because the oldest deserves it, but because two things claiming the
+ * same number need *some* stable answer, and one that changes between
+ * two messages from the same customer is the worst of the options.
+ */
+function bySpecificity<T extends { connection_id?: string | null; created_at?: string }>(
+  rows: readonly T[]
+): T[] {
+  const pinned = (row: T) => (row.connection_id ? 0 : 1);
+  return [...rows].sort(
+    (a, b) => pinned(a) - pinned(b) || (a.created_at ?? "").localeCompare(b.created_at ?? "")
+  );
+}
+
+/**
  * Picks what to reply with, in priority order:
  *
  *   1. an explicit request for a human           (handoff)
@@ -257,12 +287,14 @@ export const HANDOFF_REPLY =
  */
 export function planReply(inbound: InboundText, resources: RunnerResources): ReplyPlan {
   const text = normalise(inbound.text);
-  const activeFlows = resources.flows.filter((flow) => flow.is_active);
+  // Ordered here rather than in the query, so no caller can skip it.
+  const activeFlows = bySpecificity(resources.flows.filter((flow) => flow.is_active));
+  const assistants = bySpecificity(resources.assistants);
 
   if (text) {
     // 1. Handoff — checked before anything else so "talk to a human" is
     // never answered by the very bot the customer is trying to escape.
-    for (const assistant of resources.assistants) {
+    for (const assistant of assistants) {
       const keyword = assistant.handoff_keywords.find((word) => containsKeyword(text, word));
       if (keyword) {
         return {
@@ -307,10 +339,11 @@ export function planReply(inbound: InboundText, resources: RunnerResources): Rep
   }
 
   if (text) {
-    // 5. FAQ knowledge base — best scoring entry wins.
+    // 5. FAQ knowledge base — best scoring entry wins, and where two
+    // score the same the one pinned to this number takes it.
     let bestFaq: FaqEntry | null = null;
     let bestScore = 0;
-    for (const faq of resources.faqs) {
+    for (const faq of bySpecificity(resources.faqs)) {
       if (!faq.is_active) continue;
       const score = scoreFaq(text, faq);
       if (score > bestScore) {
@@ -323,7 +356,7 @@ export function planReply(inbound: InboundText, resources: RunnerResources): Rep
     }
 
     // 6. Keyword automations.
-    for (const automation of resources.automations) {
+    for (const automation of bySpecificity(resources.automations)) {
       if (!automation.is_active || automation.trigger_type !== "keyword") continue;
 
       const keyword = automation.trigger_config?.keyword;
@@ -336,7 +369,7 @@ export function planReply(inbound: InboundText, resources: RunnerResources): Rep
     }
 
     // 7. The AI assistant.
-    const assistant = resources.assistants.find((candidate) => candidate.is_active);
+    const assistant = assistants.find((candidate) => candidate.is_active);
     if (assistant) {
       return { kind: "assistant", id: assistant.id, label: assistant.name };
     }

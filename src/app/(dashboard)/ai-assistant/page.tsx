@@ -3,6 +3,7 @@ import { requireFeature } from "@/lib/org";
 import { listActiveConnections, optionLabel } from "@/lib/connections";
 import { HeroHeader, EmptyState } from "@/components/ui/primitives";
 import AssistantTable, { type AssistantRow } from "./AssistantTable";
+import NumberConflicts from "../_components/NumberConflicts";
 import type { AiAssistant } from "@/types/portal";
 
 export default async function AiAssistantPage() {
@@ -42,6 +43,18 @@ export default async function AiAssistantPage() {
           { label: "Switched on", value: assistants.filter((row) => row.is_active).length },
           { label: numbers.length === 1 ? "Number" : "Numbers", value: numbers.length },
         ]}
+      />
+
+      <NumberConflicts
+        noun="assistant"
+        numbers={numbers}
+        rows={((data ?? []) as AiAssistant[]).map((row) => ({
+          id: row.id,
+          name: row.name,
+          connectionId: row.connection_id,
+          createdAt: row.created_at,
+          isActive: row.is_active,
+        }))}
       />
 
       {error ? (

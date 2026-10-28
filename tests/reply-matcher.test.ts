@@ -569,3 +569,81 @@ test("an empty list is treated as no restriction, not as nothing", () => {
   const node = { id: "t", kind: "on_message", data: { phoneNumbers: [] } } as unknown as FlowNode;
   assert.equal(triggerListensOn(node, "conn-a"), true);
 });
+
+// --- two automations claiming one number ----------------------------------
+//
+// The screenshot that prompted these: five assistants, four switched on,
+// two of them on the same number and two more on "any number". Exactly
+// one answers, and which one must not be an accident of insertion order.
+
+test("an assistant pinned to the number beats an older catch-all", () => {
+  const plan = planReply(
+    { text: "do you have two bedroom flats" },
+    resources({
+      assistants: [
+        // Created first, answers on every number — and used to win.
+        assistant({ id: "catch-all", name: "neuraxie", connection_id: null, created_at: "2026-01-01T00:00:00Z" }),
+        assistant({ id: "pinned", name: "real estate", connection_id: "num-1", created_at: "2026-06-01T00:00:00Z" }),
+      ],
+    })
+  );
+  assert.equal(plan.kind, "assistant");
+  assert.equal(plan.kind === "assistant" && plan.id, "pinned");
+});
+
+test("two assistants on the same number pick the same one every time", () => {
+  // Not that the oldest deserves it — but an answer that changes between
+  // two messages from one customer is the worst of the options.
+  const both = [
+    assistant({ id: "artitech", name: "artitech", connection_id: "num-1", created_at: "2026-06-02T00:00:00Z" }),
+    assistant({ id: "real-estate", name: "real estate", connection_id: "num-1", created_at: "2026-06-01T00:00:00Z" }),
+  ];
+  for (const order of [both, [...both].reverse()]) {
+    const plan = planReply({ text: "hello there" }, resources({ assistants: order }));
+    assert.equal(plan.kind === "assistant" && plan.id, "real-estate");
+  }
+});
+
+test("a paused assistant never answers, however specific it is", () => {
+  const plan = planReply(
+    { text: "hello there" },
+    resources({
+      assistants: [
+        assistant({ id: "paused", name: "neurachat", connection_id: "num-1", is_active: false }),
+        assistant({ id: "live", name: "neuraxie", connection_id: null }),
+      ],
+    })
+  );
+  assert.equal(plan.kind === "assistant" && plan.id, "live");
+});
+
+test("a chatbot still beats the assistant, pinned or not", () => {
+  // The whole point of the order: wording the business wrote itself wins
+  // over anything generated.
+  const plan = planReply(
+    { text: "hi" },
+    resources({
+      flows: [flow({ id: "bot", name: "Welcome bot", trigger_type: "keyword", trigger_value: "hi",
+        nodes: [node({ id: "n1", body: "Hello from the bot" })] })],
+      assistants: [assistant({ id: "pinned", name: "real estate", connection_id: "num-1" })],
+    })
+  );
+  assert.equal(plan.kind, "chatbot");
+});
+
+test("a chatbot pinned to the number beats a catch-all on the same keyword", () => {
+  const plan = planReply(
+    { text: "property" },
+    resources({
+      flows: [
+        flow({ id: "any", name: "Generic", trigger_type: "keyword", trigger_value: "property",
+          connection_id: null, created_at: "2026-01-01T00:00:00Z",
+          nodes: [node({ id: "a", body: "generic" })] }),
+        flow({ id: "pinned", name: "Prime Properties", trigger_type: "keyword", trigger_value: "property",
+          connection_id: "num-1", created_at: "2026-06-01T00:00:00Z",
+          nodes: [node({ id: "b", body: "pinned" })] }),
+      ],
+    })
+  );
+  assert.equal(plan.kind === "chatbot" && plan.id, "pinned");
+});
