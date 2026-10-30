@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import BrandMark from "@/components/ui/BrandMark";
 import type { AppBrand } from "@/lib/app-brand";
 import { pathAllowed } from "@/lib/features";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Bell,
   BookOpen,
@@ -34,6 +34,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 
 // The navigation, in the order the product presents it. One heading, then
 // a flat list in which Leads, Manage and Invoice expand in place. Anything
@@ -47,7 +48,15 @@ interface NavChild {
 }
 
 interface NavItem {
-  icon: typeof LayoutDashboard;
+  /**
+   * Any component that takes a className, not a Lucide icon specifically.
+   *
+   * Lucide dropped its brand marks, so the Instagram entry uses the
+   * hand-drawn glyph the landing page already had. Both are rendered the
+   * same way and the only thing the sidebar needs of either is that it
+   * accepts the sizing class.
+   */
+  icon: (props: { className?: string }) => ReactNode;
   label: string;
   href: string;
   soon?: boolean;
@@ -120,6 +129,7 @@ const MAIN: NavItem[] = [
   { icon: Truck, label: "Shipments", href: "/shipments", needsCourier: true },
   { icon: Wallet, label: "WA Pay", href: "/wa-pay" },
   { icon: ImageIcon, label: "Gallery", href: "/gallery" },
+  { icon: InstagramGlyph, label: "Instagram", href: "/instagram" },
   { icon: HelpCircle, label: "FAQ Bot", href: "/faq-bot" },
   { icon: Bot, label: "Chatbot", href: "/chatbot" },
   { icon: Sparkles, label: "AI Assistant", href: "/ai-assistant" },
@@ -360,7 +370,7 @@ function SoonRow({
   icon: Icon,
 }: {
   label: string;
-  icon?: typeof LayoutDashboard;
+  icon?: (props: { className?: string }) => ReactNode;
 }) {
   return (
     <div

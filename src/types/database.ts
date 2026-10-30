@@ -239,6 +239,118 @@ export interface Database {
         Update: { event?: string };
         Relationships: [];
       };
+      instagram_connections: {
+        Row: {
+          id: string;
+          org_id: string;
+          ig_user_id: string;
+          username: string | null;
+          account_name: string | null;
+          profile_picture_url: string | null;
+          access_token_encrypted: string;
+          token_expires_at: string | null;
+          webhook_verify_token: string;
+          status: string;
+          is_default: boolean;
+          last_error: string | null;
+          last_error_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          ig_user_id: string;
+          username?: string | null;
+          account_name?: string | null;
+          profile_picture_url?: string | null;
+          access_token_encrypted: string;
+          token_expires_at?: string | null;
+          webhook_verify_token: string;
+          status?: string;
+          is_default?: boolean;
+        };
+        Update: {
+          username?: string | null;
+          account_name?: string | null;
+          profile_picture_url?: string | null;
+          access_token_encrypted?: string;
+          token_expires_at?: string | null;
+          status?: string;
+          is_default?: boolean;
+          last_error?: string | null;
+          last_error_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      instagram_comment_rules: {
+        Row: {
+          id: string;
+          org_id: string;
+          connection_id: string | null;
+          name: string;
+          keywords: string[];
+          media_id: string | null;
+          dm_message: string | null;
+          public_reply: string | null;
+          is_active: boolean;
+          sent_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          connection_id?: string | null;
+          name: string;
+          keywords?: string[];
+          media_id?: string | null;
+          dm_message?: string | null;
+          public_reply?: string | null;
+          is_active?: boolean;
+        };
+        Update: {
+          connection_id?: string | null;
+          name?: string;
+          keywords?: string[];
+          media_id?: string | null;
+          dm_message?: string | null;
+          public_reply?: string | null;
+          is_active?: boolean;
+          sent_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      instagram_comment_events: {
+        Row: {
+          id: string;
+          org_id: string;
+          connection_id: string | null;
+          rule_id: string | null;
+          comment_id: string;
+          media_id: string | null;
+          from_username: string | null;
+          comment_text: string | null;
+          outcome: string;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          org_id: string;
+          connection_id?: string | null;
+          rule_id?: string | null;
+          comment_id: string;
+          media_id?: string | null;
+          from_username?: string | null;
+          comment_text?: string | null;
+          outcome: string;
+          error?: string | null;
+        };
+        Update: { outcome?: string; error?: string | null };
+        Relationships: [];
+      };
       email_templates: {
         Row: {
           id: string;

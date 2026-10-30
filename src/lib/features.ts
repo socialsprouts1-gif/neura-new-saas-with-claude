@@ -189,6 +189,13 @@ export const FEATURES: readonly FeatureDef[] = [
     paths: ["/ai-assistant"],
   },
   {
+    key: "instagram",
+    label: "Instagram",
+    group: "Automation",
+    description: "Instagram direct messages and comment-to-DM automation.",
+    paths: ["/instagram"],
+  },
+  {
     key: "faq_bot",
     label: "FAQ Bot",
     group: "Automation",

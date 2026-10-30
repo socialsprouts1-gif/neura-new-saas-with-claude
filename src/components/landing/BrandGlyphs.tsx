@@ -23,6 +23,34 @@ export function WhatsAppGlyph({ className = "w-5 h-5" }: GlyphProps) {
   );
 }
 
+/**
+ * Instagram's rounded square, lens and flash.
+ *
+ * Stroked rather than filled, unlike the others here: the real mark is an
+ * outline, and a solid silhouette of it reads as a generic camera icon at
+ * the 20px it sits at in the sidebar.
+ */
+export function InstagramGlyph({ className = "w-5 h-5" }: GlyphProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="2.5" width="19" height="19" rx="5.4" />
+      <circle cx="12" cy="12" r="4.1" />
+      {/* The flash. A dot rather than a tiny circle — at 20px an outlined
+          one closes up into a smudge. */}
+      <circle cx="17.4" cy="6.6" r="1.15" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 /** Shopify's shopping bag. */
 export function ShopifyGlyph({ className = "w-5 h-5" }: GlyphProps) {
   return (
