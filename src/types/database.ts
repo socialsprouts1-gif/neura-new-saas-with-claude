@@ -348,7 +348,7 @@ export interface Database {
           outcome: string;
           error?: string | null;
         };
-        Update: { outcome?: string; error?: string | null };
+        Update: { outcome?: string; error?: string | null; rule_id?: string | null };
         Relationships: [];
       };
       email_templates: {

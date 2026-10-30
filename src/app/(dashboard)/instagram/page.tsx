@@ -24,6 +24,7 @@ export default async function InstagramPage() {
   const env = instagramEnv();
   const configured = !("error" in env);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://neurachat.in";
+  const verifyTokenSet = Boolean(process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN);
 
   const { data: connections, error } = await supabase
     .from("instagram_connections")
@@ -117,6 +118,63 @@ export default async function InstagramPage() {
           </div>
         </Card>
       )}
+
+      {/* --- the webhook ------------------------------------------------ */}
+      <Card className="mb-6">
+        <h2 className="font-semibold mb-1">Webhook</h2>
+        <p className="text-sm text-white/50 mb-5 leading-relaxed">
+          Under <span className="text-white/75">Instagram → API setup → Configure webhooks</span>.
+          One URL covers every customer — Instagram subscribes the app, not each account.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <div className="text-xs font-medium text-white/70 mb-1.5">Callback URL</div>
+            <code className="block px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-white/10 text-[12.5px] text-accent-ink break-all">
+              {`${appUrl.replace(/\/+$/, "")}/api/webhooks/instagram`}
+            </code>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-white/70 mb-1.5">Verify token</div>
+            <p className="text-[12.5px] text-white/50 leading-relaxed">
+              {verifyTokenSet ? (
+                <>
+                  Already set on this deployment as{" "}
+                  <code className="text-white/70">INSTAGRAM_WEBHOOK_VERIFY_TOKEN</code>. Paste the
+                  same value into Meta — they have to match exactly or the handshake is refused.
+                </>
+              ) : (
+                <>
+                  Make one up — any random string will do. Set it in Vercel as{" "}
+                  <code className="text-white/70">INSTAGRAM_WEBHOOK_VERIFY_TOKEN</code>, redeploy,
+                  then paste the same value into Meta. It is only there to prove the subscription
+                  request came from you.
+                </>
+              )}
+            </p>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-white/70 mb-1.5">Subscribe to these fields</div>
+            <div className="flex flex-wrap gap-1.5">
+              {["comments", "messages"].map((field) => (
+                <code
+                  key={field}
+                  className="px-2 py-0.5 rounded-lg border border-white/10 bg-white/4 text-[11.5px] text-white/60"
+                >
+                  {field}
+                </code>
+              ))}
+            </div>
+            <p className="text-[12px] text-white/35 mt-2 leading-relaxed">
+              Meta only delivers webhooks when the app mode is <span className="text-white/60">Live</span>.
+              In Development mode the handshake succeeds and nothing ever arrives, which looks
+              exactly like a broken endpoint.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* --- the accounts ----------------------------------------------- */}
       <Card>
