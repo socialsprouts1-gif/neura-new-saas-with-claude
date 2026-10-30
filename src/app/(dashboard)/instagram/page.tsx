@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
-import { HeroHeader, Card, Badge, EmptyState } from "@/components/ui/primitives";
+import { HeroHeader, Card, Badge, EmptyState, type Tone } from "@/components/ui/primitives";
 import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
-import { formatDate } from "@/types/admin";
+import { formatDate, formatDateTime } from "@/types/admin";
 import { CheckCircle2 } from "lucide-react";
+import CommentRules, { type RuleRow } from "./CommentRules";
 
 // Instagram: the account, and what it is allowed to do.
 //
@@ -16,6 +17,23 @@ import { CheckCircle2 } from "lucide-react";
 // making them ask for it is a day of waiting for a string.
 
 export const dynamic = "force-dynamic";
+
+// The webhook writes these; the screen has to say them in English.
+const OUTCOME_LABEL: Record<string, string> = {
+  matching: "in progress",
+  no_rule: "no rule matched",
+  sent: "answered",
+  sent_with_errors: "partly sent",
+  failed: "failed",
+};
+
+const OUTCOME_TONE: Record<string, Tone> = {
+  matching: "grey",
+  no_rule: "grey",
+  sent: "green",
+  sent_with_errors: "amber",
+  failed: "red",
+};
 
 export default async function InstagramPage() {
   const { orgId } = await requireFeature("instagram");
@@ -34,6 +52,26 @@ export default async function InstagramPage() {
 
   const needsMigration = error?.code === "42P01";
   const accounts = connections ?? [];
+
+  // Rules and the log are fetched together: a rule with a tally of zero
+  // next to a log full of "no rule matched" is the whole diagnosis, and
+  // splitting them across two screens hides it.
+  const [{ data: ruleRows }, { data: eventRows }] = await Promise.all([
+    supabase
+      .from("instagram_comment_rules")
+      .select("id, name, keywords, media_id, dm_message, public_reply, is_active, sent_count")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("instagram_comment_events")
+      .select("id, from_username, comment_text, outcome, error, created_at")
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(12),
+  ]);
+
+  const rules: RuleRow[] = (ruleRows ?? []) as RuleRow[];
+  const events = eventRows ?? [];
 
   return (
     <div className="p-6 md:p-8">
@@ -234,6 +272,51 @@ export default async function InstagramPage() {
           </div>
         )}
       </Card>
+
+      {/* --- the rules -------------------------------------------------- */}
+      <Card className="mt-6">
+        <CommentRules rules={rules} connectionId={null} />
+      </Card>
+
+      {/* --- what actually happened ------------------------------------- */}
+      {events.length > 0 && (
+        <Card className="mt-6">
+          <h2 className="font-semibold mb-1">Recent comments</h2>
+          <p className="text-sm text-white/50 mb-5 leading-relaxed">
+            Every comment the webhook delivered, and what came of it. A run of{" "}
+            <span className="text-white/70">no rule matched</span> means the words in the rule and
+            the words people actually use are not the same.
+          </p>
+
+          <div className="divide-y divide-white/6">
+            {events.map((event) => (
+              <div key={event.id} className="flex flex-wrap items-start gap-3 py-3 first:pt-0">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm truncate">
+                    <span className="text-white/75">
+                      {event.from_username ? `@${event.from_username}` : "Someone"}
+                    </span>
+                    {event.comment_text ? (
+                      <span className="text-white/45"> — {event.comment_text}</span>
+                    ) : null}
+                  </div>
+                  <div className="text-[12px] text-white/35 mt-0.5">
+                    {formatDateTime(event.created_at)}
+                  </div>
+                  {event.error && (
+                    <div className="text-[12px] text-[#F87171] mt-1 leading-relaxed">
+                      {event.error}
+                    </div>
+                  )}
+                </div>
+                <Badge tone={OUTCOME_TONE[event.outcome] ?? "grey"}>
+                  {OUTCOME_LABEL[event.outcome] ?? event.outcome}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

@@ -74,11 +74,17 @@ export async function handleComment(
       .eq("comment_id", comment.commentId);
   };
 
+  // A rule with no connection covers every account the workspace has
+  // connected; one with a connection covers only that account. Filtered
+  // here rather than after fetching, because the column is pointless if
+  // the send path ignores it — a rule written for one account would
+  // quietly answer comments on another.
   const { data: rows } = await admin
     .from("instagram_comment_rules")
     .select("id, name, keywords, media_id, dm_message, public_reply, is_active")
     .eq("org_id", connection.org_id)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .or(`connection_id.is.null,connection_id.eq.${connection.id}`);
 
   const rules: CommentRule[] = (rows ?? []).map((row) => ({
     id: row.id,
