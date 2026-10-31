@@ -99,6 +99,31 @@ export interface CommentRule {
   dmMessage: string | null;
   publicReply: string | null;
   isActive: boolean;
+  /** Up to three, already rewritten to their tracked form. */
+  buttons?: AutomationButton[];
+  /** Ask for a follow before sending the real message. */
+  followGate?: boolean;
+  followGateMessage?: string | null;
+  /** Ask for an email address once the message has gone out. */
+  askEmail?: boolean;
+  askEmailMessage?: string | null;
+}
+
+/** What the follow gate says when nobody has written their own. */
+export const DEFAULT_FOLLOW_GATE =
+  "Almost there! Follow the account and tap the button below and I'll send it straight over 💛";
+
+/** What the email prompt says when nobody has written their own. */
+export const DEFAULT_EMAIL_PROMPT =
+  "Want me to email this to you as well? Just reply with your email address.";
+
+/** The payload a follow-gate button carries back to the webhook. */
+export function followPayload(ruleId: string): string {
+  return `follow:${ruleId}`;
+}
+
+export function ruleFromPayload(payload: string): string | null {
+  return payload.startsWith("follow:") ? payload.slice("follow:".length) || null : null;
 }
 
 export interface Comment {
@@ -267,5 +292,124 @@ export function parseDirectMessage(entry: {
     });
   }
 
+  return out;
+}
+
+// --- buttons --------------------------------------------------------
+//
+// Instagram allows three, each with a title of at most 20 characters.
+// Both limits are refusals rather than truncations at their end, so a
+// message with a 21-character button simply never arrives — which looks
+// like the automation not firing.
+
+export const MAX_BUTTONS = 3;
+export const BUTTON_TITLE_LIMIT = 20;
+
+export interface AutomationButton {
+  label: string;
+  url: string;
+}
+
+export function buttonProblem(buttons: readonly AutomationButton[]): string | null {
+  if (buttons.length > MAX_BUTTONS) {
+    return `Instagram allows ${MAX_BUTTONS} buttons on a message. Remove ${buttons.length - MAX_BUTTONS}.`;
+  }
+
+  for (const button of buttons) {
+    const label = button.label.trim();
+    if (!label) return "A button needs a label.";
+    if (label.length > BUTTON_TITLE_LIMIT) {
+      return `“${label}” is ${label.length} characters. Instagram cuts button labels off at ${BUTTON_TITLE_LIMIT}, and refuses the whole message rather than shortening it.`;
+    }
+    if (!isSendableUrl(button.url)) {
+      return `“${label}” needs a web address starting with https://`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Instagram opens button links in its in-app browser and refuses
+ * anything that is not http(s) — including the mailto: and tel: links
+ * people reach for first.
+ */
+export function isSendableUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The tracked form of a button's link.
+ *
+ * Instagram reports nothing when a web link is tapped, so a counted link
+ * has to go through here first. The id is in the path rather than a
+ * query string because Instagram's in-app browser has been known to drop
+ * query strings on some redirects.
+ */
+export function trackedUrl(appUrl: string, linkId: string): string {
+  return `${appUrl.replace(/\/+$/, "")}/l/${linkId}`;
+}
+
+/**
+ * A short, unguessable id for a tracked link.
+ *
+ * It arrives in a stranger's DM, so a sequential one would invite
+ * walking the list and reading other people's campaigns.
+ */
+export function linkId(random: () => number = Math.random): string {
+  // No l, o, 0 or 1: an id glanced at on a phone screen should not be
+  // ambiguous, and dropping four characters costs nothing here.
+  const alphabet = "abcdefghijkmnpqrstuvwxyz23456789";
+  let out = "";
+  for (let i = 0; i < 10; i += 1) {
+    out += alphabet[Math.floor(random() * alphabet.length)];
+  }
+  return out;
+}
+
+// --- email capture --------------------------------------------------
+
+const EMAIL = /[^\s@]+@[^\s@.]+\.[^\s@]{2,}/u;
+
+/**
+ * An email address somewhere in what the person typed.
+ *
+ * Matched loosely and inside a longer sentence, because "sure, it's
+ * me@example.com" is what people actually send when asked. Lowercased,
+ * since Instagram keyboards capitalise the first letter and an address
+ * that differs only in case is the same address.
+ */
+export function emailIn(text: string): string | null {
+  const found = text.match(EMAIL);
+  return found ? found[0].toLowerCase().replace(/[.,;:]+$/, "") : null;
+}
+
+/**
+ * A tapped postback button, out of a messaging event.
+ *
+ * Instagram puts these in the same `messaging` array as messages, which
+ * is why the message parser has to skip them and this has to exist: a
+ * postback has no `message`, so a parser looking only for text drops the
+ * tap silently and the follow gate never opens.
+ */
+export interface Postback {
+  personId: string;
+  payload: string;
+}
+
+export function parsePostbacks(entry: {
+  messaging?: Record<string, unknown>[];
+}): Postback[] {
+  const out: Postback[] = [];
+  for (const item of entry.messaging ?? []) {
+    const postback = item.postback as { payload?: string } | undefined;
+    const sender = item.sender as { id?: string } | undefined;
+    if (!postback?.payload || !sender?.id) continue;
+    out.push({ personId: sender.id, payload: postback.payload });
+  }
   return out;
 }

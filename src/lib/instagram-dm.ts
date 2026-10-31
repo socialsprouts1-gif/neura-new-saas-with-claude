@@ -2,7 +2,16 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { sendDirectMessage } from "@/lib/instagram-api";
-import { withinMessagingWindow, type DirectMessage } from "@/lib/instagram";
+import { emailIn, mentions, withinMessagingWindow, type DirectMessage } from "@/lib/instagram";
+import {
+  asLoadedRule,
+  bump,
+  rememberPending,
+  RULE_COLUMNS,
+  sendEmailPrompt,
+  sendFollowGate,
+  sendRuleMessage,
+} from "@/lib/instagram-deliver";
 import { planReply, type RunnerResources } from "@/lib/reply-matcher";
 import { generateAssistantReply, type AssistantTurn } from "@/lib/ai-assistant";
 import type { AiAssistant, AssistantKnowledge, ChatbotFlow, FaqEntry } from "@/types/portal";
@@ -75,6 +84,15 @@ export async function handleDirectMessage(
     .update({ last_inbound_at: receivedAt, last_message_at: receivedAt })
     .eq("id", conversation.id);
 
+  // An email address the automation asked for. Caught before anything
+  // else answers, because "sure, it's me@example.com" would otherwise
+  // fall through to the FAQ and get a shrug.
+  const address = emailIn(message.text);
+  if (address) {
+    await admin.from("contacts").update({ email: address }).eq("id", contact.id);
+    await countEmailFor(admin, orgId, message.fromId);
+  }
+
   if (!conversation.bot_enabled) return;
 
   // Checked before composing anything. Outside the window Instagram
@@ -82,6 +100,11 @@ export async function handleDirectMessage(
   // WhatsApp — so the only honest outcome is to leave it for a human,
   // which is what the inbox is for.
   if (!withinMessagingWindow(receivedAt)) return;
+
+  // A keyword automation written for direct messages. Checked before
+  // the chatbots so an automation the person built on purpose beats a
+  // generic FAQ hit on the same word.
+  if (await runDirectAutomation(admin, connection, message, orgId)) return;
 
   const resources = await loadResources(admin, orgId, conversation.id, {
     flowId: conversation.bot_flow_id,
@@ -332,4 +355,91 @@ async function loadHistory(
       text: typeof row.content?.text === "string" ? row.content.text : "",
     }))
     .filter((turn) => turn.text.trim());
+}
+
+
+/**
+ * A DM-triggered automation, if one matches.
+ *
+ * Returns true when it handled the message, so the chatbots do not then
+ * answer the same message a second time.
+ */
+async function runDirectAutomation(
+  admin: ReturnType<typeof createAdminClient>,
+  connection: { id: string; org_id: string; ig_user_id: string; access_token_encrypted: string },
+  message: DirectMessage,
+  orgId: string
+): Promise<boolean> {
+  const { data: rows } = await admin
+    .from("instagram_comment_rules")
+    .select(RULE_COLUMNS)
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .eq("trigger_type", "dm")
+    .or(`connection_id.is.null,connection_id.eq.${connection.id}`);
+
+  const match = (rows ?? []).find((row) => {
+    const keywords = row.keywords ?? [];
+    return keywords.length === 0 || keywords.some((word) => mentions(message.text, word));
+  });
+  if (!match) return false;
+
+  const rule = asLoadedRule(match as Parameters<typeof asLoadedRule>[0]);
+  const token = decryptToken(connection.access_token_encrypted);
+  await bump(admin, rule.id, "run_count");
+
+  const outcome = rule.followGate
+    ? await sendFollowGate({ connection, rule, recipient: { id: message.fromId }, token })
+    : await sendRuleMessage({ connection, rule, recipient: { id: message.fromId }, token });
+
+  await admin.from("instagram_comment_events").insert({
+    org_id: orgId,
+    connection_id: connection.id,
+    rule_id: rule.id,
+    kind: "dm",
+    ig_user_id: message.fromId,
+    comment_text: message.text.slice(0, 2000),
+    outcome: outcome.ok ? "sent" : "failed",
+    error: outcome.ok ? null : outcome.error,
+  });
+
+  if (!outcome.ok) return true;
+
+  await bump(admin, rule.id, "sent_count");
+  if (rule.followGate) {
+    await rememberPending(admin, {
+      orgId,
+      connectionId: connection.id,
+      ruleId: rule.id,
+      igUserId: message.fromId,
+    });
+  } else {
+    await sendEmailPrompt({ connection, rule, personId: message.fromId, token });
+  }
+  return true;
+}
+
+/**
+ * Credits the automation that asked for the address.
+ *
+ * The person is answering a prompt sent some time ago, and the only
+ * link back to which automation asked is the log — so the most recent
+ * one that sent them something is the one that gets the count.
+ */
+async function countEmailFor(
+  admin: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  igUserId: string
+): Promise<void> {
+  const { data } = await admin
+    .from("instagram_comment_events")
+    .select("rule_id")
+    .eq("org_id", orgId)
+    .eq("ig_user_id", igUserId)
+    .eq("outcome", "sent")
+    .not("rule_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (data?.rule_id) await bump(admin, data.rule_id, "email_count");
 }

@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/org";
-import { HeroHeader, Card, Badge, EmptyState, type Tone } from "@/components/ui/primitives";
+import { HeroHeader, Card, Badge, EmptyState, StatCard, type Tone } from "@/components/ui/primitives";
 import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
 import { formatDate, formatDateTime } from "@/types/admin";
 import { CheckCircle2 } from "lucide-react";
-import CommentRules, { type RuleRow } from "./CommentRules";
+import Automations from "./Automations";
+import type { AutomationRow } from "./AutomationEditor";
+import { Send, MousePointerClick, UserPlus, Mail } from "lucide-react";
 
 // Instagram: the account, and what it is allowed to do.
 //
@@ -59,19 +61,29 @@ export default async function InstagramPage() {
   const [{ data: ruleRows }, { data: eventRows }] = await Promise.all([
     supabase
       .from("instagram_comment_rules")
-      .select("id, name, keywords, media_id, dm_message, public_reply, is_active, sent_count")
+      .select("*")
       .eq("org_id", orgId)
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: false }),
     supabase
       .from("instagram_comment_events")
-      .select("id, from_username, comment_text, outcome, error, created_at")
+      .select("id, from_username, comment_text, outcome, error, kind, created_at")
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(12),
   ]);
 
-  const rules: RuleRow[] = (ruleRows ?? []) as RuleRow[];
+  const rules: AutomationRow[] = ((ruleRows ?? []) as AutomationRow[]).map((row) => ({
+    ...row,
+    keywords: row.keywords ?? [],
+    buttons: Array.isArray(row.buttons) ? row.buttons : [],
+  }));
   const events = eventRows ?? [];
+
+  // Summed here rather than in the database. The rows are already on
+  // the page, and a second round trip to total twelve numbers is
+  // latency bought for nothing.
+  const total = (field: keyof AutomationRow) =>
+    rules.reduce((sum, rule) => sum + (Number(rule[field]) || 0), 0);
 
   return (
     <div className="p-6 md:p-8">
@@ -273,9 +285,28 @@ export default async function InstagramPage() {
         )}
       </Card>
 
-      {/* --- the rules -------------------------------------------------- */}
+      {/* --- what the automations have done ------------------------------ */}
+      {rules.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6">
+          <StatCard label="DMs sent" value={total("sent_count")} icon={Send} />
+          <StatCard
+            label="Button clicks"
+            value={total("button_click_count")}
+            icon={MousePointerClick}
+          />
+          <StatCard
+            label="Followers gained"
+            value={total("follower_gain_count")}
+            icon={UserPlus}
+            hint="Through a follow gate"
+          />
+          <StatCard label="Emails collected" value={total("email_count")} icon={Mail} />
+        </div>
+      )}
+
+      {/* --- the automations --------------------------------------------- */}
       <Card className="mt-6">
-        <CommentRules rules={rules} connectionId={null} />
+        <Automations rules={rules} accountId={accounts[0]?.id ?? null} appUrl={appUrl} />
       </Card>
 
       {/* --- what actually happened ------------------------------------- */}

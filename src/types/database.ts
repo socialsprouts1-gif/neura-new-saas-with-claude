@@ -296,6 +296,18 @@ export interface Database {
           public_reply: string | null;
           is_active: boolean;
           sent_count: number;
+          trigger_type: string;
+          buttons: { label: string; url: string }[];
+          follow_gate: boolean;
+          follow_gate_message: string | null;
+          ask_email: boolean;
+          ask_email_message: string | null;
+          media_thumbnail_url: string | null;
+          media_caption: string | null;
+          run_count: number;
+          button_click_count: number;
+          follower_gain_count: number;
+          email_count: number;
           created_at: string;
           updated_at: string;
         };
@@ -309,6 +321,18 @@ export interface Database {
           dm_message?: string | null;
           public_reply?: string | null;
           is_active?: boolean;
+          trigger_type?: string;
+          buttons?: { label: string; url: string }[];
+          follow_gate?: boolean;
+          follow_gate_message?: string | null;
+          ask_email?: boolean;
+          ask_email_message?: string | null;
+          media_thumbnail_url?: string | null;
+          media_caption?: string | null;
+          run_count?: number;
+          button_click_count?: number;
+          follower_gain_count?: number;
+          email_count?: number;
         };
         Update: {
           connection_id?: string | null;
@@ -319,7 +343,69 @@ export interface Database {
           public_reply?: string | null;
           is_active?: boolean;
           sent_count?: number;
+          trigger_type?: string;
+          buttons?: { label: string; url: string }[];
+          follow_gate?: boolean;
+          follow_gate_message?: string | null;
+          ask_email?: boolean;
+          ask_email_message?: string | null;
+          media_thumbnail_url?: string | null;
+          media_caption?: string | null;
+          run_count?: number;
+          button_click_count?: number;
+          follower_gain_count?: number;
+          email_count?: number;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      instagram_links: {
+        Row: {
+          id: string;
+          org_id: string;
+          rule_id: string | null;
+          label: string | null;
+          target_url: string;
+          click_count: number;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          org_id: string;
+          rule_id?: string | null;
+          label?: string | null;
+          target_url: string;
+          click_count?: number;
+        };
+        Update: {
+          label?: string | null;
+          target_url?: string;
+          click_count?: number;
+        };
+        Relationships: [];
+      };
+      instagram_pending_sends: {
+        Row: {
+          id: string;
+          org_id: string;
+          connection_id: string | null;
+          rule_id: string | null;
+          ig_user_id: string;
+          stage: string;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          org_id: string;
+          connection_id?: string | null;
+          rule_id?: string | null;
+          ig_user_id: string;
+          stage?: string;
+          expires_at?: string;
+        };
+        Update: {
+          stage?: string;
+          expires_at?: string;
         };
         Relationships: [];
       };
@@ -329,7 +415,9 @@ export interface Database {
           org_id: string;
           connection_id: string | null;
           rule_id: string | null;
-          comment_id: string;
+          comment_id: string | null;
+          kind: string;
+          ig_user_id: string | null;
           media_id: string | null;
           from_username: string | null;
           comment_text: string | null;
@@ -341,7 +429,9 @@ export interface Database {
           org_id: string;
           connection_id?: string | null;
           rule_id?: string | null;
-          comment_id: string;
+          comment_id?: string | null;
+          kind?: string;
+          ig_user_id?: string | null;
           media_id?: string | null;
           from_username?: string | null;
           comment_text?: string | null;
@@ -493,6 +583,7 @@ export interface Database {
           wa_id: string;
           ig_user_id: string | null;
           ig_username: string | null;
+          email: string | null;
           name: string | null;
           tags: string[];
           custom_fields: Record<string, string>;
@@ -516,6 +607,7 @@ export interface Database {
           wa_id: string;
           ig_user_id?: string | null;
           ig_username?: string | null;
+          email?: string | null;
           name?: string | null;
           tags?: string[];
           custom_fields?: Record<string, string>;

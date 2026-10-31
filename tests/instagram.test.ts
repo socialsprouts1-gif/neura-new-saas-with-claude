@@ -2,7 +2,11 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   authoriseUrl,
+  buttonProblem,
   credentialProblem,
+  emailIn,
+  isSendableUrl,
+  linkId,
   mentions,
   parseDirectMessage,
   withinMessagingWindow,
@@ -252,4 +256,69 @@ test("a contact who has never written has no open window", () => {
   // so "never" has to mean no, not "send and let Meta refuse it".
   assert.equal(withinMessagingWindow(null), false);
   assert.equal(withinMessagingWindow("not a date"), false);
+});
+
+// --- buttons ---------------------------------------------------------
+
+test("three buttons are fine and four are not", () => {
+  const ok = [
+    { label: "Price list", url: "https://neurachat.in/pricing" },
+    { label: "Book a call", url: "https://neurachat.in/book" },
+    { label: "WhatsApp us", url: "https://wa.me/919999999999" },
+  ];
+  assert.equal(buttonProblem(ok), null);
+  assert.match(buttonProblem([...ok, { label: "One more", url: "https://a.com" }])!, /Remove 1/);
+});
+
+test("a button label over 20 characters is refused, not trimmed", () => {
+  // Instagram refuses the whole message rather than shortening the
+  // label, so the automation looks like it never fired.
+  const problem = buttonProblem([
+    { label: "Click here for the full price list", url: "https://neurachat.in" },
+  ]);
+  assert.match(problem!, /20/);
+});
+
+test("a button needs a real web address", () => {
+  assert.ok(buttonProblem([{ label: "Email us", url: "mailto:hi@neurachat.in" }]));
+  assert.ok(buttonProblem([{ label: "Call", url: "tel:+919999999999" }]));
+  assert.ok(buttonProblem([{ label: "Site", url: "neurachat.in" }]));
+  assert.equal(buttonProblem([{ label: "Site", url: "https://neurachat.in" }]), null);
+});
+
+test("a blank label is caught before it reaches Instagram", () => {
+  assert.match(buttonProblem([{ label: "  ", url: "https://neurachat.in" }])!, /needs a label/);
+});
+
+test("only http and https are sendable", () => {
+  assert.equal(isSendableUrl("https://neurachat.in"), true);
+  assert.equal(isSendableUrl("http://neurachat.in"), true);
+  assert.equal(isSendableUrl("javascript:alert(1)"), false);
+  assert.equal(isSendableUrl("ftp://files.example.com"), false);
+});
+
+test("a link id is unguessable and url-safe", () => {
+  const id = linkId();
+  assert.equal(id.length, 10);
+  assert.match(id, /^[a-z2-9]+$/);
+  // No lookalikes: an id read off a phone screen must not be ambiguous.
+  assert.ok(!/[l1o0]/.test(id));
+});
+
+// --- email capture ---------------------------------------------------
+
+test("an email is found inside a normal sentence", () => {
+  assert.equal(emailIn("sure, it's me@example.com thanks!"), "me@example.com");
+  assert.equal(emailIn("Vivek@Neurachat.IN"), "vivek@neurachat.in");
+});
+
+test("trailing punctuation is not part of the address", () => {
+  assert.equal(emailIn("send it to hi@neurachat.in."), "hi@neurachat.in");
+  assert.equal(emailIn("hi@neurachat.in, thanks"), "hi@neurachat.in");
+});
+
+test("text with no address gives nothing", () => {
+  assert.equal(emailIn("what is the price?"), null);
+  assert.equal(emailIn("@neuraxine"), null);
+  assert.equal(emailIn("me@localhost"), null);
 });

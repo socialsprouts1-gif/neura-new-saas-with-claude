@@ -1,8 +1,17 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
-import { replyToComment, sendPrivateReply } from "@/lib/instagram-api";
+import { replyToComment } from "@/lib/instagram-api";
 import { ruleFor, withinReplyWindow, type Comment, type CommentRule } from "@/lib/instagram";
+import {
+  asLoadedRule,
+  bump,
+  rememberPending,
+  RULE_COLUMNS,
+  sendEmailPrompt,
+  sendFollowGate,
+  sendRuleMessage,
+} from "@/lib/instagram-deliver";
 
 // Comment arrives, DM goes out.
 //
@@ -55,6 +64,7 @@ export async function handleComment(
     comment_id: comment.commentId,
     media_id: comment.mediaId,
     from_username: comment.fromUsername,
+    ig_user_id: comment.fromId,
     comment_text: comment.text?.slice(0, 2000) ?? null,
     outcome: "matching",
   });
@@ -81,9 +91,10 @@ export async function handleComment(
   // quietly answer comments on another.
   const { data: rows } = await admin
     .from("instagram_comment_rules")
-    .select("id, name, keywords, media_id, dm_message, public_reply, is_active")
+    .select(RULE_COLUMNS)
     .eq("org_id", connection.org_id)
     .eq("is_active", true)
+    .eq("trigger_type", "comment")
     .or(`connection_id.is.null,connection_id.eq.${connection.id}`);
 
   const rules: CommentRule[] = (rows ?? []).map((row) => ({
@@ -115,56 +126,76 @@ export async function handleComment(
     .eq("comment_id", comment.commentId);
 
   const token = decryptToken(connection.access_token_encrypted);
+  const loaded = asLoadedRule(
+    (rows ?? []).find((row) => row.id === rule.id) as Parameters<typeof asLoadedRule>[0]
+  );
   const problems: string[] = [];
   let sent = false;
 
-  if (rule.dmMessage?.trim()) {
+  // A trigger that matched, whether or not anything got through.
+  // Counted apart from sent_count so "fired 40 times, delivered 3" is
+  // visible rather than looking like it never ran at all.
+  await bump(admin, rule.id, "run_count");
+
+  if (loaded.dmMessage?.trim() || loaded.followGate) {
     // Checked before sending: Meta's refusal for an expired comment is
     // an error code, and "that comment is more than seven days old" is
     // something somebody can actually act on.
     if (comment.createdAt && !withinReplyWindow(comment.createdAt)) {
-      problems.push("The comment is more than seven days old, so Instagram will not deliver a private reply.");
-    } else {
-      const outcome = await sendPrivateReply({
-        igUserId: connection.ig_user_id,
-        commentId: comment.commentId,
-        text: rule.dmMessage,
+      problems.push(
+        "The comment is more than seven days old, so Instagram will not deliver a private reply."
+      );
+    } else if (loaded.followGate) {
+      // The gate replaces the message rather than preceding it. Sending
+      // both would give away what the follow was for.
+      const outcome = await sendFollowGate({
+        connection,
+        rule: loaded,
+        recipient: { comment_id: comment.commentId },
         token,
       });
-      if (outcome.ok) sent = true;
-      else problems.push(outcome.error);
+      if (outcome.ok) {
+        sent = true;
+        if (comment.fromId) {
+          await rememberPending(admin, {
+            orgId: connection.org_id,
+            connectionId: connection.id,
+            ruleId: rule.id,
+            igUserId: comment.fromId,
+          });
+        }
+      } else {
+        problems.push(outcome.error);
+      }
+    } else {
+      const outcome = await sendRuleMessage({
+        connection,
+        rule: loaded,
+        recipient: { comment_id: comment.commentId },
+        token,
+      });
+      if (outcome.ok) {
+        sent = true;
+        if (comment.fromId) {
+          await sendEmailPrompt({ connection, rule: loaded, personId: comment.fromId, token });
+        }
+      } else {
+        problems.push(outcome.error);
+      }
     }
   }
 
-  if (rule.publicReply?.trim()) {
+  if (loaded.publicReply?.trim()) {
     const outcome = await replyToComment({
       commentId: comment.commentId,
-      text: rule.publicReply,
+      text: loaded.publicReply,
       token,
     });
     if (outcome.ok) sent = true;
     else problems.push(outcome.error);
   }
 
-  if (sent) {
-    // Counted so a rule that is quietly doing nothing is visible on the
-    // screen rather than assumed to be working.
-    //
-    // Read-then-write rather than an atomic increment, which is a race
-    // this one can afford: two comments landing in the same millisecond
-    // may cost one from the tally, and the tally is a reassurance on a
-    // screen rather than anything money or delivery depends on. The log
-    // of events is the real record and that one cannot lose a row.
-    const { data } = await admin
-      .from("instagram_comment_rules")
-      .select("sent_count")
-      .eq("id", rule.id)
-      .maybeSingle();
-    await admin
-      .from("instagram_comment_rules")
-      .update({ sent_count: (data?.sent_count ?? 0) + 1 })
-      .eq("id", rule.id);
-  }
+  if (sent) await bump(admin, rule.id, "sent_count");
 
   await finish(
     sent ? (problems.length > 0 ? "sent_with_errors" : "sent") : "failed",

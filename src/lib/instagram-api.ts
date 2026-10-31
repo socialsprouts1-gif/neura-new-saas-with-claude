@@ -184,3 +184,158 @@ function described(payload: unknown, fallback: string): string {
 }
 
 export { SCOPES };
+
+/**
+ * A text message with up to three buttons.
+ *
+ * Instagram's button template, which is what makes an automation more
+ * than a wall of text: a link button opens in the in-app browser, and a
+ * postback button comes back to the webhook carrying its payload, which
+ * is the only way to know somebody tapped it.
+ *
+ * A fourth button is refused outright, so the caller trims rather than
+ * discovering it per send.
+ */
+/**
+ * One message, to a person or to a comment.
+ *
+ * A direct message and a private reply to a comment are the same call
+ * with a different recipient: `{ id }` for a person, `{ comment_id }`
+ * for a comment. Keeping them as one function is what lets the follow
+ * gate answer a comment the first time and a tapped button the second,
+ * without two copies of the button-building code drifting apart.
+ *
+ * Buttons are Instagram's button template: at most three, each title at
+ * most 20 characters. Both are refusals rather than truncations at their
+ * end, so they are trimmed here — a message that silently never arrives
+ * is worse than a shortened label.
+ */
+export async function sendMessage(input: {
+  igUserId: string;
+  recipient: { id: string } | { comment_id: string };
+  text: string;
+  buttons?: { title: string; url?: string; payload?: string }[];
+  token: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const buttons = (input.buttons ?? []).slice(0, 3).map((button) =>
+    button.url
+      ? { type: "web_url", url: button.url, title: button.title.slice(0, 20) }
+      : {
+          type: "postback",
+          title: button.title.slice(0, 20),
+          payload: button.payload ?? button.title,
+        }
+  );
+
+  const message =
+    buttons.length > 0
+      ? {
+          attachment: {
+            type: "template",
+            payload: { template_type: "button", text: input.text.slice(0, 640), buttons },
+          },
+        }
+      : { text: input.text.slice(0, 1000) };
+
+  return post(`${GRAPH}/${input.igUserId}/messages`, input.token, {
+    recipient: input.recipient,
+    message,
+  });
+}
+
+/**
+ * Whether this person follows the account.
+ *
+ * Only answerable once they have messaged the business or tapped
+ * something — Instagram calls that consent, and asks before it. Which is
+ * why the follow gate asks with a button rather than checking silently:
+ * tapping the button is what makes the check legal.
+ */
+export async function followsAccount(input: {
+  igUserId: string;
+  personId: string;
+  token: string;
+}): Promise<{ ok: true; follows: boolean } | { ok: false; error: string }> {
+  const url = `${GRAPH}/${input.personId}?fields=is_user_follow_business`;
+  try {
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${input.token}` },
+    });
+    const body = (await response.json().catch(() => null)) as
+      | { is_user_follow_business?: boolean }
+      | null;
+    if (!response.ok) {
+      return { ok: false, error: described(body, `Instagram refused it (${response.status}).`) };
+    }
+    return { ok: true, follows: body?.is_user_follow_business === true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Instagram was unreachable.",
+    };
+  }
+}
+
+export interface MediaItem {
+  id: string;
+  caption: string | null;
+  mediaType: string | null;
+  thumbnailUrl: string | null;
+  permalink: string | null;
+  timestamp: string | null;
+}
+
+/**
+ * The account's recent posts, for picking one by sight.
+ *
+ * A media id is a 17-digit number nobody can recognise. Showing the post
+ * is the difference between choosing one and copying one from a URL and
+ * hoping.
+ */
+export async function listMedia(input: {
+  igUserId: string;
+  token: string;
+  limit?: number;
+}): Promise<{ ok: true; media: MediaItem[] } | { ok: false; error: string }> {
+  const fields = "id,caption,media_type,media_url,thumbnail_url,permalink,timestamp";
+  const url = `${GRAPH}/${input.igUserId}/media?fields=${fields}&limit=${input.limit ?? 24}`;
+  try {
+    const response = await fetch(url, { headers: { authorization: `Bearer ${input.token}` } });
+    const body = (await response.json().catch(() => null)) as {
+      data?: {
+        id?: string;
+        caption?: string;
+        media_type?: string;
+        media_url?: string;
+        thumbnail_url?: string;
+        permalink?: string;
+        timestamp?: string;
+      }[];
+    } | null;
+
+    if (!response.ok) {
+      return { ok: false, error: described(body, `Instagram refused it (${response.status}).`) };
+    }
+
+    return {
+      ok: true,
+      media: (body?.data ?? [])
+        .filter((item): item is { id: string } & typeof item => Boolean(item.id))
+        .map((item) => ({
+          id: item.id,
+          caption: item.caption ?? null,
+          mediaType: item.media_type ?? null,
+          // A video has no media_url that renders as an image, so the
+          // thumbnail is the one to show; a photo has no thumbnail_url.
+          thumbnailUrl: item.thumbnail_url ?? item.media_url ?? null,
+          permalink: item.permalink ?? null,
+          timestamp: item.timestamp ?? null,
+        })),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Instagram was unreachable.",
+    };
+  }
+}

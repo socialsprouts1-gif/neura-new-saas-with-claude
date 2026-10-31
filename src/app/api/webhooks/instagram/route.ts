@@ -4,7 +4,8 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleComment } from "@/lib/instagram-comments";
 import { handleDirectMessage } from "@/lib/instagram-dm";
-import { parseDirectMessage } from "@/lib/instagram";
+import { parseDirectMessage, parsePostbacks } from "@/lib/instagram";
+import { handlePostback } from "@/lib/instagram-postback";
 
 // Where Instagram delivers comments and direct messages.
 //
@@ -128,6 +129,13 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
     // switched off. Nothing to do, and nothing worth logging loudly —
     // Meta will keep sending these for a disconnected account.
     if (!connection || connection.status !== "active") continue;
+
+    // A tapped button. Handled before messages because a postback has
+    // no `message` field, so the message parser drops it — and a gate
+    // whose button does nothing is worse than no gate.
+    for (const postback of parsePostbacks(entry)) {
+      await handlePostback(connection, postback);
+    }
 
     // Direct messages arrive under `messaging`, comments under
     // `changes`. One delivery can carry both, so neither is an else.
