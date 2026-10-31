@@ -196,3 +196,76 @@ export function withinReplyWindow(commentedAt: string | Date, now: Date = new Da
   const days = (now.getTime() - at.getTime()) / 86_400_000;
   return days >= 0 && days <= PRIVATE_REPLY_WINDOW_DAYS;
 }
+
+/**
+ * Instagram's messaging window.
+ *
+ * A business may reply freely for 24 hours after the person's last
+ * message. After that only a handful of tagged message types are
+ * allowed, none of which a bot reply qualifies as — so the honest
+ * behaviour is to stop rather than to send and have Meta refuse it.
+ *
+ * Measured from the *last inbound* message, not the first: every reply
+ * the person sends restarts the clock.
+ */
+export const DM_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+export function withinMessagingWindow(
+  lastInboundAt: string | null,
+  now: number = Date.now()
+): boolean {
+  if (!lastInboundAt) return false;
+  const at = Date.parse(lastInboundAt);
+  if (Number.isNaN(at)) return false;
+  return now - at < DM_WINDOW_MS;
+}
+
+/**
+ * An inbound direct message, as far as anything downstream cares.
+ *
+ * Instagram wraps an echo of the business's own outgoing messages in the
+ * same shape as a customer's, distinguished only by `is_echo` buried in
+ * the payload. Reading one as inbound makes the bot answer itself, so it
+ * is filtered at the parse rather than left for a later guard to catch.
+ */
+export interface DirectMessage {
+  messageId: string;
+  fromId: string;
+  toId: string;
+  text: string;
+  at: string | null;
+}
+
+export function parseDirectMessage(entry: {
+  time?: number;
+  messaging?: Record<string, unknown>[];
+}): DirectMessage[] {
+  const out: DirectMessage[] = [];
+
+  for (const item of entry.messaging ?? []) {
+    const message = item.message as
+      | { mid?: string; text?: string; is_echo?: boolean; is_deleted?: boolean }
+      | undefined;
+    if (!message || message.is_echo || message.is_deleted) continue;
+
+    const sender = item.sender as { id?: string } | undefined;
+    const recipient = item.recipient as { id?: string } | undefined;
+    const text = typeof message.text === "string" ? message.text.trim() : "";
+
+    // No text means a sticker, a share, an image or a reaction. There is
+    // nothing for a keyword matcher to work with, and answering a story
+    // reaction with a chatbot menu reads as broken.
+    if (!message.mid || !sender?.id || !recipient?.id || !text) continue;
+
+    const stamp = typeof item.timestamp === "number" ? item.timestamp : entry.time;
+    out.push({
+      messageId: message.mid,
+      fromId: sender.id,
+      toId: recipient.id,
+      text,
+      at: stamp ? new Date(stamp > 1e12 ? stamp : stamp * 1000).toISOString() : null,
+    });
+  }
+
+  return out;
+}

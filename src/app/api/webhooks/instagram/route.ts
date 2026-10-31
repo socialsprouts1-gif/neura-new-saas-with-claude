@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleComment } from "@/lib/instagram-comments";
+import { handleDirectMessage } from "@/lib/instagram-dm";
+import { parseDirectMessage } from "@/lib/instagram";
 
 // Where Instagram delivers comments and direct messages.
 //
@@ -126,6 +128,16 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
     // switched off. Nothing to do, and nothing worth logging loudly —
     // Meta will keep sending these for a disconnected account.
     if (!connection || connection.status !== "active") continue;
+
+    // Direct messages arrive under `messaging`, comments under
+    // `changes`. One delivery can carry both, so neither is an else.
+    for (const message of parseDirectMessage(entry)) {
+      // Someone else's conversation, delivered on this entry. Instagram
+      // puts the business on one side of every messaging event; if it is
+      // not the recipient, this is an echo of something it sent.
+      if (message.toId !== connection.ig_user_id) continue;
+      await handleDirectMessage(connection, message);
+    }
 
     for (const change of entry.changes ?? []) {
       if (change.field !== "comments") continue;

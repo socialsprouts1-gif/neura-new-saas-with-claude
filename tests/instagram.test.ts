@@ -4,6 +4,8 @@ import {
   authoriseUrl,
   credentialProblem,
   mentions,
+  parseDirectMessage,
+  withinMessagingWindow,
   redirectUri,
   ruleFor,
   ruleProblem,
@@ -162,4 +164,92 @@ test("a bad id never reaches the authorise url", () => {
     state: "state",
   });
   assert.ok(url.includes("s3cr3t"), "without the guard the secret lands in the url");
+});
+
+// --- direct messages -------------------------------------------------
+
+const HOUR = 60 * 60 * 1000;
+
+function messaging(items: Record<string, unknown>[]) {
+  return { time: 1_767_000_000, messaging: items };
+}
+
+function dm(overrides: Record<string, unknown> = {}) {
+  return {
+    sender: { id: "customer" },
+    recipient: { id: "business" },
+    timestamp: 1_767_000_000_000,
+    message: { mid: "m1", text: "what is the price?" },
+    ...overrides,
+  };
+}
+
+test("a plain direct message is read", () => {
+  const [parsed] = parseDirectMessage(messaging([dm()]));
+  assert.equal(parsed.messageId, "m1");
+  assert.equal(parsed.fromId, "customer");
+  assert.equal(parsed.toId, "business");
+  assert.equal(parsed.text, "what is the price?");
+});
+
+test("an echo of the business's own message is dropped", () => {
+  // Instagram sends back everything the business itself sends, in the
+  // same shape, marked only by is_echo. Reading one as inbound makes the
+  // bot answer itself and then answer that answer.
+  const parsed = parseDirectMessage(
+    messaging([dm({ message: { mid: "m2", text: "Here you go!", is_echo: true } })])
+  );
+  assert.deepEqual(parsed, []);
+});
+
+test("a deleted message is dropped", () => {
+  const parsed = parseDirectMessage(
+    messaging([dm({ message: { mid: "m3", text: "oops", is_deleted: true } })])
+  );
+  assert.deepEqual(parsed, []);
+});
+
+test("a sticker or reaction with no text is dropped", () => {
+  // Nothing for a keyword matcher to work with, and answering a story
+  // reaction with a chatbot menu reads as broken.
+  const parsed = parseDirectMessage(messaging([dm({ message: { mid: "m4" } })]));
+  assert.deepEqual(parsed, []);
+});
+
+test("whitespace-only text counts as no text", () => {
+  const parsed = parseDirectMessage(messaging([dm({ message: { mid: "m5", text: "   " } })]));
+  assert.deepEqual(parsed, []);
+});
+
+test("several messages in one delivery are all read", () => {
+  const parsed = parseDirectMessage(
+    messaging([
+      dm({ message: { mid: "a", text: "hello" } }),
+      dm({ message: { mid: "b", text: "are you open?" } }),
+    ])
+  );
+  assert.deepEqual(parsed.map((item) => item.messageId), ["a", "b"]);
+});
+
+test("seconds and milliseconds both become a sane timestamp", () => {
+  // Meta sends seconds on the entry and milliseconds on the message, and
+  // reading one as the other puts the message in 1970 or the year 57000.
+  const [inSeconds] = parseDirectMessage({ time: 1_767_000_000, messaging: [dm({ timestamp: undefined })] });
+  const [inMillis] = parseDirectMessage(messaging([dm()]));
+  assert.equal(inSeconds.at, inMillis.at);
+  assert.equal(new Date(inMillis.at!).getUTCFullYear(), 2025);
+});
+
+test("the messaging window is open for 24 hours after the last message", () => {
+  const now = Date.now();
+  assert.equal(withinMessagingWindow(new Date(now - HOUR).toISOString(), now), true);
+  assert.equal(withinMessagingWindow(new Date(now - 23.9 * HOUR).toISOString(), now), true);
+  assert.equal(withinMessagingWindow(new Date(now - 25 * HOUR).toISOString(), now), false);
+});
+
+test("a contact who has never written has no open window", () => {
+  // There is no template fallback on Instagram as there is on WhatsApp,
+  // so "never" has to mean no, not "send and let Meta refuse it".
+  assert.equal(withinMessagingWindow(null), false);
+  assert.equal(withinMessagingWindow("not a date"), false);
 });

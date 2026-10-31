@@ -491,6 +491,8 @@ export interface Database {
           id: string;
           org_id: string;
           wa_id: string;
+          ig_user_id: string | null;
+          ig_username: string | null;
           name: string | null;
           tags: string[];
           custom_fields: Record<string, string>;
@@ -512,6 +514,8 @@ export interface Database {
           id?: string;
           org_id: string;
           wa_id: string;
+          ig_user_id?: string | null;
+          ig_username?: string | null;
           name?: string | null;
           tags?: string[];
           custom_fields?: Record<string, string>;
@@ -562,6 +566,8 @@ export interface Database {
           org_id: string;
           contact_id: string;
           connection_id: string | null;
+          channel: string;
+          instagram_connection_id: string | null;
           last_message_at: string | null;
           status: ConversationStatus;
           created_at: string;
@@ -591,6 +597,8 @@ export interface Database {
           org_id: string;
           contact_id: string;
           connection_id?: string | null;
+          channel?: string;
+          instagram_connection_id?: string | null;
           last_message_at?: string | null;
           status?: ConversationStatus;
           created_at?: string;
@@ -633,6 +641,7 @@ export interface Database {
           org_id: string;
           direction: MessageDirection;
           type: string;
+          channel: string;
           content: Record<string, unknown>;
           wa_message_id: string | null;
           status: MessageStatus;
@@ -642,6 +651,7 @@ export interface Database {
           id?: string;
           conversation_id: string;
           org_id?: string;
+          channel?: string;
           direction: MessageDirection;
           type: string;
           content?: Record<string, unknown>;
