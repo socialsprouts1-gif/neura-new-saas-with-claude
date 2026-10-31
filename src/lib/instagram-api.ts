@@ -1,6 +1,6 @@
 import "server-only";
 import { encryptToken } from "@/lib/crypto";
-import { redirectUri, SCOPES } from "@/lib/instagram";
+import { credentialProblem, redirectUri, SCOPES } from "@/lib/instagram";
 
 // Talking to Instagram.
 //
@@ -30,17 +30,14 @@ export interface InstagramEnv {
  * fails at the consent screen with an error that does not say so.
  */
 export function instagramEnv(): InstagramEnv | { error: string } {
-  const appId = process.env.INSTAGRAM_APP_ID;
-  const appSecret = process.env.INSTAGRAM_APP_SECRET;
+  // Trimmed before checking: a trailing newline in the value box is
+  // invisible on the Vercel screen and fatal in a query string.
+  const appId = process.env.INSTAGRAM_APP_ID?.trim() ?? "";
+  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim() ?? "";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://neurachat.in";
 
-  if (!appId) {
-    return {
-      error:
-        "INSTAGRAM_APP_ID is not set. It is on the Instagram product page of your Meta app, and it is not the same as your Meta app id.",
-    };
-  }
-  if (!appSecret) return { error: "INSTAGRAM_APP_SECRET is not set." };
+  const problem = credentialProblem(appId, appSecret);
+  if (problem) return { error: problem };
   return { appId, appSecret, appUrl };
 }
 

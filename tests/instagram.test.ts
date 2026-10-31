@@ -2,6 +2,7 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   authoriseUrl,
+  credentialProblem,
   mentions,
   redirectUri,
   ruleFor,
@@ -109,4 +110,56 @@ test("the private reply window is seven days, and the future is not in it", () =
   assert.equal(withinReplyWindow("2026-10-22T12:00:00Z", now), false);
   assert.equal(withinReplyWindow("2026-11-01T12:00:00Z", now), false);
   assert.equal(withinReplyWindow("not a date", now), false);
+});
+
+// --- the credentials -------------------------------------------------
+//
+// These exist because of a real afternoon lost to them: the whole block
+// was pasted into Vercel's value box, so the id became
+// "INSTAGRAM_APP_ID        = 1480246337381870\nINSTAGRAM_APP_SECRET..."
+// and went into a query string on instagram.com — taking the secret
+// with it, into browser history and two sets of server logs. Instagram
+// answered "Page isn't available", which reads as a broken integration
+// rather than a mistyped setting.
+
+test("a plain id and secret are accepted", () => {
+  assert.equal(credentialProblem("1480246337381870", "abc123def456"), null);
+});
+
+test("a whole pasted block is refused, and says the secret is in it", () => {
+  const pasted = "INSTAGRAM_APP_ID        = 1480246337381870\nINSTAGRAM_APP_SECRET = s3cr3t";
+  const problem = credentialProblem(pasted, "s3cr3t");
+  assert.ok(problem, "the block should be refused");
+  assert.match(problem, /resetting in Meta/);
+});
+
+test("an id with the name and equals sign is refused", () => {
+  assert.ok(credentialProblem("INSTAGRAM_APP_ID = 1480246337381870", "s3cr3t"));
+});
+
+test("a missing id is named before anything else", () => {
+  assert.match(credentialProblem("", "")!, /INSTAGRAM_APP_ID is not set/);
+});
+
+test("a missing secret is named once the id is good", () => {
+  assert.match(credentialProblem("1480246337381870", "")!, /INSTAGRAM_APP_SECRET is not set/);
+});
+
+test("a secret with whitespace in it is refused", () => {
+  assert.ok(credentialProblem("1480246337381870", "INSTAGRAM_APP_SECRET = s3cr3t"));
+});
+
+test("a bad id never reaches the authorise url", () => {
+  // The guard is the only thing between a pasted block and a secret in
+  // somebody's browser history, so this asserts the order: refuse
+  // first, build the url second.
+  const pasted = "INSTAGRAM_APP_ID = 1480246337381870\nINSTAGRAM_APP_SECRET = s3cr3t";
+  assert.ok(credentialProblem(pasted, "s3cr3t"));
+
+  const url = authoriseUrl({
+    instagramAppId: pasted,
+    redirectUri: redirectUri("https://neurachat.in"),
+    state: "state",
+  });
+  assert.ok(url.includes("s3cr3t"), "without the guard the secret lands in the url");
 });

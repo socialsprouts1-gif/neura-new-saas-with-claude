@@ -52,6 +52,33 @@ export function authoriseUrl(input: {
 }
 
 /**
+ * What is wrong with the credentials, or null if nothing is.
+ *
+ * The values go into a query string that is handed to Instagram, so a
+ * bad one does not fail here — it fails on Instagram's side as "Page
+ * isn't available", which reads as a broken integration rather than a
+ * mistyped setting.
+ *
+ * The shape worth catching is a whole block pasted into the value box:
+ * `INSTAGRAM_APP_ID = 123\nINSTAGRAM_APP_SECRET = ...`. That one is not
+ * merely broken — it puts the secret into a URL, and from there into
+ * browser history and two sets of server logs.
+ */
+export function credentialProblem(appId: string, appSecret: string): string | null {
+  if (!appId) {
+    return "INSTAGRAM_APP_ID is not set. It is on the Instagram product page of your Meta app, and it is not the same as your Meta app id.";
+  }
+  if (!/^\d+$/.test(appId)) {
+    return "INSTAGRAM_APP_ID has something other than the id in it — it should be just the digits, with no variable name, no equals sign and nothing on a second line. If a whole block was pasted into the value box then the app secret is in there too, and it needs resetting in Meta.";
+  }
+  if (!appSecret) return "INSTAGRAM_APP_SECRET is not set.";
+  if (/\s/.test(appSecret)) {
+    return "INSTAGRAM_APP_SECRET has whitespace in it, so it is probably more than the secret. It should be the secret on its own.";
+  }
+  return null;
+}
+
+/**
  * The redirect URI, which has to match what is in the App Dashboard
  * exactly — Meta compares the whole string, not the host.
  */
