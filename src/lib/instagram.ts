@@ -272,13 +272,43 @@ export interface DirectMessage {
   at: string | null;
 }
 
+/**
+ * Every messaging-shaped item in a delivery, from either place it
+ * can arrive.
+ *
+ * Instagram sends messaging events two ways. The documented one is an
+ * `entry.messaging` array in the Messenger shape. The other is an
+ * ordinary `entry.changes` entry whose field is `messages` or
+ * `messaging_postbacks`, with the same sender/recipient/message object
+ * sitting in `value` — which is the shape Meta's own webhook tester
+ * shows you.
+ *
+ * Reading only the first means every direct message is dropped without
+ * a trace on any app that receives the second. Reading both costs one
+ * array concatenation.
+ */
+export function messagingItems(entry: {
+  messaging?: Record<string, unknown>[];
+  changes?: { field?: string; value?: Record<string, unknown> }[];
+}): Record<string, unknown>[] {
+  const fromChanges = (entry.changes ?? [])
+    .filter(
+      (change) => change.field === "messages" || change.field === "messaging_postbacks"
+    )
+    .map((change) => change.value)
+    .filter((value): value is Record<string, unknown> => Boolean(value));
+
+  return [...(entry.messaging ?? []), ...fromChanges];
+}
+
 export function parseDirectMessage(entry: {
   time?: number;
   messaging?: Record<string, unknown>[];
+  changes?: { field?: string; value?: Record<string, unknown> }[];
 }): DirectMessage[] {
   const out: DirectMessage[] = [];
 
-  for (const item of entry.messaging ?? []) {
+  for (const item of messagingItems(entry)) {
     const message = item.message as
       | { mid?: string; text?: string; is_echo?: boolean; is_deleted?: boolean }
       | undefined;
@@ -416,9 +446,10 @@ export interface Postback {
 
 export function parsePostbacks(entry: {
   messaging?: Record<string, unknown>[];
+  changes?: { field?: string; value?: Record<string, unknown> }[];
 }): Postback[] {
   const out: Postback[] = [];
-  for (const item of entry.messaging ?? []) {
+  for (const item of messagingItems(entry)) {
     const postback = item.postback as { payload?: string; mid?: string } | undefined;
     const sender = item.sender as { id?: string } | undefined;
     if (!postback?.payload || !sender?.id) continue;

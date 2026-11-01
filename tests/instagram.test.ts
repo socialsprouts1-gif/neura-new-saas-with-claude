@@ -407,3 +407,83 @@ test("an ordinary message is not read as a tap", () => {
     []
   );
 });
+
+// --- the other shape a message arrives in ----------------------------
+//
+// Meta's own webhook tester shows the messages field as a `changes`
+// entry, not as the `messaging` array the docs describe. A parser that
+// reads only one of the two drops every direct message without a trace,
+// which is indistinguishable from Instagram never sending any — and
+// cost a day of looking at the wrong half of the system.
+
+test("a direct message arriving as a changes entry is read", () => {
+  const [parsed] = parseDirectMessage({
+    time: 1_767_000_000,
+    changes: [
+      {
+        field: "messages",
+        value: {
+          sender: { id: "12334" },
+          recipient: { id: "23245" },
+          timestamp: "1527459824",
+          message: { mid: "random_mid", text: "random_text" },
+        },
+      },
+    ],
+  });
+  assert.equal(parsed.messageId, "random_mid");
+  assert.equal(parsed.fromId, "12334");
+  assert.equal(parsed.toId, "23245");
+  assert.equal(parsed.text, "random_text");
+});
+
+test("a tap arriving as a changes entry is read", () => {
+  const [tap] = parsePostbacks({
+    changes: [
+      {
+        field: "messaging_postbacks",
+        value: {
+          sender: { id: "customer" },
+          postback: { mid: "tap-9", payload: "follow:rule-9" },
+        },
+      },
+    ],
+  });
+  assert.equal(tap.deliveryId, "tap-9");
+  assert.equal(tap.payload, "follow:rule-9");
+});
+
+test("a comment change is not mistaken for a message", () => {
+  // Comments arrive as changes too, and reading one as a message would
+  // answer it twice — once correctly and once as a direct message.
+  assert.deepEqual(
+    parseDirectMessage({
+      changes: [{ field: "comments", value: { id: "c1", text: "price?" } }],
+    }),
+    []
+  );
+});
+
+test("both shapes in one delivery are both read", () => {
+  const parsed = parseDirectMessage({
+    time: 1_767_000_000,
+    messaging: [
+      {
+        sender: { id: "a" },
+        recipient: { id: "biz" },
+        message: { mid: "m-a", text: "one" },
+      },
+    ],
+    changes: [
+      {
+        field: "messages",
+        value: {
+          sender: { id: "b" },
+          recipient: { id: "biz" },
+          message: { mid: "m-b", text: "two" },
+        },
+      },
+    ],
+  });
+  assert.deepEqual(parsed.map((item) => item.messageId), ["m-a", "m-b"]);
+});
