@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/primitives";
 import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv, scopedIdFor } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
-import { formatDateTime } from "@/types/admin";
+import { formatDate, formatDateTime } from "@/types/admin";
 import { CheckCircle2, Mail, MousePointerClick, Send, Smartphone, UserPlus } from "lucide-react";
 import Automations from "./Automations";
 import type { AutomationRow } from "./AutomationEditor";
@@ -62,7 +62,7 @@ export default async function InstagramPage() {
 
   const { data: connections, error } = await supabase
     .from("instagram_connections")
-    .select("id, username, account_name, status, created_at, last_error, ig_scoped_id, access_token_encrypted")
+    .select("id, username, account_name, profile_picture_url, ig_user_id, status, created_at, token_expires_at, last_error, ig_scoped_id, access_token_encrypted")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
 
@@ -165,6 +165,55 @@ export default async function InstagramPage() {
           )}
         </div>
       </div>
+
+      {/* --- the connected account, in full ----------------------------- */}
+      {live && (
+        <Card className="mb-5">
+          <div className="flex flex-wrap items-center gap-4">
+            {live.profile_picture_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={live.profile_picture_url}
+                alt={live.username ? `@${live.username}` : "Connected account"}
+                className="w-16 h-16 rounded-full object-cover border-2 border-white/10 flex-shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-white/6 grid place-items-center flex-shrink-0">
+                <InstagramGlyph className="w-7 h-7 text-white/30" />
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[17px] font-semibold">
+                  {live.username ? `@${live.username}` : "Instagram account"}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[12px] text-[#00C853]">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  connected
+                </span>
+              </div>
+              {live.account_name && (
+                <div className="text-[13.5px] text-white/60 mt-0.5">{live.account_name}</div>
+              )}
+              <div className="text-[12px] text-white/35 mt-1">
+                Professional account {live.ig_user_id} · connected{" "}
+                {formatDate(live.created_at)}
+                {live.token_expires_at ? ` · access renews by ${formatDate(live.token_expires_at)}` : ""}
+              </div>
+              {live.last_error && (
+                <div className="text-[12.5px] text-[#F87171] mt-1.5 leading-relaxed">
+                  {live.last_error}
+                </div>
+              )}
+            </div>
+
+            <Link href="/api/instagram/connect" className="btn-quiet text-sm">
+              Reconnect
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {/* --- the setting nothing else will tell you about --------------- */}
       {live && !everHeardBack && (
