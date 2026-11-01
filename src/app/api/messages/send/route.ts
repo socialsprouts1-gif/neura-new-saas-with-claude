@@ -14,6 +14,11 @@ import {
 } from "@/lib/meta-whatsapp";
 import { buildTemplateComponents } from "@/lib/template-components";
 import { resolveTemplateShape } from "@/lib/template-unpack";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
+import { decryptToken } from "@/lib/crypto";
+import { sendMessage as sendInstagramMessage } from "@/lib/instagram-api";
+import { withinMessagingWindow } from "@/lib/instagram";
 
 interface SendRequestBody {
   orgId?: string;
@@ -71,6 +76,25 @@ export async function POST(request: NextRequest) {
   }
   if (isTemplate && !body.language) {
     return NextResponse.json({ error: "language is required with templateName" }, { status: 400 });
+  }
+
+  // An Instagram thread leaves here entirely.
+  //
+  // Everything below is WhatsApp's shape — a phone number id, approved
+  // templates, the 24-hour template escape hatch — and Instagram has
+  // none of it. Before this branch existed a human replying to an
+  // Instagram conversation sent it to a WhatsApp number built out of an
+  // Instagram id, which Meta refused, and the agent was told the number
+  // was invalid for a conversation that never had one.
+  if (body.conversationId) {
+    const instagram = await replyOnInstagram(supabase, {
+      orgId: body.orgId,
+      conversationId: body.conversationId,
+      contactId: body.contactId,
+      body: body.body ?? "",
+      isTemplate,
+    });
+    if (instagram) return instagram;
   }
 
   // RLS scopes every query below to orgs the caller is a member of — an
@@ -394,4 +418,117 @@ async function templateComponents(
   if (!built.ok) return { error: built.error };
 
   return { components: built.components };
+}
+
+
+/**
+ * A human reply on an Instagram thread.
+ *
+ * Returns null when the conversation is not an Instagram one, so the
+ * WhatsApp path continues untouched — the common case pays one column
+ * read and nothing else.
+ *
+ * Instagram has no templates and no way out of the 24-hour window, so a
+ * thread that has gone quiet for a day cannot be reopened by the
+ * business at all. Saying that plainly beats sending into a refusal and
+ * reporting Meta's error code.
+ */
+async function replyOnInstagram(
+  supabase: SupabaseClient<Database>,
+  input: {
+    orgId: string;
+    conversationId: string;
+    contactId: string;
+    body: string;
+    isTemplate: boolean;
+  }
+): Promise<NextResponse | null> {
+  const { data: conversation } = await supabase
+    .from("conversations")
+    .select("id, channel, instagram_connection_id, last_inbound_at")
+    .eq("id", input.conversationId)
+    .eq("org_id", input.orgId)
+    .maybeSingle();
+
+  if (!conversation || conversation.channel !== "instagram") return null;
+
+  if (input.isTemplate) {
+    return NextResponse.json(
+      { error: "Instagram has no approved templates — send a normal message instead." },
+      { status: 400 }
+    );
+  }
+  if (!input.body.trim()) {
+    return NextResponse.json({ error: "Write something to send." }, { status: 400 });
+  }
+
+  if (!withinMessagingWindow(conversation.last_inbound_at)) {
+    return NextResponse.json(
+      {
+        error:
+          "Instagram only allows a reply within 24 hours of the person's last message, and there is no template to fall back on. They have to write again first.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const [{ data: contact }, { data: connection }] = await Promise.all([
+    supabase
+      .from("contacts")
+      .select("ig_user_id")
+      .eq("id", input.contactId)
+      .eq("org_id", input.orgId)
+      .maybeSingle(),
+    supabase
+      .from("instagram_connections")
+      .select("ig_user_id, access_token_encrypted, status")
+      .eq("id", conversation.instagram_connection_id ?? "")
+      .maybeSingle(),
+  ]);
+
+  if (!contact?.ig_user_id) {
+    return NextResponse.json(
+      { error: "This contact has no Instagram account on file." },
+      { status: 400 }
+    );
+  }
+  if (!connection || connection.status !== "active") {
+    return NextResponse.json(
+      { error: "That Instagram account is no longer connected." },
+      { status: 400 }
+    );
+  }
+
+  const outcome = await sendInstagramMessage({
+    igUserId: connection.ig_user_id,
+    recipient: { id: contact.ig_user_id },
+    text: input.body,
+    token: decryptToken(connection.access_token_encrypted),
+  });
+
+  if (!outcome.ok) {
+    return NextResponse.json({ error: outcome.error }, { status: 502 });
+  }
+
+  const now = new Date().toISOString();
+  const { data: message } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversation.id,
+      org_id: input.orgId,
+      channel: "instagram",
+      direction: "outbound",
+      type: "text",
+      content: { body: input.body },
+      status: "sent",
+    })
+    .select()
+    .single();
+
+  await supabase
+    .from("conversations")
+    .update({ last_message_at: now })
+    .eq("id", conversation.id);
+
+  return NextResponse.json({ message });
 }
