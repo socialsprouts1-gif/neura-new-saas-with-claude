@@ -130,16 +130,36 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
     // Meta will keep sending these for a disconnected account.
     if (!connection || connection.status !== "active") continue;
 
+    const taps = parsePostbacks(entry);
+    const messages = parseDirectMessage(entry);
+    const comments = (entry.changes ?? []).filter((change) => change.field === "comments");
+
+    // What Instagram actually sent.
+    //
+    // Written down because its absence is invisible: when a tap never
+    // arrives, the app does exactly what it does when a tap arrives and
+    // is mishandled — nothing. One row here tells those apart without
+    // a server log nobody can reach.
+    if (taps.length === 0 && messages.length === 0 && comments.length === 0) {
+      await admin.from("instagram_comment_events").insert({
+        org_id: connection.org_id,
+        connection_id: connection.id,
+        kind: "delivery",
+        outcome: "nothing_to_do",
+        comment_text: `Instagram sent: ${describe(entry)}`,
+      });
+    }
+
     // A tapped button. Handled before messages because a postback has
     // no `message` field, so the message parser drops it — and a gate
     // whose button does nothing is worse than no gate.
-    for (const postback of parsePostbacks(entry)) {
+    for (const postback of taps) {
       await handlePostback(connection, postback);
     }
 
     // Direct messages arrive under `messaging`, comments under
     // `changes`. One delivery can carry both, so neither is an else.
-    for (const message of parseDirectMessage(entry)) {
+    for (const message of messages) {
       // Someone else's conversation, delivered on this entry. Instagram
       // puts the business on one side of every messaging event; if it is
       // not the recipient, this is an echo of something it sent.
@@ -172,4 +192,30 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
 
 function asText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+/**
+ * The shape of a delivery, in words.
+ *
+ * Field names only — no message text, no ids. This ends up on a screen
+ * and in a database, and "what did Instagram send" is answerable
+ * without keeping a copy of what somebody wrote.
+ */
+function describe(entry: {
+  changes?: { field?: string }[];
+  messaging?: Record<string, unknown>[];
+}): string {
+  const parts: string[] = [];
+  for (const change of entry.changes ?? []) {
+    parts.push(`change:${change.field ?? "unnamed"}`);
+  }
+  for (const item of entry.messaging ?? []) {
+    parts.push(
+      Object.keys(item)
+        .filter((key) => key !== "sender" && key !== "recipient" && key !== "timestamp")
+        .map((key) => `messaging:${key}`)
+        .join(" ") || "messaging:empty"
+    );
+  }
+  return parts.join(", ") || "an empty delivery";
 }

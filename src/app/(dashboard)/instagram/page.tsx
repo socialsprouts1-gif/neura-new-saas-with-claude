@@ -38,6 +38,15 @@ const OUTCOMES: Record<string, { label: string; tone: string }> = {
   sent: { label: "answered", tone: "text-accent-ink" },
   sent_with_errors: { label: "partly sent", tone: "text-[#FACC15]" },
   failed: { label: "failed", tone: "text-[#F87171]" },
+  // The diagnostic outcomes. They exist because a gate that goes quiet
+  // used to leave nothing behind, and the only way to find out why was
+  // to photograph a phone.
+  not_following_yet: { label: "not following yet", tone: "text-[#FACC15]" },
+  tap_unreadable: { label: "tap not understood", tone: "text-[#F87171]" },
+  tap_no_automation: { label: "automation deleted", tone: "text-[#F87171]" },
+  tap_switched_off: { label: "automation is off", tone: "text-[#FACC15]" },
+  tap_not_stored: { label: "could not record the tap", tone: "text-[#F87171]" },
+  nothing_to_do: { label: "nothing to act on", tone: "text-white/40" },
 };
 
 export default async function InstagramPage() {

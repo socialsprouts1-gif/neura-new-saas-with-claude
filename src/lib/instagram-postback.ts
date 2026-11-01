@@ -45,10 +45,31 @@ export async function handlePostback(
   // uses for them. Requiring it would make a mismatch look exactly like
   // the bug this is fixing — asked, tapped, never answered — except
   // permanently, and for everybody.
-  const ruleId = ruleFromPayload(input.payload);
-  if (!ruleId) return;
-
   const admin = createAdminClient();
+
+  // Every exit from here is visible.
+  //
+  // This path returned silently in four places, and a silent return is
+  // indistinguishable from the webhook never arriving — which cost two
+  // rounds of guessing at which of the two was happening. A row costs
+  // nothing and answers it.
+  const trace = async (outcome: string, note: string, ruleId?: string) => {
+    await admin.from("instagram_comment_events").insert({
+      org_id: connection.org_id,
+      connection_id: connection.id,
+      rule_id: ruleId ?? null,
+      kind: "follow_gate",
+      ig_user_id: input.personId,
+      outcome,
+      comment_text: note,
+    });
+  };
+
+  const ruleId = ruleFromPayload(input.payload);
+  if (!ruleId) {
+    await trace("tap_unreadable", `Tap arrived, but its payload was "${input.payload}"`);
+    return;
+  }
 
   const { data: row } = await admin
     .from("instagram_comment_rules")
@@ -60,7 +81,14 @@ export async function handlePostback(
   // Deleted between the ask and the tap. Nothing to send, and an error
   // message about a missing automation means nothing to the person
   // holding the phone.
-  if (!row || !row.is_active) return;
+  if (!row) {
+    await trace("tap_no_automation", "Tap arrived, but that automation no longer exists");
+    return;
+  }
+  if (!row.is_active) {
+    await trace("tap_switched_off", "Tap arrived, but that automation is switched off", ruleId);
+    return;
+  }
 
   const rule = asLoadedRule(row as Parameters<typeof asLoadedRule>[0]);
   const token = decryptToken(connection.access_token_encrypted);
@@ -77,6 +105,7 @@ export async function handlePostback(
   const follows = check.ok ? check.follows : true;
 
   if (!follows) {
+    await trace("not_following_yet", "Tap arrived, but Instagram says they do not follow yet", ruleId);
     await sendMessage({
       igUserId: connection.ig_user_id,
       recipient: { id: input.personId },
@@ -104,9 +133,11 @@ export async function handlePostback(
       comment_text: "Tapped “I'm following”",
     });
     if (claimError) {
-      // 23505 is the unique index doing its job.
+      // 23505 is the unique index doing its job: Instagram redelivered
+      // a tap already handled.
       if (claimError.code !== "23505") {
         console.error("Could not claim an Instagram button tap", claimError);
+        await trace("tap_not_stored", `Tap arrived but could not be recorded: ${claimError.message}`, ruleId);
       }
       return;
     }

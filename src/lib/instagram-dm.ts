@@ -110,10 +110,30 @@ export async function handleDirectMessage(
       .limit(1)
       .maybeSingle();
 
-    if (pending?.rule_id) {
+    // The pending row is keyed by the id the *comment* webhook gave
+    // this person, and nothing guarantees the messaging webhook uses
+    // the same one. When it does not match, the gated automation is
+    // still the right answer — somebody is holding a tapped button
+    // either way — so the newest live gate stands in rather than the
+    // whole thing going quiet over an id.
+    let ruleId = pending?.rule_id ?? null;
+    if (!ruleId) {
+      const { data: gate } = await admin
+        .from("instagram_comment_rules")
+        .select("id")
+        .eq("org_id", orgId)
+        .eq("is_active", true)
+        .eq("follow_gate", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      ruleId = gate?.id ?? null;
+    }
+
+    if (ruleId) {
       await handlePostback(connection, {
         personId: message.fromId,
-        payload: followPayload(pending.rule_id),
+        payload: followPayload(ruleId),
         // No id of its own: the message row written above already
         // claimed this delivery, so a second guard here would only
         // reject the first attempt.
