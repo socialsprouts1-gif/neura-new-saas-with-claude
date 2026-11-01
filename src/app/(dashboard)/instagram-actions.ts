@@ -229,3 +229,43 @@ export async function recentMedia(
     token: decryptToken(connection.access_token_encrypted),
   });
 }
+
+/**
+ * Disconnects an Instagram account.
+ *
+ * The row goes rather than being marked inactive. A disconnected
+ * account that still holds an encrypted token is a credential nobody
+ * believes they still have — and "disconnect" has one obvious meaning
+ * to the person clicking it.
+ *
+ * Automations are left alone. They are written against keywords and
+ * posts, not against a connection, so reconnecting the account brings
+ * them back rather than making somebody rebuild them.
+ */
+export async function disconnectInstagram(id: string): Promise<ActionResult> {
+  const { orgId } = await requireFeature("instagram");
+
+  const supabase = await createClient();
+  const { data: account } = await supabase
+    .from("instagram_connections")
+    .select("username")
+    .eq("id", id)
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("instagram_connections")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/instagram");
+  return {
+    ok: true,
+    message: account?.username
+      ? `@${account.username} disconnected. Your automations are kept.`
+      : "Disconnected. Your automations are kept.",
+  };
+}

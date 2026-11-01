@@ -2,7 +2,13 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isEntitled, type SubscriptionRow } from "@/lib/checkout";
-import { monthStart, NO_LIMITS, type PlanLimits, type UsageSnapshot } from "@/lib/limits";
+import {
+  checkLimit,
+  monthStart,
+  NO_LIMITS,
+  type PlanLimits,
+  type UsageSnapshot,
+} from "@/lib/limits";
 
 // What a workspace is allowed, and how much of it is used.
 //
@@ -35,7 +41,7 @@ export async function loadEntitlement(
   const { data } = await supabase
     .from("subscriptions")
     .select(
-      "status, current_period_end, cancel_at_period_end, plans(name, message_limit, contact_limit, seat_limit, number_limit)"
+      "status, current_period_end, cancel_at_period_end, plans(name, message_limit, contact_limit, seat_limit, number_limit, instagram_limit)"
     )
     .eq("org_id", orgId)
     .maybeSingle();
@@ -47,6 +53,7 @@ export async function loadEntitlement(
         contact_limit: number | null;
         seat_limit: number | null;
         number_limit: number | null;
+        instagram_limit: number | null;
       }
     | null
     | undefined;
@@ -74,6 +81,7 @@ export async function loadEntitlement(
           // reads as unlimited — the right way round for a column that
           // might not be there.
           number_limit: plan.number_limit ?? null,
+          instagram_limit: plan.instagram_limit ?? null,
         }
       : NO_LIMITS,
     planName: plan?.name ?? null,
@@ -114,5 +122,41 @@ export async function loadUsage(supabase: Client, orgId: string): Promise<UsageS
     contacts: contacts.count ?? 0,
     // An outstanding invitation holds a seat. See seatsAvailable.
     seats: (members.count ?? 0) + (invites.count ?? 0),
+  };
+}
+
+/**
+ * Whether another Instagram account may be connected.
+ *
+ * Counted as a separate call rather than folded into loadUsage, which
+ * every dashboard page runs: most of them have no interest in Instagram
+ * and a count nobody reads is a query nobody needed.
+ *
+ * A platform admin is never held to a plan. They are not a customer of
+ * the product, and locking the operator out of their own tool to
+ * enforce a price is the kind of thing that only ever gets discovered
+ * at an awkward moment.
+ */
+export async function instagramAllowance(
+  supabase: Client,
+  orgId: string,
+  isPlatformAdmin = false
+): Promise<{ limit: number | null; used: number; ok: boolean; reason?: string }> {
+  const { count } = await supabase
+    .from("instagram_connections")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId);
+
+  const used = count ?? 0;
+  if (isPlatformAdmin) return { limit: null, used, ok: true };
+
+  const { limits } = await loadEntitlement(supabase, orgId);
+  const verdict = checkLimit("instagram", limits.instagram_limit, used);
+
+  return {
+    limit: limits.instagram_limit,
+    used,
+    ok: verdict.ok,
+    reason: verdict.reason,
   };
 }

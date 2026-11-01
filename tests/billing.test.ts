@@ -275,7 +275,13 @@ describe("checkLimit", () => {
 describe("usageRows", () => {
   it("lists all three whether or not any is close", () => {
     const rows = usageRows(
-      { message_limit: 1000, contact_limit: null, seat_limit: 3, number_limit: null },
+      {
+        message_limit: 1000,
+        contact_limit: null,
+        seat_limit: 3,
+        number_limit: null,
+        instagram_limit: null,
+      },
       { messages: 850, contacts: 4000, seats: 1 }
     );
     assert.deepEqual(
@@ -378,5 +384,35 @@ describe("seatsAvailable", () => {
     const verdict = seatsAvailable({ limit: 2, members: 2, pending: 0 });
     assert.equal(verdict.ok, false);
     assert.match(verdict.reason ?? "", /all of them are taken/);
+  });
+});
+
+describe("Instagram accounts per plan", () => {
+  // Priced as one, two and three. A limit nobody is held to is a number
+  // on a pricing page, which is what number_limit was before it was
+  // enforced — worth not repeating.
+  it("lets a starter plan connect its one account and not a second", () => {
+    assert.equal(checkLimit("instagram", 1, 0).ok, true);
+    assert.equal(checkLimit("instagram", 1, 1).ok, false);
+  });
+
+  it("names Instagram when it refuses, not WhatsApp numbers", () => {
+    const verdict = checkLimit("instagram", 2, 2);
+    assert.ok(verdict.reason);
+    assert.match(verdict.reason, /Instagram account/);
+    assert.ok(!/WhatsApp/.test(verdict.reason));
+  });
+
+  it("treats no limit as unlimited rather than as zero", () => {
+    // What a platform admin gets, and what a workspace waiting on
+    // billing gets. Reading null as 0 would lock out both.
+    const verdict = checkLimit("instagram", null, 99);
+    assert.equal(verdict.ok, true);
+    assert.equal(verdict.remaining, null);
+  });
+
+  it("counts the account about to be added, not just the ones there", () => {
+    assert.equal(checkLimit("instagram", 3, 2, 1).ok, true);
+    assert.equal(checkLimit("instagram", 3, 2, 2).ok, false);
   });
 });

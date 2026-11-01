@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireOrg } from "@/lib/org";
+import { createClient } from "@/lib/supabase/server";
+import { instagramAllowance } from "@/lib/entitlement";
 import { instagramEnv } from "@/lib/instagram-api";
 import { authoriseUrl, redirectUri } from "@/lib/instagram";
 import { signState } from "@/lib/instagram-state";
@@ -14,7 +16,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { orgId } = await requireOrg();
+  const { orgId, isPlatformAdmin } = await requireOrg();
+
+  // Checked before Instagram rather than after.
+  //
+  // The callback could refuse just as well, but by then somebody has
+  // approved permissions on Instagram's screen for a connection that
+  // was never going to be allowed — and the thing they remember is
+  // granting access and being told no.
+  const allowance = await instagramAllowance(await createClient(), orgId, isPlatformAdmin);
+  if (!allowance.ok) {
+    return NextResponse.redirect(
+      new URL(
+        "/instagram?failed=limit",
+        process.env.NEXT_PUBLIC_APP_URL ?? "https://neurachat.in"
+      )
+    );
+  }
 
   const env = instagramEnv();
   if ("error" in env) {

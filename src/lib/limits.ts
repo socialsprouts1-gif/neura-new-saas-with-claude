@@ -21,6 +21,14 @@ export interface PlanLimits {
    * or the tiers are three prices for the same thing.
    */
   number_limit: number | null;
+  /**
+   * How many Instagram accounts may be connected.
+   *
+   * Separate from number_limit rather than folded into it: a business
+   * with two WhatsApp lines and one Instagram account is normal, and a
+   * shared allowance would make connecting one cost them the other.
+   */
+  instagram_limit: number | null;
 }
 
 /** No plan means no limits: a workspace waiting on one is not punished. */
@@ -29,9 +37,10 @@ export const NO_LIMITS: PlanLimits = {
   contact_limit: null,
   seat_limit: null,
   number_limit: null,
+  instagram_limit: null,
 };
 
-export type LimitKind = "messages" | "contacts" | "seats" | "numbers";
+export type LimitKind = "messages" | "contacts" | "seats" | "numbers" | "instagram";
 
 export interface LimitVerdict {
   ok: boolean;
@@ -48,6 +57,7 @@ const LABEL: Record<LimitKind, { one: string; many: string; period: string }> = 
   contacts: { one: "contact", many: "contacts", period: "" },
   seats: { one: "seat", many: "seats", period: "" },
   numbers: { one: "WhatsApp number", many: "WhatsApp numbers", period: "" },
+  instagram: { one: "Instagram account", many: "Instagram accounts", period: "" },
 };
 
 /**

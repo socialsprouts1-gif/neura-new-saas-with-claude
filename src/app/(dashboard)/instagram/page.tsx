@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { requireFeature } from "@/lib/org";
+import { instagramAllowance } from "@/lib/entitlement";
 import { Card } from "@/components/ui/primitives";
 import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv, scopedIdFor } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
 import { formatDate, formatDateTime } from "@/types/admin";
 import { CheckCircle2, Mail, MousePointerClick, Send, Smartphone, UserPlus } from "lucide-react";
+import Accounts, { type AccountRow } from "./Accounts";
 import Automations from "./Automations";
 import type { AutomationRow } from "./AutomationEditor";
 
@@ -51,8 +53,13 @@ const OUTCOMES: Record<string, { label: string; tone: string }> = {
   nothing_to_do: { label: "nothing to act on", tone: "text-white/40" },
 };
 
-export default async function InstagramPage() {
-  const { orgId } = await requireFeature("instagram");
+export default async function InstagramPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ failed?: string }>;
+}) {
+  const { failed } = await searchParams;
+  const { orgId, isPlatformAdmin } = await requireFeature("instagram");
   const supabase = await createClient();
 
   const env = instagramEnv();
@@ -69,6 +76,23 @@ export default async function InstagramPage() {
   const needsMigration = error?.code === "42P01";
   const accounts = connections ?? [];
   const live = accounts.find((account) => account.status === "active") ?? null;
+
+  // How many more, if any. A platform admin is never held to a plan:
+  // locking the operator out of their own tool to enforce a price is
+  // the sort of thing only discovered at an awkward moment.
+  const allowance = await instagramAllowance(supabase, orgId, isPlatformAdmin);
+
+  // Dates formatted here so the accounts list can stay a client
+  // component without the date code following it into the bundle.
+  const formattedDates = Object.fromEntries(
+    accounts.map((account) => [
+      account.id,
+      {
+        connected: formatDate(account.created_at),
+        renews: account.token_expires_at ? formatDate(account.token_expires_at) : null,
+      },
+    ])
+  );
 
   // Heal a connection made before the second id was stored.
   //
@@ -155,7 +179,7 @@ export default async function InstagramPage() {
               </p>
             )}
           </div>
-          {!live && configured && (
+          {!live && configured && allowance.ok && (
             <Link
               href="/api/instagram/connect"
               className="px-5 py-2.5 rounded-xl bg-[#FFFFFF] text-[#C13584] font-semibold text-sm hover:bg-[#FFFFFF]/90 transition-colors"
@@ -166,52 +190,15 @@ export default async function InstagramPage() {
         </div>
       </div>
 
-      {/* --- the connected account, in full ----------------------------- */}
-      {live && (
+      {/* --- the connected accounts -------------------------------------- */}
+      {accounts.length > 0 && (
         <Card className="mb-5">
-          <div className="flex flex-wrap items-center gap-4">
-            {live.profile_picture_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={live.profile_picture_url}
-                alt={live.username ? `@${live.username}` : "Connected account"}
-                className="w-16 h-16 rounded-full object-cover border-2 border-white/10 flex-shrink-0"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-white/6 grid place-items-center flex-shrink-0">
-                <InstagramGlyph className="w-7 h-7 text-white/30" />
-              </div>
-            )}
-
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[17px] font-semibold">
-                  {live.username ? `@${live.username}` : "Instagram account"}
-                </span>
-                <span className="inline-flex items-center gap-1 text-[12px] text-[#00C853]">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  connected
-                </span>
-              </div>
-              {live.account_name && (
-                <div className="text-[13.5px] text-white/60 mt-0.5">{live.account_name}</div>
-              )}
-              <div className="text-[12px] text-white/35 mt-1">
-                Professional account {live.ig_user_id} · connected{" "}
-                {formatDate(live.created_at)}
-                {live.token_expires_at ? ` · access renews by ${formatDate(live.token_expires_at)}` : ""}
-              </div>
-              {live.last_error && (
-                <div className="text-[12.5px] text-[#F87171] mt-1.5 leading-relaxed">
-                  {live.last_error}
-                </div>
-              )}
-            </div>
-
-            <Link href="/api/instagram/connect" className="btn-quiet text-sm">
-              Reconnect
-            </Link>
-          </div>
+          <Accounts
+            accounts={accounts as AccountRow[]}
+            limit={allowance.limit}
+            canConnect={allowance.ok && configured}
+            formatted={formattedDates}
+          />
         </Card>
       )}
 
@@ -246,6 +233,23 @@ export default async function InstagramPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {failed === "limit" && (
+        <Card className="mb-5 border-[#FACC15]/35">
+          <p className="text-sm text-white/70 leading-relaxed">
+            Your plan covers{" "}
+            {allowance.limit === 1
+              ? "one Instagram account"
+              : `${allowance.limit} Instagram accounts`}
+            , and {allowance.used === 1 ? "one is" : `${allowance.used} are`} already connected.
+            Disconnect one below, or{" "}
+            <Link href="/billing" className="text-accent-ink underline underline-offset-2">
+              move to a bigger plan
+            </Link>
+            .
+          </p>
+        </Card>
       )}
 
       {needsMigration && (
