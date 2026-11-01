@@ -46,7 +46,7 @@ export default async function InboxPage({
   const { data: conversations, error } = await supabase
     .from("conversations")
     .select(
-      "id, status, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, connection_id, bot_enabled, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
+      "id, status, channel, last_message_at, last_read_at, last_inbound_at, assigned_to, contact_id, connection_id, bot_enabled, ai_mode, priority, closed_at, needs_human, needs_human_reason, ai_summary, ai_next_action, ai_intent, ai_sentiment, contacts(id, wa_id, ig_username, name, tags, opted_out, lead_stage, lead_score, lead_score_reasons, source, campaign, deal_value, created_at)"
     )
     .eq("org_id", orgId)
     // Closed threads leave the active inbox; the "closed" view brings them
@@ -182,6 +182,7 @@ export default async function InboxPage({
     const contact = row.contacts as {
       id: string;
       wa_id: string;
+      ig_username: string | null;
       name: string | null;
       tags: string[];
       opted_out: boolean;
@@ -189,10 +190,20 @@ export default async function InboxPage({
       lead_score: number | null;
     } | null;
 
+    // An Instagram contact has no phone number, so wa_id holds a
+    // prefixed form of their Instagram id. Falling back to it the way a
+    // WhatsApp thread does would label the conversation "ig:17841476…",
+    // which reads as a bug rather than as a person.
+    const isInstagram = row.channel === "instagram";
+    const label = isInstagram
+      ? contact?.name || (contact?.ig_username ? `@${contact.ig_username}` : "Instagram user")
+      : contact?.name || contact?.wa_id || "Unknown";
+
     return {
       id: row.id,
       contactId: contact?.id ?? "",
-      name: contact?.name || contact?.wa_id || "Unknown",
+      name: label,
+      channel: isInstagram ? "instagram" : "whatsapp",
       waId: contact?.wa_id ?? "",
       tags: contact?.tags ?? [],
       preview: previews.get(row.id) ?? "",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -34,6 +35,8 @@ export interface ConversationRow {
   priority: string;
   /** Which of your numbers this thread is on. */
   connectionId: string | null;
+  /** Which door it came through. */
+  channel: "whatsapp" | "instagram";
 }
 
 export interface Teammate {
@@ -427,8 +430,28 @@ export default function ConversationList({
                     : "border-l-transparent hover:bg-white/3"
                 }`}
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent/30 to-accent2/25 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                  {initials(row.name, row.waId)}
+                <div className="relative flex-shrink-0">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                      row.channel === "instagram"
+                        ? "bg-gradient-to-br from-[#833AB4] to-[#E4405F] text-[#FFFFFF]"
+                        : "bg-gradient-to-br from-accent/30 to-accent2/25"
+                    }`}
+                  >
+                    {initials(row.name, row.waId)}
+                  </div>
+                  {/* Which door the conversation came through. The name
+                      cannot say it any more: an Instagram contact has no
+                      number, and "@handle" alone looks like a WhatsApp
+                      contact somebody nicknamed. */}
+                  {row.channel === "instagram" && (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[var(--surface-1)] grid place-items-center"
+                      title="Instagram"
+                    >
+                      <InstagramGlyph className="w-2.5 h-2.5 text-[#E4405F]" />
+                    </span>
+                  )}
                 </div>
 
                 <div className="min-w-0 flex-1">
