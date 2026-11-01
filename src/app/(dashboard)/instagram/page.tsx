@@ -8,7 +8,7 @@ import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv, scopedIdFor } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
 import { formatDateTime } from "@/types/admin";
-import { CheckCircle2, Mail, MousePointerClick, Send, UserPlus } from "lucide-react";
+import { CheckCircle2, Mail, MousePointerClick, Send, Smartphone, UserPlus } from "lucide-react";
 import Automations from "./Automations";
 import type { AutomationRow } from "./AutomationEditor";
 
@@ -143,6 +143,37 @@ export default async function InstagramPage() {
           )}
         </div>
       </div>
+
+      {/* --- the setting nothing else will tell you about --------------- */}
+      {live && (
+        <div className="mb-5 rounded-2xl border border-[#833AB4]/30 bg-[#833AB4]/8 p-4 sm:p-5">
+          <div className="flex items-start gap-3.5">
+            <div className="w-9 h-9 rounded-xl bg-[#833AB4]/20 text-[#A855F7] grid place-items-center flex-shrink-0">
+              <Smartphone className="w-[18px] h-[18px]" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-[14.5px] font-semibold mb-1">
+                One switch, and it is only in the phone app
+              </h2>
+              <p className="text-[13px] text-white/55 leading-relaxed mb-2.5">
+                Instagram will not deliver a single direct message or button tap to any tool until
+                the account owner turns this on. Comments arrive without it, which is what makes it
+                so hard to spot: half the automation works and the other half is silent.
+              </p>
+              <p className="text-[13px] text-white/70 leading-relaxed">
+                Instagram app → <span className="text-white">Settings and privacy</span> →{" "}
+                <span className="text-white">Messages and story replies</span> →{" "}
+                <span className="text-white">Connected tools</span> →{" "}
+                <span className="text-white">Allow access to messages</span>
+              </p>
+              <p className="text-[12px] text-white/35 leading-relaxed mt-2">
+                On older versions it is under Settings → Privacy → Messages → Connected Tools.
+                Nothing on this screen can check it for you — Instagram does not expose it.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {needsMigration && (
         <Card className="mb-5 border-[#FACC15]/35">
