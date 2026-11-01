@@ -119,16 +119,32 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
     const igUserId = entry.id;
     if (!igUserId) continue;
 
-    const { data: connection } = await admin
+    // Matched on either id.
+    //
+    // Instagram calls the same account by two numbers and uses them in
+    // different webhooks: a comment carries the professional account id,
+    // a direct message or a tapped button carries the app-scoped one.
+    // Matching only the first meant comments found their workspace and
+    // messages silently did not — so a follow gate could ask a question
+    // it was structurally unable to hear the answer to.
+    const { data: matches } = await admin
       .from("instagram_connections")
-      .select("id, org_id, ig_user_id, access_token_encrypted, status")
-      .eq("ig_user_id", igUserId)
-      .maybeSingle();
+      .select("id, org_id, ig_user_id, ig_scoped_id, access_token_encrypted, status")
+      .or(`ig_user_id.eq.${igUserId},ig_scoped_id.eq.${igUserId}`)
+      .limit(1);
+
+    const connection = matches?.[0] ?? null;
 
     // An account that is not connected here, or one whose connection was
-    // switched off. Nothing to do, and nothing worth logging loudly —
-    // Meta will keep sending these for a disconnected account.
-    if (!connection || connection.status !== "active") continue;
+    // switched off. Logged rather than dropped: this line used to be the
+    // quietest failure in the system, sitting in front of every
+    // diagnostic that was supposed to explain it.
+    if (!connection || connection.status !== "active") {
+      console.error(
+        `Instagram delivery for ${igUserId} matched no active connection (${describe(entry)})`
+      );
+      continue;
+    }
 
     const taps = parsePostbacks(entry);
     const messages = parseDirectMessage(entry);

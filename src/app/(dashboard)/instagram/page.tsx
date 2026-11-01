@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { decryptToken } from "@/lib/crypto";
 import { requireFeature } from "@/lib/org";
 import { Card } from "@/components/ui/primitives";
 import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
-import { instagramEnv } from "@/lib/instagram-api";
+import { instagramEnv, scopedIdFor } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
 import { formatDateTime } from "@/types/admin";
 import { CheckCircle2, Mail, MousePointerClick, Send, UserPlus } from "lucide-react";
@@ -60,13 +62,20 @@ export default async function InstagramPage() {
 
   const { data: connections, error } = await supabase
     .from("instagram_connections")
-    .select("id, username, account_name, status, created_at, last_error")
+    .select("id, username, account_name, status, created_at, last_error, ig_scoped_id, access_token_encrypted")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
 
   const needsMigration = error?.code === "42P01";
   const accounts = connections ?? [];
   const live = accounts.find((account) => account.status === "active") ?? null;
+
+  // Heal a connection made before the second id was stored.
+  //
+  // One call to Instagram, once, rather than asking somebody to
+  // reconnect an account that looks connected — which is a thing nobody
+  // would do unprompted, because nothing on the screen looks wrong.
+  await backfillScopedIds(accounts);
 
   const [{ data: ruleRows }, { data: eventRows }] = await Promise.all([
     supabase
@@ -303,5 +312,38 @@ function Value({ label, value }: { label: string; value: string }) {
         {value}
       </code>
     </div>
+  );
+}
+
+
+/**
+ * Fills in the app-scoped id for connections that predate it.
+ *
+ * Failures are ignored on purpose: this is a repair running on the way
+ * to rendering a page, and a page that will not load because a repair
+ * did not work is worse than the thing being repaired.
+ */
+async function backfillScopedIds(
+  accounts: { id: string; status: string; ig_scoped_id: string | null; access_token_encrypted: string }[]
+): Promise<void> {
+  const missing = accounts.filter(
+    (account) => account.status === "active" && !account.ig_scoped_id
+  );
+  if (missing.length === 0) return;
+
+  const admin = createAdminClient();
+  await Promise.all(
+    missing.map(async (account) => {
+      try {
+        const scoped = await scopedIdFor(decryptToken(account.access_token_encrypted));
+        if (!scoped) return;
+        await admin
+          .from("instagram_connections")
+          .update({ ig_scoped_id: scoped })
+          .eq("id", account.id);
+      } catch (error) {
+        console.error("Could not backfill an Instagram scoped id", error);
+      }
+    })
   );
 }

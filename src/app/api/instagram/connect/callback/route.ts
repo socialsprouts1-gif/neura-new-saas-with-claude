@@ -62,6 +62,10 @@ export async function GET(request: NextRequest) {
   // account refreshes its token, it does not move it to another
   // workspace. The types enforce that rather than trusting this file to.
   const refreshed = {
+    // Refreshed rather than insert-only: a connection made before this
+    // column existed has it null, and reconnecting should fill it in
+    // rather than leaving messaging webhooks homeless.
+    ig_scoped_id: account.igScopedId,
     username: account.username,
     account_name: account.accountName,
     profile_picture_url: account.profilePictureUrl,
@@ -78,6 +82,7 @@ export async function GET(request: NextRequest) {
     : await admin.from("instagram_connections").insert({
         org_id: orgId,
         ig_user_id: account.igUserId,
+        ig_scoped_id: account.igScopedId,
         username: account.username,
         account_name: account.accountName,
         profile_picture_url: account.profilePictureUrl,

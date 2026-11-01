@@ -67,6 +67,9 @@
 --                                         that asks for a follow first,
 --                                         email capture, and counters
 --                                         that say what each one did
+--  24. Instagram's second id           — the id messaging webhooks use,
+--                                         without which a direct message
+--                                         never finds its workspace
 --
 -- Every one of them is included whether or not you have run it before.
 -- They are harmless to re-run, so it does not matter which you got to.
@@ -1887,5 +1890,29 @@ create policy instagram_links_rw on public.instagram_links
 drop policy if exists instagram_pending_read on public.instagram_pending_sends;
 create policy instagram_pending_read on public.instagram_pending_sends
   for select using (public.is_org_member(org_id));
+
+notify pgrst, 'reload schema';
+
+
+-- =====================================================================
+-- 26-instagram-scoped-id.sql
+-- =====================================================================
+--
+-- Instagram identifies a business by two different numbers, and uses
+-- them in different webhooks.
+--
+--   user_id — the professional account id. Comment webhooks use it.
+--   id      — the app-scoped id. Messaging webhooks use it.
+--
+-- Only the first was stored, so a comment found its workspace and a
+-- direct message or a tapped button did not. The lookup failed, the
+-- delivery was dropped without a word, and a follow gate could ask a
+-- question it was structurally incapable of hearing the answer to.
+
+alter table public.instagram_connections
+  add column if not exists ig_scoped_id text;
+
+create index if not exists instagram_connections_scoped_idx
+  on public.instagram_connections (ig_scoped_id);
 
 notify pgrst, 'reload schema';

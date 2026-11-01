@@ -244,6 +244,7 @@ export interface Database {
           id: string;
           org_id: string;
           ig_user_id: string;
+          ig_scoped_id: string | null;
           username: string | null;
           account_name: string | null;
           profile_picture_url: string | null;
@@ -261,6 +262,7 @@ export interface Database {
           id?: string;
           org_id: string;
           ig_user_id: string;
+          ig_scoped_id?: string | null;
           username?: string | null;
           account_name?: string | null;
           profile_picture_url?: string | null;
@@ -271,6 +273,7 @@ export interface Database {
           is_default?: boolean;
         };
         Update: {
+          ig_scoped_id?: string | null;
           username?: string | null;
           account_name?: string | null;
           profile_picture_url?: string | null;

@@ -47,6 +47,8 @@ export function isInstagramConfigured(): boolean {
 
 export interface ConnectedAccount {
   igUserId: string;
+  /** The app-scoped id, which messaging webhooks use instead. */
+  igScopedId: string | null;
   username: string | null;
   accountName: string | null;
   profilePictureUrl: string | null;
@@ -100,14 +102,23 @@ export async function exchangeCode(
     typeof long?.expires_in === "number" ? long.expires_in : null;
 
   const me = await fetch(
-    `${GRAPH}/me?fields=user_id,username,name,profile_picture_url&access_token=${encodeURIComponent(token)}`
+    `${GRAPH}/me?fields=id,user_id,username,name,profile_picture_url&access_token=${encodeURIComponent(token)}`
   ).then((response) => response.json().catch(() => null));
 
   const igUserId: string | undefined = me?.user_id ?? shortLived?.user_id;
   if (!igUserId) return { error: described(me, "Instagram did not say which account was connected.") };
 
+  // Both ids, because Instagram uses them in different webhooks.
+  //
+  // `user_id` is the professional account id and is what a comment
+  // webhook carries. `id` is the app-scoped id and is what a messaging
+  // webhook carries. Storing only the first means a comment finds its
+  // workspace and a direct message does not.
+  const igScopedId: string | null = me?.id ? String(me.id) : null;
+
   return {
     igUserId: String(igUserId),
+    igScopedId,
     username: me?.username ?? null,
     accountName: me?.name ?? null,
     profilePictureUrl: me?.profile_picture_url ?? null,
@@ -337,5 +348,25 @@ export async function listMedia(input: {
       ok: false,
       error: error instanceof Error ? error.message : "Instagram was unreachable.",
     };
+  }
+}
+
+/**
+ * The app-scoped id for an account connected before it was stored.
+ *
+ * Connections made earlier have it null, which leaves every messaging
+ * webhook for them unmatched. Asking Instagram once costs a single call
+ * and saves the person a reconnect they would not understand the reason
+ * for.
+ */
+export async function scopedIdFor(token: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${GRAPH}/me?fields=id&access_token=${encodeURIComponent(token)}`
+    );
+    const body = (await response.json().catch(() => null)) as { id?: string | number } | null;
+    return body?.id ? String(body.id) : null;
+  } catch {
+    return null;
   }
 }
