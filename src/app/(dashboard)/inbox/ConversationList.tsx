@@ -110,15 +110,24 @@ export default function ConversationList({
   const [tag, setTag] = useState<string | null>(null);
   const [view, setView] = useState<View>("all");
   const [pickedNumbers, setPickedNumbers] = useState<string[]>([]);
+  const [channel, setChannel] = useState<"all" | "whatsapp" | "instagram">("all");
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
 
     const filtered = rows.filter((row) => {
       if (!inView(row, view, currentUserId)) return false;
+      if (channel !== "all" && row.channel !== channel) return false;
       // Nothing ticked means every number, so an empty list is not a
       // filter that matches nothing.
-      if (pickedNumbers.length > 0 && !pickedNumbers.includes(row.connectionId ?? "")) {
+      // Instagram threads are on no WhatsApp number, so narrowing to one
+      // would silently hide them. The channel filter above is how
+      // somebody narrows to Instagram.
+      if (
+        pickedNumbers.length > 0 &&
+        row.channel === "whatsapp" &&
+        !pickedNumbers.includes(row.connectionId ?? "")
+      ) {
         return false;
       }
       if (scope === "unread" && !row.unread) return false;
@@ -151,7 +160,20 @@ export default function ConversationList({
       const right = b.lastMessageAt ? Date.parse(b.lastMessageAt) : 0;
       return direction * (left - right);
     });
-  }, [rows, query, scope, sort, descending, tag, view, pickedNumbers, currentUserId]);
+  }, [rows, query, scope, sort, descending, tag, view, pickedNumbers, channel, currentUserId]);
+
+  // Counted off the unfiltered rows so the tabs say what exists rather
+  // than what the current filter leaves — "Instagram 0" is a real
+  // answer to "is any of this working", and hiding the tab when empty
+  // would make the channel look unsupported instead of unused.
+  const counts = useMemo(
+    () => ({
+      all: rows.length,
+      whatsapp: rows.filter((row) => row.channel === "whatsapp").length,
+      instagram: rows.filter((row) => row.channel === "instagram").length,
+    }),
+    [rows]
+  );
 
   const scopeLabel =
     scope === "all"
@@ -169,6 +191,36 @@ export default function ConversationList({
         activeId ? "hidden md:flex" : "flex"
       }`}
     >
+      {/* Which channel. Always shown, even at zero, because a tab that
+          disappears when empty makes a supported channel look missing —
+          which is exactly how somebody concludes the product does not do
+          Instagram. */}
+      <div className="flex items-center gap-1 px-3 pt-3 flex-shrink-0">
+        {(
+          [
+            { key: "all", label: "All" },
+            { key: "whatsapp", label: "WhatsApp" },
+            { key: "instagram", label: "Instagram" },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setChannel(tab.key)}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              channel === tab.key
+                ? tab.key === "instagram"
+                  ? "bg-[#E4405F]/15 text-[#E4405F]"
+                  : "bg-white/10 text-white"
+                : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            {tab.label}
+            <span className="ml-1.5 tabular-nums text-white/30">{counts[tab.key]}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center gap-2 px-3 h-14 border-b border-white/8 flex-shrink-0">
         {/* Which numbers' conversations to show. A pill rather than an
             icon: with several numbers connected, which one you are looking
