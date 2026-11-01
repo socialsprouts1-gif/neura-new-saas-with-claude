@@ -410,6 +410,8 @@ export function emailIn(text: string): string | null {
 export interface Postback {
   personId: string;
   payload: string;
+  /** Instagram's id for this tap. Unique, and the only safe claim. */
+  deliveryId: string | null;
 }
 
 export function parsePostbacks(entry: {
@@ -417,10 +419,14 @@ export function parsePostbacks(entry: {
 }): Postback[] {
   const out: Postback[] = [];
   for (const item of entry.messaging ?? []) {
-    const postback = item.postback as { payload?: string } | undefined;
+    const postback = item.postback as { payload?: string; mid?: string } | undefined;
     const sender = item.sender as { id?: string } | undefined;
     if (!postback?.payload || !sender?.id) continue;
-    out.push({ personId: sender.id, payload: postback.payload });
+    out.push({
+      personId: sender.id,
+      payload: postback.payload,
+      deliveryId: postback.mid ?? null,
+    });
   }
   return out;
 }

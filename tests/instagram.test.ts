@@ -11,6 +11,7 @@ import {
   linkId,
   mentions,
   parseDirectMessage,
+  parsePostbacks,
   ruleFromPayload,
   withinMessagingWindow,
   redirectUri,
@@ -367,4 +368,42 @@ test("the tap is not mistaken for an email reply", () => {
   // The gate's title runs through the same inbound path as any other
   // message, and an email prompt is often the next thing sent.
   assert.equal(emailIn(FOLLOW_BUTTON), null);
+});
+
+test("a tapped button carries its own id to claim with", () => {
+  // The claim has to be the tap's own id. Keying it on the person
+  // instead means an id mismatch between the comment webhook and the
+  // messaging webhook silences the gate permanently — the exact bug
+  // this whole path exists to fix.
+  const [tap] = parsePostbacks({
+    messaging: [
+      {
+        sender: { id: "customer" },
+        recipient: { id: "business" },
+        postback: { mid: "tap-1", title: FOLLOW_BUTTON, payload: "follow:rule-1" },
+      },
+    ],
+  });
+  assert.equal(tap.deliveryId, "tap-1");
+  assert.equal(tap.payload, "follow:rule-1");
+  assert.equal(tap.personId, "customer");
+});
+
+test("a tap with no id is still handled", () => {
+  // Instagram has sent postbacks without a mid. Dropping those would
+  // trade a double send for no send, which is the worse of the two.
+  const [tap] = parsePostbacks({
+    messaging: [{ sender: { id: "customer" }, postback: { payload: "follow:rule-1" } }],
+  });
+  assert.equal(tap.deliveryId, null);
+  assert.equal(tap.personId, "customer");
+});
+
+test("an ordinary message is not read as a tap", () => {
+  assert.deepEqual(
+    parsePostbacks({
+      messaging: [{ sender: { id: "customer" }, message: { mid: "m1", text: "hello" } }],
+    }),
+    []
+  );
 });

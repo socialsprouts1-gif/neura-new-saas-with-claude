@@ -33,13 +33,18 @@ export async function handlePostback(
     ig_user_id: string;
     access_token_encrypted: string;
   },
-  input: { personId: string; payload: string }
+  input: { personId: string; payload: string; deliveryId?: string | null }
 ): Promise<void> {
   // The tap can reach us twice: once as a postback, and once as a plain
   // message, because Instagram also shows the button's title as
-  // something the person said. Both routes end up here, so the pending
-  // row is the claim — whichever arrives first takes it, and the other
-  // finds nothing and stops. Without that, one tap sends two DMs.
+  // something the person said.
+  //
+  // Claimed on the tap's own id, not on the pending row. That row is
+  // keyed by the id Instagram used for the person in the *comment*
+  // webhook, and nothing guarantees it is the id the messaging webhook
+  // uses for them. Requiring it would make a mismatch look exactly like
+  // the bug this is fixing — asked, tapped, never answered — except
+  // permanently, and for everybody.
   const ruleId = ruleFromPayload(input.payload);
   if (!ruleId) return;
 
@@ -82,18 +87,50 @@ export async function handlePostback(
     return;
   }
 
-  // Claim it. Deleting the pending row is what makes this tap ours:
-  // the delete reports what it removed, so a second delivery of the
-  // same tap removes nothing and stops here.
-  const { data: claimed } = await admin
-    .from("instagram_pending_sends")
-    .delete()
-    .eq("org_id", connection.org_id)
-    .eq("ig_user_id", input.personId)
-    .eq("rule_id", ruleId)
-    .select("id");
+  // Claim this delivery. The events table has a unique index on the id
+  // column, so a redelivery of the same tap conflicts here and stops
+  // before a second copy goes out. A tap with no id of its own — the
+  // text fallback — was already claimed by the message row that
+  // carried it, so it needs no second guard.
+  if (input.deliveryId) {
+    const { error: claimError } = await admin.from("instagram_comment_events").insert({
+      org_id: connection.org_id,
+      connection_id: connection.id,
+      rule_id: ruleId,
+      kind: "follow_gate",
+      comment_id: input.deliveryId,
+      ig_user_id: input.personId,
+      outcome: "matching",
+      comment_text: "Tapped “I'm following”",
+    });
+    if (claimError) {
+      // 23505 is the unique index doing its job.
+      if (claimError.code !== "23505") {
+        console.error("Could not claim an Instagram button tap", claimError);
+      }
+      return;
+    }
+  }
 
-  if (!claimed || claimed.length === 0) return;
+  const finish = async (outcome: string, error?: string) => {
+    if (input.deliveryId) {
+      await admin
+        .from("instagram_comment_events")
+        .update({ outcome, error: error ?? null })
+        .eq("comment_id", input.deliveryId);
+      return;
+    }
+    await admin.from("instagram_comment_events").insert({
+      org_id: connection.org_id,
+      connection_id: connection.id,
+      rule_id: ruleId,
+      kind: "follow_gate",
+      ig_user_id: input.personId,
+      outcome,
+      error: error ?? null,
+      comment_text: "Tapped “I'm following”",
+    });
+  };
 
   const outcome = await sendRuleMessage({
     connection,
@@ -104,34 +141,30 @@ export async function handlePostback(
 
   if (!outcome.ok) {
     console.error(`Instagram gated send failed: ${outcome.error}`);
-    // Logged rather than swallowed: a gate that asks and then goes
+    // Recorded rather than swallowed: a gate that asks and then goes
     // quiet is the worst failure this feature has, and without a row
     // here the screen cannot say it happened.
-    await admin.from("instagram_comment_events").insert({
-      org_id: connection.org_id,
-      connection_id: connection.id,
-      rule_id: ruleId,
-      kind: "follow_gate",
-      ig_user_id: input.personId,
-      outcome: "failed",
-      comment_text: "Tapped “I'm following”",
-      error: outcome.error,
-    });
+    await finish("failed", outcome.error);
     return;
   }
 
   await bump(admin, ruleId, "sent_count");
-  await bump(admin, ruleId, "follower_gain_count");
+  await finish("sent");
 
-  await admin.from("instagram_comment_events").insert({
-    org_id: connection.org_id,
-    connection_id: connection.id,
-    rule_id: ruleId,
-    kind: "follow_gate",
-    ig_user_id: input.personId,
-    outcome: "sent",
-    comment_text: "Tapped “I'm following”",
-  });
+  // The follower tally, when the pending row can be found. It is a
+  // number on a screen, so a lookup that misses costs a number rather
+  // than the message — which is why the send never waited for it.
+  const { data: claimed } = await admin
+    .from("instagram_pending_sends")
+    .delete()
+    .eq("org_id", connection.org_id)
+    .eq("ig_user_id", input.personId)
+    .eq("rule_id", ruleId)
+    .select("id");
+
+  if (claimed && claimed.length > 0) {
+    await bump(admin, ruleId, "follower_gain_count");
+  }
 
   await sendEmailPrompt({ connection, rule, personId: input.personId, token });
 }

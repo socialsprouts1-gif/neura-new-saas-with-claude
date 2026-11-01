@@ -114,6 +114,10 @@ export async function handleDirectMessage(
       await handlePostback(connection, {
         personId: message.fromId,
         payload: followPayload(pending.rule_id),
+        // No id of its own: the message row written above already
+        // claimed this delivery, so a second guard here would only
+        // reject the first attempt.
+        deliveryId: null,
       });
       return;
     }
