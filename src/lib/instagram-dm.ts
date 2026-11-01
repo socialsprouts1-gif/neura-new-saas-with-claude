@@ -2,7 +2,15 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { sendDirectMessage } from "@/lib/instagram-api";
-import { emailIn, mentions, withinMessagingWindow, type DirectMessage } from "@/lib/instagram";
+import {
+  emailIn,
+  FOLLOW_BUTTON,
+  followPayload,
+  mentions,
+  withinMessagingWindow,
+  type DirectMessage,
+} from "@/lib/instagram";
+import { handlePostback } from "@/lib/instagram-postback";
 import {
   asLoadedRule,
   bump,
@@ -83,6 +91,33 @@ export async function handleDirectMessage(
     .from("conversations")
     .update({ last_inbound_at: receivedAt, last_message_at: receivedAt })
     .eq("id", conversation.id);
+
+  // A tapped follow-gate button, arriving as text.
+  //
+  // Instagram shows a tapped button as something the person said, and
+  // only delivers the tap itself if the app subscribed to
+  // messaging_postbacks — a separate field from messages, and an easy
+  // one to miss. When it is missed the gate asks, the person taps, and
+  // nothing ever comes back. Recognising the title here makes the gate
+  // work either way.
+  if (message.text.trim() === FOLLOW_BUTTON) {
+    const { data: pending } = await admin
+      .from("instagram_pending_sends")
+      .select("rule_id")
+      .eq("org_id", orgId)
+      .eq("ig_user_id", message.fromId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pending?.rule_id) {
+      await handlePostback(connection, {
+        personId: message.fromId,
+        payload: followPayload(pending.rule_id),
+      });
+      return;
+    }
+  }
 
   // An email address the automation asked for. Caught before anything
   // else answers, because "sure, it's me@example.com" would otherwise

@@ -21,6 +21,17 @@ import type { AutomationRow } from "./AutomationEditor";
 
 export const dynamic = "force-dynamic";
 
+// Three separate subscriptions, and missing one fails quietly.
+//
+// messaging_postbacks is the one everybody misses: it is not part of
+// `messages`, so without it a button tap is never delivered and a follow
+// gate asks, gets tapped, and goes silent forever.
+const WEBHOOK_FIELDS = [
+  { name: "comments", why: "someone comments on a post" },
+  { name: "messages", why: "someone sends a direct message" },
+  { name: "messaging_postbacks", why: "someone taps a button — needed for the follow gate" },
+];
+
 const OUTCOMES: Record<string, { label: string; tone: string }> = {
   matching: { label: "working on it", tone: "text-white/40" },
   no_rule: { label: "no automation matched", tone: "text-white/40" },
@@ -222,17 +233,27 @@ export default async function InstagramPage() {
           </div>
 
           <div>
-            <div className="text-[12px] font-medium text-white/55 mb-2">Subscribe to</div>
+            <div className="text-[12px] font-medium text-white/55 mb-2">
+              Subscribe to all three
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {["comments", "messages"].map((field) => (
+              {WEBHOOK_FIELDS.map((field) => (
                 <code
-                  key={field}
+                  key={field.name}
                   className="px-2.5 py-1 rounded-lg border border-white/10 bg-white/5 text-[11.5px] text-white/60"
+                  title={field.why}
                 >
-                  {field}
+                  {field.name}
                 </code>
               ))}
             </div>
+            <ul className="mt-2.5 space-y-1">
+              {WEBHOOK_FIELDS.map((field) => (
+                <li key={field.name} className="text-[12px] text-white/35 leading-relaxed">
+                  <span className="text-white/55">{field.name}</span> — {field.why}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div>

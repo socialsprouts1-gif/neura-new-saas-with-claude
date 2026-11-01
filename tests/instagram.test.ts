@@ -5,10 +5,13 @@ import {
   buttonProblem,
   credentialProblem,
   emailIn,
+  FOLLOW_BUTTON,
+  followPayload,
   isSendableUrl,
   linkId,
   mentions,
   parseDirectMessage,
+  ruleFromPayload,
   withinMessagingWindow,
   redirectUri,
   ruleFor,
@@ -321,4 +324,47 @@ test("text with no address gives nothing", () => {
   assert.equal(emailIn("what is the price?"), null);
   assert.equal(emailIn("@neuraxine"), null);
   assert.equal(emailIn("me@localhost"), null);
+});
+
+// --- the follow gate's round trip ------------------------------------
+//
+// These exist because the gate shipped broken: Instagram delivers a
+// button tap only to apps subscribed to messaging_postbacks, which is a
+// separate field from messages and easy to miss. The gate asked, the
+// person tapped, and nothing ever came back.
+//
+// The tap also arrives as ordinary message text, because Instagram
+// shows a tapped button as something the person said. Recognising it
+// there is what makes the gate work regardless of configuration — so
+// the title has to be one constant, not two copies that drift.
+
+test("the button title is matched exactly as it is sent", () => {
+  const [parsed] = parseDirectMessage({
+    time: 1_767_000_000,
+    messaging: [
+      {
+        sender: { id: "customer" },
+        recipient: { id: "business" },
+        message: { mid: "m1", text: FOLLOW_BUTTON },
+      },
+    ],
+  });
+  assert.equal(parsed.text, FOLLOW_BUTTON, "the title must survive the parser untouched");
+});
+
+test("a payload round-trips to the automation it came from", () => {
+  const id = "9f1c2d3e-0000-4444-8888-aaaabbbbcccc";
+  assert.equal(ruleFromPayload(followPayload(id)), id);
+});
+
+test("a payload that is not a follow gate yields nothing", () => {
+  assert.equal(ruleFromPayload("something_else"), null);
+  assert.equal(ruleFromPayload("follow:"), null);
+  assert.equal(ruleFromPayload(""), null);
+});
+
+test("the tap is not mistaken for an email reply", () => {
+  // The gate's title runs through the same inbound path as any other
+  // message, and an email prompt is often the next thing sent.
+  assert.equal(emailIn(FOLLOW_BUTTON), null);
 });

@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { followsAccount, sendMessage } from "@/lib/instagram-api";
-import { ruleFromPayload } from "@/lib/instagram";
+import { FOLLOW_BUTTON, ruleFromPayload } from "@/lib/instagram";
 import {
   asLoadedRule,
   bump,
@@ -35,6 +35,11 @@ export async function handlePostback(
   },
   input: { personId: string; payload: string }
 ): Promise<void> {
+  // The tap can reach us twice: once as a postback, and once as a plain
+  // message, because Instagram also shows the button's title as
+  // something the person said. Both routes end up here, so the pending
+  // row is the claim — whichever arrives first takes it, and the other
+  // finds nothing and stops. Without that, one tap sends two DMs.
   const ruleId = ruleFromPayload(input.payload);
   if (!ruleId) return;
 
@@ -71,11 +76,24 @@ export async function handlePostback(
       igUserId: connection.ig_user_id,
       recipient: { id: input.personId },
       text: NOT_YET,
-      buttons: [{ title: "I'm following ✅", payload: input.payload }],
+      buttons: [{ title: FOLLOW_BUTTON, payload: input.payload }],
       token,
     });
     return;
   }
+
+  // Claim it. Deleting the pending row is what makes this tap ours:
+  // the delete reports what it removed, so a second delivery of the
+  // same tap removes nothing and stops here.
+  const { data: claimed } = await admin
+    .from("instagram_pending_sends")
+    .delete()
+    .eq("org_id", connection.org_id)
+    .eq("ig_user_id", input.personId)
+    .eq("rule_id", ruleId)
+    .select("id");
+
+  if (!claimed || claimed.length === 0) return;
 
   const outcome = await sendRuleMessage({
     connection,
@@ -86,25 +104,24 @@ export async function handlePostback(
 
   if (!outcome.ok) {
     console.error(`Instagram gated send failed: ${outcome.error}`);
+    // Logged rather than swallowed: a gate that asks and then goes
+    // quiet is the worst failure this feature has, and without a row
+    // here the screen cannot say it happened.
+    await admin.from("instagram_comment_events").insert({
+      org_id: connection.org_id,
+      connection_id: connection.id,
+      rule_id: ruleId,
+      kind: "follow_gate",
+      ig_user_id: input.personId,
+      outcome: "failed",
+      comment_text: "Tapped “I'm following”",
+      error: outcome.error,
+    });
     return;
   }
 
   await bump(admin, ruleId, "sent_count");
-  // Only counted when the gate actually turned somebody into a
-  // follower — a tap from a person who already followed is not a gain,
-  // and the pending row is what tells the two apart.
-  const { data: pending } = await admin
-    .from("instagram_pending_sends")
-    .select("id")
-    .eq("org_id", connection.org_id)
-    .eq("ig_user_id", input.personId)
-    .eq("rule_id", ruleId)
-    .maybeSingle();
-
-  if (pending) {
-    await bump(admin, ruleId, "follower_gain_count");
-    await admin.from("instagram_pending_sends").delete().eq("id", pending.id);
-  }
+  await bump(admin, ruleId, "follower_gain_count");
 
   await admin.from("instagram_comment_events").insert({
     org_id: connection.org_id,

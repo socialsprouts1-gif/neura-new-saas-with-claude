@@ -5,6 +5,7 @@ import { sendMessage } from "@/lib/instagram-api";
 import {
   DEFAULT_EMAIL_PROMPT,
   DEFAULT_FOLLOW_GATE,
+  FOLLOW_BUTTON,
   followPayload,
   type AutomationButton,
 } from "@/lib/instagram";
@@ -75,7 +76,7 @@ export async function sendFollowGate(input: {
     igUserId: input.connection.ig_user_id,
     recipient: input.recipient,
     text: input.rule.followGateMessage?.trim() || DEFAULT_FOLLOW_GATE,
-    buttons: [{ title: "I'm following ✅", payload: followPayload(input.rule.id) }],
+    buttons: [{ title: FOLLOW_BUTTON, payload: followPayload(input.rule.id) }],
     token: input.token,
   });
 }

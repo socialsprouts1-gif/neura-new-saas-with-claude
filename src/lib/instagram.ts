@@ -117,6 +117,17 @@ export const DEFAULT_FOLLOW_GATE =
 export const DEFAULT_EMAIL_PROMPT =
   "Want me to email this to you as well? Just reply with your email address.";
 
+/**
+ * The follow-gate button's title.
+ *
+ * One constant because it is written in two places and read in a third:
+ * Instagram shows a tapped button as something the person said, so the
+ * title comes back as plain message text when `messaging_postbacks` is
+ * not subscribed — and recognising it there is what keeps the gate
+ * working regardless of how the webhook is configured.
+ */
+export const FOLLOW_BUTTON = "I'm following ✅";
+
 /** The payload a follow-gate button carries back to the webhook. */
 export function followPayload(ruleId: string): string {
   return `follow:${ruleId}`;
