@@ -1,23 +1,115 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Check, Download, Share, Plus } from "lucide-react";
+import { Check, Download } from "lucide-react";
 
 // Installing the app, on whichever device somebody is holding.
 //
-// Three platforms, three completely different stories, and the usual
-// mistake is writing instructions for one and hoping. Android gets a
-// real button; iPhone gets a sentence pointing at the Share menu,
-// because Apple does not allow the button; desktop gets the icon in the
-// address bar.
+// Four platforms, four completely different stories, and only one of
+// them can offer a button — Apple does not allow one, and desktop
+// Chrome puts its own in the address bar. So the honest shape is a
+// picker: guess from the browser, show that one first, and let anybody
+// correct the guess in one tap.
 //
-// Which one you see is decided by what the browser offers, not by
-// guessing from the user agent — a guess is wrong for every iPad since
-// 2019, which reports itself as a Mac.
+// The guess is only ever a default. Every iPad since 2019 reports
+// itself as a Mac, so a wrong guess is routine and has to be cheap to
+// fix rather than something to be clever about.
 
 interface InstallEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+type Device = "android" | "ios" | "windows" | "mac";
+
+const DEVICES: { key: Device; label: string; steps: React.ReactNode[] }[] = [
+  {
+    key: "android",
+    label: "Android",
+    steps: [
+      <>Open this page in <b>Chrome</b>.</>,
+      <>Tap the <b>⋮</b> menu, top right.</>,
+      <>Tap <b>Install app</b>, or <b>Add to Home screen</b>.</>,
+      <>Tap <b>Install</b> to confirm. The icon appears on your home screen.</>,
+    ],
+  },
+  {
+    key: "ios",
+    label: "iPhone & iPad",
+    steps: [
+      <>Open this page in <b>Safari</b>. Chrome on iPhone cannot install apps — Apple does not allow it.</>,
+      <>Tap the <b>Share</b> button at the bottom of the screen (a square with an arrow out of it).</>,
+      <>Scroll down the list and tap <b>Add to Home Screen</b>.</>,
+      <>Tap <b>Add</b>, top right. The icon appears on your home screen.</>,
+    ],
+  },
+  {
+    key: "windows",
+    label: "Windows",
+    steps: [
+      <>Open this page in <b>Chrome</b> or <b>Edge</b>.</>,
+      <>Look at the right-hand end of the address bar for the <b>install icon</b> — a small screen with an arrow.</>,
+      <>Click it, then click <b>Install</b>.</>,
+      <>No icon there? Open the <b>⋮</b> menu → <b>Cast, save and share</b> → <b>Install page as app</b>.</>,
+    ],
+  },
+  {
+    key: "mac",
+    label: "Mac",
+    steps: [
+      <>Open this page in <b>Chrome</b>, <b>Edge</b> or <b>Safari</b>.</>,
+      <>In Chrome or Edge: click the <b>install icon</b> at the right of the address bar, then <b>Install</b>.</>,
+      <>In Safari: <b>File</b> menu → <b>Add to Dock</b>.</>,
+      <>The app opens in its own window and appears in your Applications and Dock.</>,
+    ],
+  },
+];
+
+const STANDALONE = "(display-mode: standalone)";
+
+function subscribeInstalled(onChange: () => void): () => void {
+  const query = window.matchMedia(STANDALONE);
+  query.addEventListener("change", onChange);
+  window.addEventListener("appinstalled", onChange);
+  return () => {
+    query.removeEventListener("change", onChange);
+    window.removeEventListener("appinstalled", onChange);
+  };
+}
+
+function readInstalled(): boolean {
+  return (
+    window.matchMedia(STANDALONE).matches ||
+    // Safari's own, older flag. Still the only one iOS sets.
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+  );
+}
+
+/**
+ * Which device this probably is.
+ *
+ * Cached because it cannot change without a reload, and getSnapshot is
+ * called on every render.
+ */
+let deviceCache: Device | null = null;
+
+function readDevice(): Device {
+  if (deviceCache !== null) return deviceCache;
+  const ua = window.navigator.userAgent;
+
+  if (/Android/.test(ua)) deviceCache = "android";
+  // An iPad has claimed to be a Mac since iPadOS 13, so the touch point
+  // count is the only thing that separates them.
+  else if (/iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && navigator.maxTouchPoints > 1))
+    deviceCache = "ios";
+  else if (/Win/.test(ua)) deviceCache = "windows";
+  else deviceCache = "mac";
+
+  return deviceCache;
+}
+
+function subscribeNever(): () => void {
+  return () => {};
 }
 
 export function registerServiceWorker() {
@@ -40,65 +132,17 @@ export function registerServiceWorker() {
   else window.addEventListener("load", register, { once: true });
 }
 
-const STANDALONE = "(display-mode: standalone)";
-
-/**
- * Whether this is already running as an installed app.
- *
- * Read through useSyncExternalStore rather than set from an effect:
- * it is a fact about the browser, not state this component owns, and
- * reading it in an effect means one render showing the wrong answer
- * before the right one arrives.
- */
-function subscribeInstalled(onChange: () => void): () => void {
-  const query = window.matchMedia(STANDALONE);
-  query.addEventListener("change", onChange);
-  window.addEventListener("appinstalled", onChange);
-  return () => {
-    query.removeEventListener("change", onChange);
-    window.removeEventListener("appinstalled", onChange);
-  };
-}
-
-function readInstalled(): boolean {
-  return (
-    window.matchMedia(STANDALONE).matches ||
-    // Safari's own, older flag. Still the only one iOS sets.
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  );
-}
-
-/**
- * Safari on an iPhone or iPad, which is the only place Apple's
- * instructions apply — and the only browser that cannot offer a button.
- *
- * Cached because it cannot change without a reload, and getSnapshot is
- * called on every render.
- */
-let iosCache: boolean | null = null;
-
-function readIsIOS(): boolean {
-  if (iosCache !== null) return iosCache;
-  const ua = window.navigator.userAgent;
-  // An iPad has reported itself as a Mac since iPadOS 13, so the touch
-  // point count is what tells them apart.
-  const touchApple = /iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && navigator.maxTouchPoints > 1);
-  const safari = /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS/.test(ua);
-  iosCache = touchApple && safari;
-  return iosCache;
-}
-
-/** Nothing to subscribe to: the answer cannot change without a reload. */
-function subscribeNever(): () => void {
-  return () => {};
-}
-
-export default function InstallApp({ className = "" }: { className?: string }) {
+export default function InstallApp() {
   const [prompt, setPrompt] = useState<InstallEvent | null>(null);
+  const [picked, setPicked] = useState<Device | null>(null);
 
-  // false on the server, where there is no browser to ask.
+  // false and "android" on the server, where there is no browser to ask.
   const installed = useSyncExternalStore(subscribeInstalled, readInstalled, () => false);
-  const isIOS = useSyncExternalStore(subscribeNever, readIsIOS, () => false);
+  const detected = useSyncExternalStore(subscribeNever, readDevice, () => "android" as Device);
+
+  // What somebody chose beats what the browser guessed, always.
+  const device = picked ?? detected;
+  const steps = DEVICES.find((entry) => entry.key === device)?.steps ?? [];
 
   useEffect(() => {
     const onPrompt = (event: Event) => {
@@ -118,48 +162,67 @@ export default function InstallApp({ className = "" }: { className?: string }) {
 
   if (installed) {
     return (
-      <p className={`inline-flex items-center gap-2 text-sm text-accent-ink ${className}`}>
-        <Check className="w-4 h-4" />
-        Installed — you are using the app
-      </p>
+      <div className="glass-card p-6 text-center">
+        <Check className="w-8 h-8 text-accent mx-auto mb-3" />
+        <p className="font-semibold mb-1">You are using the app</p>
+        <p className="text-sm text-white/50">It is already installed on this device.</p>
+      </div>
     );
   }
 
-  if (prompt) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          void prompt.prompt();
-          void prompt.userChoice.finally(() => setPrompt(null));
-        }}
-        className={`btn-primary ${className}`}
-      >
-        <Download className="w-4 h-4" />
-        Install the app
-      </button>
-    );
-  }
-
-  if (isIOS) {
-    return (
-      <p className={`text-sm text-white/70 leading-relaxed ${className}`}>
-        To install: tap{" "}
-        <Share className="w-4 h-4 inline-block -mt-0.5 text-white/80" />{" "}
-        <span className="text-white/80">Share</span> at the bottom of Safari, then{" "}
-        <Plus className="w-4 h-4 inline-block -mt-0.5 text-white/80" />{" "}
-        <span className="text-white/80">Add to Home Screen</span>.
-      </p>
-    );
-  }
-
-  // Desktop Chrome and Edge before the prompt fires, or a browser that
-  // does not support installing at all. Naming the icon beats a button
-  // that might do nothing.
   return (
-    <p className={`text-sm text-white/70 leading-relaxed ${className}`}>
-      To install, click the install icon at the right of your browser&apos;s address bar. On a
-      phone, open this page in Chrome or Safari.
-    </p>
+    <div>
+      {/* The one-tap path, when the browser offers it. */}
+      {prompt && (
+        <button
+          type="button"
+          onClick={() => {
+            void prompt.prompt();
+            void prompt.userChoice.finally(() => setPrompt(null));
+          }}
+          className="btn-primary w-full justify-center text-base py-3.5 mb-6"
+        >
+          <Download className="w-5 h-5" />
+          Install Neura Chat
+        </button>
+      )}
+
+      {/* --- pick a device ---------------------------------------------- */}
+      <p className="text-sm font-semibold mb-2.5">
+        {prompt ? "Installing on a different device?" : "Which device are you on?"}
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+        {DEVICES.map((entry) => (
+          <button
+            key={entry.key}
+            type="button"
+            onClick={() => setPicked(entry.key)}
+            aria-pressed={device === entry.key}
+            className={`px-3 py-3 rounded-xl text-[13.5px] font-medium border-2 transition-colors ${
+              device === entry.key
+                ? "border-accent bg-accent/10 text-accent-ink"
+                : "border-white/10 bg-white/4 text-white/60 hover:border-white/25 hover:text-white"
+            }`}
+          >
+            {entry.label}
+          </button>
+        ))}
+      </div>
+
+      {/* --- and the steps for it ---------------------------------------- */}
+      <ol className="space-y-3">
+        {steps.map((step, index) => (
+          <li key={index} className="flex gap-3">
+            <span className="w-6 h-6 rounded-full bg-accent/15 text-accent-ink text-[12px] font-bold grid place-items-center flex-shrink-0 mt-0.5">
+              {index + 1}
+            </span>
+            <span className="text-[14px] text-white/70 leading-relaxed [&_b]:text-white [&_b]:font-semibold">
+              {step}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

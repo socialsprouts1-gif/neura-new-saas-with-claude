@@ -41,39 +41,24 @@ export default function AppPage() {
           </div>
         </div>
 
-        <div className="glass-card p-6 sm:p-7 mb-8">
-          <InstallApp className="mb-1" />
+        <div className="glass-card p-6 sm:p-7 mb-10">
+          <InstallApp />
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3 mb-10">
+        <h2 className="text-lg font-semibold mb-4">What you get</h2>
+        <ul className="space-y-3 mb-10">
           {POINTS.map((point) => (
-            <div key={point.title} className="rounded-2xl border border-white/8 bg-white/4 p-5">
-              <point.icon className="w-5 h-5 text-accent mb-3" />
-              <h2 className="text-[15px] font-semibold mb-1">{point.title}</h2>
-              <p className="text-[13px] text-white/45 leading-relaxed">{point.body}</p>
-            </div>
+            <li key={point.title} className="flex gap-3.5">
+              <point.icon className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+              <span>
+                <span className="block text-[14.5px] font-medium">{point.title}</span>
+                <span className="block text-[13.5px] text-white/50 leading-relaxed mt-0.5">
+                  {point.body}
+                </span>
+              </span>
+            </li>
           ))}
-        </div>
-
-        {/* --- the three ways, written out ------------------------------- */}
-        <h2 className="text-lg font-semibold mb-4">If the button did not appear</h2>
-        <div className="space-y-4 mb-10">
-          <Platform title="Android — Chrome">
-            Tap the <span className="text-white/80">⋮</span> menu, then{" "}
-            <span className="text-white/80">Add to Home screen</span> or{" "}
-            <span className="text-white/80">Install app</span>.
-          </Platform>
-          <Platform title="iPhone and iPad — Safari">
-            Tap <span className="text-white/80">Share</span> at the bottom, scroll down, then{" "}
-            <span className="text-white/80">Add to Home Screen</span>. It has to be Safari —
-            Chrome on iPhone cannot install apps.
-          </Platform>
-          <Platform title="Windows and Mac — Chrome or Edge">
-            Click the install icon at the right-hand end of the address bar, or open the{" "}
-            <span className="text-white/80">⋮</span> menu and choose{" "}
-            <span className="text-white/80">Install Neura Chat</span>.
-          </Platform>
-        </div>
+        </ul>
 
         {/* --- the question everybody asks -------------------------------- */}
         <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-5 mb-10">
@@ -96,14 +81,5 @@ export default function AppPage() {
         </p>
       </div>
     </main>
-  );
-}
-
-function Platform({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="text-[14px] font-medium mb-1">{title}</h3>
-      <p className="text-[13.5px] text-white/60 leading-relaxed">{children}</p>
-    </div>
   );
 }
