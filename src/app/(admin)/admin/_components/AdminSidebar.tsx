@@ -158,7 +158,7 @@ export function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
 /** The permanent rail, from lg up. Below that AdminMobileNav takes over. */
 export default function AdminSidebar() {
   return (
-    <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
+    <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-dvh sticky top-0 flex-shrink-0">
       <AdminBrand />
       <AdminNav />
     </aside>

@@ -265,7 +265,7 @@ export default function Sidebar({
   brand?: AppBrand;
 }) {
   return (
-    <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-screen sticky top-0 flex-shrink-0">
+    <aside className="hidden lg:flex flex-col w-60 bg-[var(--surface-1)] border-r border-white/8 h-dvh sticky top-0 flex-shrink-0">
       <SidebarBrand brand={brand} />
       <SidebarNav
         isPlatformAdmin={isPlatformAdmin}

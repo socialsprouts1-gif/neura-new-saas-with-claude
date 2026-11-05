@@ -30,9 +30,15 @@ export default function BotToolbar() {
     });
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    // Two even columns on a phone, the usual right-aligned row from
+    // sm up. Four buttons wrapping and right-aligning produced a
+    // staircase — each row a different width, none of them lining up
+    // with anything.
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
       {message && (
-        <span className={`text-xs mr-1 ${message.ok ? "text-accent-ink" : "text-red-400"}`}>
+        <span
+          className={`col-span-2 text-xs sm:mr-1 ${message.ok ? "text-accent-ink" : "text-red-400"}`}
+        >
           {message.text}
         </span>
       )}
@@ -61,7 +67,7 @@ export default function BotToolbar() {
         type="button"
         disabled={pending}
         onClick={() => run(createStarterFlow)}
-        className="btn-secondary text-sm disabled:opacity-50"
+        className="btn-secondary text-sm justify-center disabled:opacity-50"
         title="Creates a working keyword bot with buttons and a handoff, as a draft"
       >
         <LayoutGrid className="w-4 h-4" />
@@ -72,7 +78,7 @@ export default function BotToolbar() {
         type="button"
         disabled={pending}
         onClick={() => fileInput.current?.click()}
-        className="btn-secondary text-sm disabled:opacity-50"
+        className="btn-secondary text-sm justify-center disabled:opacity-50"
         title="Import a bot exported from this builder"
       >
         <Upload className="w-4 h-4" />
@@ -83,7 +89,7 @@ export default function BotToolbar() {
         type="button"
         disabled={pending}
         onClick={() => run(createFlow)}
-        className="btn-primary text-sm disabled:opacity-50"
+        className="btn-primary text-sm justify-center disabled:opacity-50"
       >
         <Plus className="w-4 h-4" />
         {pending ? "Working…" : "Create Chatbot"}

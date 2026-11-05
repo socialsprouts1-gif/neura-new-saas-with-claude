@@ -57,7 +57,7 @@ export default function BuildWithAi() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn-secondary text-sm"
+        className="btn-secondary text-sm justify-center"
         title="Describe the bot in plain language and it gets built"
       >
         <Sparkles className="w-4 h-4" />

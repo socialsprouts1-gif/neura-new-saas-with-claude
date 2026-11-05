@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requirePlatformAdmin();
 
   return (
-    <div className="flex h-screen bg-[var(--app-bg)] overflow-hidden">
+    <div className="flex h-dvh bg-[var(--app-bg)] overflow-hidden">
       <AdminSidebar />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className="flex items-center gap-2 h-16 px-4 md:px-6 border-b border-white/8 bg-[var(--surface-1)]/80 backdrop-blur-sm flex-shrink-0">

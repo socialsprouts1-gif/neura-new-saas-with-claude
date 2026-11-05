@@ -34,7 +34,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const courierConnected = Boolean(courier);
 
   return (
-    <div className="flex h-screen bg-[var(--app-bg)] overflow-hidden">
+    // h-dvh, never h-screen. 100vh on a phone counts the space behind
+    // the browser's URL bar, so the shell ends up taller than the screen
+    // and the header at the top of it is pushed out of reach — the menu
+    // "goes up" and cannot be scrolled back to, because the thing that
+    // scrolls is inside the shell rather than the page.
+    <div className="flex h-dvh bg-[var(--app-bg)] overflow-hidden">
       <Sidebar
         isPlatformAdmin={isPlatformAdmin}
         features={features}
