@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import BrandMark from "@/components/ui/BrandMark";
+import AuthBrand from "@/components/AuthBrand";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -290,12 +290,7 @@ function RegisterForm() {
 
       {/* Left panel */}
       <div className="hidden lg:flex flex-col justify-between w-[45%] p-12 relative">
-        <Link href="/" className="flex items-center gap-2">
-          <BrandMark size={40} />
-          <span className="font-bold text-lg">
-            Neura <span className="gradient-text-green">Chat</span>
-          </span>
-        </Link>
+        <AuthBrand />
 
         <div className="space-y-8">
           <div>
@@ -333,12 +328,7 @@ function RegisterForm() {
           className="w-full max-w-md"
         >
           <div className="flex justify-center mb-6 lg:hidden">
-            <Link href="/" className="flex items-center gap-2">
-              <BrandMark size={40} />
-              <span className="font-bold text-lg">
-                Neura <span className="gradient-text-green">Chat</span>
-              </span>
-            </Link>
+            <AuthBrand />
           </div>
 
           <div className="glass-card p-8">

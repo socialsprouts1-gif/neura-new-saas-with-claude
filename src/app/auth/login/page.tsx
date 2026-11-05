@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import BrandMark from "@/components/ui/BrandMark";
+import AuthBrand from "@/components/AuthBrand";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Suspense, useState, type FormEvent } from "react";
@@ -94,12 +94,7 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <Link href="/" className="flex items-center gap-2">
-            <BrandMark size={40} />
-            <span className="font-bold text-xl">
-              Neura <span className="gradient-text-green">Chat</span>
-            </span>
-          </Link>
+          <AuthBrand />
         </div>
 
         {/* Card */}
