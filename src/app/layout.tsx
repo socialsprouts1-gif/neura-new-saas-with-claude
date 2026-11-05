@@ -6,6 +6,7 @@ import { THEME_INIT_SCRIPT } from "@/components/ThemeToggle";
 import MotionFallback, { MOTION_FALLBACK_SCRIPT } from "@/components/MotionFallback";
 import { Suspense } from "react";
 import Track from "@/components/analytics/Track";
+import ServiceWorker from "@/components/ServiceWorker";
 
 // Meta's domain verification token. Public by design — it proves control of
 // the domain to Meta and nothing else. Meta fetches the home page and reads
@@ -66,6 +67,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#050508",
+  // Lets the app paint behind the notch and the home indicator once it
+  // is installed, which is the difference between a web page in a
+  // chromeless window and something that looks native.
+  viewportFit: "cover",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -92,10 +97,25 @@ const metadata: Metadata = {
   keywords: "WhatsApp automation, AI chatbot, WhatsApp marketing, CRM, lead generation",
   // src/app/icon.svg is picked up automatically; naming it here as well
   // covers the browsers that ask for a link tag rather than the convention.
+  // The manifest is what makes this installable. Named here rather than
+  // relying on the file convention alone, because a custom favicon from
+  // the admin panel replaces the icons block below and the manifest must
+  // survive that.
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    // iOS ignores the manifest's icons entirely and uses this one. A
+    // PNG, because Apple has never rendered an SVG here.
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
+  // iOS reads none of the manifest, so the three things it does support
+  // are set here: open without Safari's chrome, name the icon, and keep
+  // the status bar dark against a dark app.
+  appleWebApp: {
+    capable: true,
+    title: "Neura Chat",
+    statusBarStyle: "black-translucent",
   },
   verification: {
     other: {
@@ -129,6 +149,9 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-[var(--app-bg)] text-[var(--color-white)]">
         <MotionFallback />
+        {/* Registers the worker that makes this installable. Renders
+            nothing and never blocks the page. */}
+        <ServiceWorker />
         {children}
         {/* Renders nothing. Here rather than on the landing page because
             the sign-up pages are the half of the funnel worth measuring,
