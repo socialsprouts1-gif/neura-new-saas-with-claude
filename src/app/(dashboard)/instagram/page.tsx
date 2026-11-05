@@ -9,7 +9,7 @@ import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv, scopedIdFor } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
 import { formatDate, formatDateTime } from "@/types/admin";
-import { CheckCircle2, Mail, MousePointerClick, Send, Smartphone, UserPlus } from "lucide-react";
+import { CheckCircle2, Mail, MousePointerClick, Send, UserPlus } from "lucide-react";
 import Accounts, { type AccountRow } from "./Accounts";
 import Automations from "./Automations";
 import type { AutomationRow } from "./AutomationEditor";
@@ -101,7 +101,7 @@ export default async function InstagramPage({
   // would do unprompted, because nothing on the screen looks wrong.
   await backfillScopedIds(accounts);
 
-  const [{ data: ruleRows }, { data: eventRows }, inbound] = await Promise.all([
+  const [{ data: ruleRows }, { data: eventRows }] = await Promise.all([
     supabase
       .from("instagram_comment_rules")
       .select("*")
@@ -113,15 +113,6 @@ export default async function InstagramPage({
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(8),
-    // Has a single inbound direct message ever arrived? One is enough:
-    // the switch in the Instagram app gates every one of them, so zero
-    // across a whole workspace is the symptom of it being off.
-    supabase
-      .from("messages")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("channel", "instagram")
-      .eq("direction", "inbound"),
   ]);
 
   const rules: AutomationRow[] = ((ruleRows ?? []) as AutomationRow[]).map((row) => ({
@@ -136,19 +127,6 @@ export default async function InstagramPage({
   // latency bought for nothing.
   const total = (field: keyof AutomationRow) =>
     rules.reduce((sum, rule) => sum + (Number(rule[field]) || 0), 0);
-
-  // A gate that has asked and never once been answered.
-  //
-  // Comment automations work without the Instagram app's "Allow access
-  // to messages" switch; a follow gate cannot, because the answer comes
-  // back as a message. The two halves fail differently and only one of
-  // them is visible, which is what makes this worth saying out loud
-  // rather than leaving in a setup note nobody rereads.
-  const gatedSends = rules
-    .filter((rule) => rule.follow_gate)
-    .reduce((sum, rule) => sum + (rule.sent_count || 0), 0);
-  const everHeardBack = (inbound.count ?? 0) > 0;
-  const gateIsATrap = gatedSends > 0 && !everHeardBack;
 
   const stats = [
     { label: "Messages sent", value: total("sent_count"), icon: Send, tint: "#E4405F" },
@@ -200,39 +178,6 @@ export default async function InstagramPage({
             formatted={formattedDates}
           />
         </Card>
-      )}
-
-      {/* --- the setting nothing else will tell you about --------------- */}
-      {live && !everHeardBack && (
-        <div className={`mb-5 rounded-2xl border p-4 sm:p-5 ${gateIsATrap ? "border-[#FACC15]/40 bg-[#FACC15]/8" : "border-[#833AB4]/30 bg-[#833AB4]/8"}`}>
-          <div className="flex items-start gap-3.5">
-            <div className={`w-9 h-9 rounded-xl grid place-items-center flex-shrink-0 ${gateIsATrap ? "bg-[#FACC15]/20 text-[#FACC15]" : "bg-[#833AB4]/20 text-[#A855F7]"}`}>
-              <Smartphone className="w-[18px] h-[18px]" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-[14.5px] font-semibold mb-1">
-                {gateIsATrap
-                  ? `${gatedSends} ${gatedSends === 1 ? "person has" : "people have"} been asked to follow, and not one reply has reached us`
-                  : "One switch, and it is only in the phone app"}
-              </h2>
-              <p className="text-[13px] text-white/55 leading-relaxed mb-2.5">
-                {gateIsATrap
-                  ? "That is almost always this switch. Until it is on, a follow gate asks a question it cannot hear the answer to — so people follow you and receive nothing, which is worse than having no automation at all."
-                  : "Instagram will not deliver a single direct message or button tap to any tool until the account owner turns this on. Comments arrive without it, which is what makes it so hard to spot: half the automation works and the other half is silent."}
-              </p>
-              <p className="text-[13px] text-white/70 leading-relaxed">
-                Instagram app → <span className="text-white">Settings and privacy</span> →{" "}
-                <span className="text-white">Messages and story replies</span> →{" "}
-                <span className="text-white">Connected tools</span> →{" "}
-                <span className="text-white">Allow access to messages</span>
-              </p>
-              <p className="text-[12px] text-white/35 leading-relaxed mt-2">
-                On older versions it is under Settings → Privacy → Messages → Connected Tools.
-                Nothing on this screen can check it for you — Instagram does not expose it.
-              </p>
-            </div>
-          </div>
-        </div>
       )}
 
       {failed === "limit" && (
@@ -394,6 +339,18 @@ export default async function InstagramPage({
                 </code>
               ))}
             </div>
+          </div>
+
+          <div>
+            <div className="text-[12px] font-medium text-white/55 mb-1.5">
+              In the Instagram app, once
+            </div>
+            <p className="text-[12.5px] text-white/40 leading-relaxed">
+              Instagram app → Settings and privacy → Messages and story replies → Connected tools →{" "}
+              <span className="text-white/60">Allow access to messages</span>. Comments arrive
+              without it; direct messages and button taps do not. On older versions it is under
+              Settings → Privacy → Messages → Connected Tools.
+            </p>
           </div>
 
           <p className="text-[12px] text-white/30 leading-relaxed">
