@@ -33,32 +33,47 @@ export interface LoadedRule {
   followupDelayMinutes: number;
 }
 
-export const RULE_COLUMNS =
-  "id, name, keywords, media_id, dm_message, public_reply, is_active, trigger_type, buttons, follow_gate, follow_gate_message, ask_email, ask_email_message, followup_message, followup_delay_minutes";
+/**
+ * Every column, deliberately.
+ *
+ * This was a named list, and each new feature added two names to it.
+ * A name that does not exist yet — a migration run tomorrow rather
+ * than today — makes the whole select fail, which returns no
+ * automations and stops every one of them in the workspace, looking
+ * exactly like nobody having commented.
+ *
+ * A star cannot fail that way: a column that is not there is simply
+ * absent from the row, and asLoadedRule already defaults each one. The
+ * cost is a few bytes per row; the alternative is the live feature
+ * going dark whenever a deploy lands before its migration.
+ */
+export const RULE_COLUMNS = "*";
 
 export function asLoadedRule(row: {
   id: string;
   name: string;
-  dm_message: string | null;
-  public_reply: string | null;
-  buttons: unknown;
-  follow_gate: boolean;
-  follow_gate_message: string | null;
-  ask_email: boolean;
-  ask_email_message: string | null;
+  dm_message?: string | null;
+  public_reply?: string | null;
+  buttons?: unknown;
+  follow_gate?: boolean | null;
+  follow_gate_message?: string | null;
+  ask_email?: boolean | null;
+  ask_email_message?: string | null;
   followup_message?: string | null;
   followup_delay_minutes?: number | null;
 }): LoadedRule {
   return {
     id: row.id,
     name: row.name,
-    dmMessage: row.dm_message,
-    publicReply: row.public_reply,
+    dmMessage: row.dm_message ?? null,
+    publicReply: row.public_reply ?? null,
     buttons: Array.isArray(row.buttons) ? (row.buttons as AutomationButton[]) : [],
-    followGate: row.follow_gate,
-    followGateMessage: row.follow_gate_message,
-    askEmail: row.ask_email,
-    askEmailMessage: row.ask_email_message,
+    // Each one defaulted, because a star select on a database that has
+    // not run the latest migration simply has no such key.
+    followGate: row.follow_gate ?? false,
+    followGateMessage: row.follow_gate_message ?? null,
+    askEmail: row.ask_email ?? false,
+    askEmailMessage: row.ask_email_message ?? null,
     followupMessage: row.followup_message ?? null,
     followupDelayMinutes: row.followup_delay_minutes ?? 10,
   };
@@ -227,7 +242,33 @@ export async function queueFollowup(
   });
 
   // 23505 is the unique index doing its job — one is already owed.
-  if (error && error.code !== "23505") {
-    console.error("Could not queue an Instagram follow-up", error);
+  if (error) {
+    if (error.code !== "23505") {
+      console.error("Could not queue an Instagram follow-up", error);
+      await admin.from("instagram_comment_events").insert({
+        org_id: input.orgId,
+        connection_id: input.connectionId,
+        rule_id: input.rule.id,
+        kind: "followup",
+        ig_user_id: input.igUserId,
+        outcome: "followup_failed",
+        error: error.message,
+      });
+    }
+    return;
   }
+
+  // Written down on the way in, not only on the way out. A follow-up
+  // due in ten minutes is otherwise invisible for ten minutes, and
+  // invisible is indistinguishable from broken — which is how the last
+  // two days went.
+  await admin.from("instagram_comment_events").insert({
+    org_id: input.orgId,
+    connection_id: input.connectionId,
+    rule_id: input.rule.id,
+    kind: "followup",
+    ig_user_id: input.igUserId,
+    outcome: "followup_queued",
+    comment_text: `Follow-up due in ${minutes} ${minutes === 1 ? "minute" : "minutes"}`,
+  });
 }

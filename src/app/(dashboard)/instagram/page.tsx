@@ -52,7 +52,10 @@ const OUTCOMES: Record<string, { label: string; tone: string }> = {
   tap_switched_off: { label: "automation is off", tone: "text-[#FACC15]" },
   tap_not_stored: { label: "could not record the tap", tone: "text-[#F87171]" },
   nothing_to_do: { label: "nothing to act on", tone: "text-white/40" },
-  window_closed: { label: "follow-up skipped — no reply yet", tone: "text-white/40" },
+  window_closed: { label: "follow-up skipped — no reply yet", tone: "text-[#FACC15]" },
+  followup_queued: { label: "follow-up scheduled", tone: "text-white/40" },
+  followup_failed: { label: "follow-up could not be scheduled", tone: "text-[#F87171]" },
+  rules_unavailable: { label: "automations could not be loaded", tone: "text-[#F87171]" },
 };
 
 export default async function InstagramPage({

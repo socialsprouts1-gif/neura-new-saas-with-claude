@@ -90,13 +90,23 @@ export async function handleComment(
   // here rather than after fetching, because the column is pointless if
   // the send path ignores it — a rule written for one account would
   // quietly answer comments on another.
-  const { data: rows } = await admin
+  const { data: rows, error: rulesError } = await admin
     .from("instagram_comment_rules")
     .select(RULE_COLUMNS)
     .eq("org_id", connection.org_id)
     .eq("is_active", true)
     .eq("trigger_type", "comment")
     .or(`connection_id.is.null,connection_id.eq.${connection.id}`);
+
+  // Logged rather than swallowed. This select names every column an
+  // automation has, so one missing — a migration not yet run — returns
+  // nothing and silently stops every automation in the workspace, which
+  // looks exactly like nobody having commented.
+  if (rulesError) {
+    console.error("Could not load Instagram automations", rulesError);
+    await finish("rules_unavailable", rulesError.message);
+    return;
+  }
 
   const rules: CommentRule[] = (rows ?? []).map((row) => ({
     id: row.id,
