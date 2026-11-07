@@ -311,6 +311,9 @@ export interface Database {
           button_click_count: number;
           follower_gain_count: number;
           email_count: number;
+          followup_message: string | null;
+          followup_delay_minutes: number;
+          followup_count: number;
           created_at: string;
           updated_at: string;
         };
@@ -336,6 +339,9 @@ export interface Database {
           button_click_count?: number;
           follower_gain_count?: number;
           email_count?: number;
+          followup_message?: string | null;
+          followup_delay_minutes?: number;
+          followup_count?: number;
         };
         Update: {
           connection_id?: string | null;
@@ -358,7 +364,37 @@ export interface Database {
           button_click_count?: number;
           follower_gain_count?: number;
           email_count?: number;
+          followup_message?: string | null;
+          followup_delay_minutes?: number;
+          followup_count?: number;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      instagram_followups: {
+        Row: {
+          id: string;
+          org_id: string;
+          connection_id: string | null;
+          rule_id: string | null;
+          ig_user_id: string;
+          body: string;
+          due_at: string;
+          sent_at: string | null;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: {
+          org_id: string;
+          connection_id?: string | null;
+          rule_id?: string | null;
+          ig_user_id: string;
+          body: string;
+          due_at: string;
+        };
+        Update: {
+          sent_at?: string | null;
+          error?: string | null;
         };
         Relationships: [];
       };

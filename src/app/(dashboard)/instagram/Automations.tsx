@@ -95,7 +95,10 @@ export default function Automations({
   };
 
   const exportCsv = () => {
-    const head = ["Name", "Starts on", "Words", "Message", "Runs", "Sent", "Clicks", "Followers", "Emails", "Status"];
+    const head = [
+      "Name", "Starts on", "Words", "Message",
+      "Runs", "Sent", "Clicks", "Followers", "Emails", "Follow-ups", "Status",
+    ];
     const body = shown.map((rule) =>
       [
         rule.name,
@@ -107,6 +110,7 @@ export default function Automations({
         rule.button_click_count,
         rule.follower_gain_count,
         rule.email_count,
+        rule.followup_count,
         rule.is_active ? "On" : "Off",
       ]
         .map(csvCell)

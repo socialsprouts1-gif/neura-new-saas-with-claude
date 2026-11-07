@@ -14,6 +14,7 @@ import { handlePostback } from "@/lib/instagram-postback";
 import {
   asLoadedRule,
   bump,
+  queueFollowup,
   rememberPending,
   RULE_COLUMNS,
   sendEmailPrompt,
@@ -473,6 +474,12 @@ async function runDirectAutomation(
       igUserId: message.fromId,
     });
   } else {
+    await queueFollowup(admin, {
+      orgId,
+      connectionId: connection.id,
+      rule,
+      igUserId: message.fromId,
+    });
     await sendEmailPrompt({ connection, rule, personId: message.fromId, token });
   }
   return true;

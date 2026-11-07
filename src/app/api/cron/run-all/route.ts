@@ -8,6 +8,7 @@ import { runAllDueRecurringInvoices } from "@/lib/invoice-engine";
 import { sweepBillingEmails } from "@/lib/billing-emails";
 import { dispatchScheduledMessages } from "@/lib/scheduled-dispatch";
 import { dispatchDueDrips } from "@/lib/drip-engine";
+import { sweepInstagramFollowups } from "@/lib/instagram-followups";
 
 // One URL that drives every scheduled job.
 //
@@ -41,6 +42,7 @@ const JOBS: Array<{ name: string; run: (origin: string) => Promise<unknown> }> =
   { name: "scheduled-messages", run: () => dispatchScheduledMessages() },
   { name: "drip-campaigns", run: () => dispatchDueDrips() },
   { name: "billing-emails", run: () => sweepBillingEmails() },
+  { name: "instagram-followups", run: () => sweepInstagramFollowups() },
 ];
 
 export async function GET(request: NextRequest) {

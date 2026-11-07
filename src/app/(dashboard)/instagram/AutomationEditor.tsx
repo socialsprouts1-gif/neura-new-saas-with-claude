@@ -8,6 +8,7 @@ import {
   ArrowRight,
   AtSign,
   Check,
+  Clock,
   Gift,
   Image as ImageIcon,
   Link2,
@@ -20,6 +21,7 @@ import {
 import Modal from "@/components/ui/Modal";
 import {
   BUTTON_TITLE_LIMIT,
+  DEFAULT_FOLLOWUP,
   buttonProblem,
   DEFAULT_EMAIL_PROMPT,
   DEFAULT_FOLLOW_GATE,
@@ -56,6 +58,9 @@ export interface AutomationRow {
   follow_gate_message: string | null;
   ask_email: boolean;
   ask_email_message: string | null;
+  followup_message: string | null;
+  followup_delay_minutes: number;
+  followup_count: number;
   is_active: boolean;
   run_count: number;
   sent_count: number;
@@ -201,6 +206,8 @@ export default function AutomationEditor({
     followGateMessage: rule?.follow_gate_message ?? "",
     askEmail: rule?.ask_email ?? seed?.askEmail ?? false,
     askEmailMessage: rule?.ask_email_message ?? "",
+    followupMessage: rule?.followup_message ?? "",
+    followupDelay: String(rule?.followup_delay_minutes ?? 10),
   });
   const [buttons, setButtons] = useState<AutomationButton[]>(rule?.buttons ?? []);
 
@@ -263,6 +270,8 @@ export default function AutomationEditor({
       followGateMessage: draft.followGateMessage,
       askEmail: draft.askEmail,
       askEmailMessage: draft.askEmailMessage,
+      followupMessage: draft.followupMessage,
+      followupDelayMinutes: Number(draft.followupDelay) || 0,
       connectionId: null,
     }).catch(() => ({ ok: false as const, error: "That could not be saved just now." }));
 
@@ -592,6 +601,40 @@ export default function AutomationEditor({
               placeholder={DEFAULT_FOLLOW_GATE}
               className={FIELD}
             />
+          )}
+
+          <Toggle
+            on={Boolean(draft.followupMessage)}
+            onChange={(next) => set({ followupMessage: next ? DEFAULT_FOLLOWUP : "" })}
+            disabled={busy}
+            icon={Clock}
+            title="Send a second message later"
+            hint="Only reaches people who replied to the first one — Instagram does not allow a second message to somebody who just commented."
+          />
+          {Boolean(draft.followupMessage) && (
+            <div className="space-y-2.5">
+              <textarea
+                value={draft.followupMessage}
+                onChange={(event) => set({ followupMessage: event.target.value })}
+                disabled={busy}
+                rows={3}
+                placeholder={DEFAULT_FOLLOWUP}
+                className={FIELD}
+              />
+              <label className="flex items-center gap-2.5">
+                <span className="text-[13px] text-white/50">Send it after</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={10080}
+                  value={draft.followupDelay}
+                  onChange={(event) => set({ followupDelay: event.target.value })}
+                  disabled={busy}
+                  className={`${FIELD} w-24 py-2`}
+                />
+                <span className="text-[13px] text-white/50">minutes</span>
+              </label>
+            </div>
           )}
 
           <Toggle

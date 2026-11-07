@@ -29,10 +29,12 @@ export interface LoadedRule {
   followGateMessage: string | null;
   askEmail: boolean;
   askEmailMessage: string | null;
+  followupMessage: string | null;
+  followupDelayMinutes: number;
 }
 
 export const RULE_COLUMNS =
-  "id, name, keywords, media_id, dm_message, public_reply, is_active, trigger_type, buttons, follow_gate, follow_gate_message, ask_email, ask_email_message";
+  "id, name, keywords, media_id, dm_message, public_reply, is_active, trigger_type, buttons, follow_gate, follow_gate_message, ask_email, ask_email_message, followup_message, followup_delay_minutes";
 
 export function asLoadedRule(row: {
   id: string;
@@ -44,6 +46,8 @@ export function asLoadedRule(row: {
   follow_gate_message: string | null;
   ask_email: boolean;
   ask_email_message: string | null;
+  followup_message?: string | null;
+  followup_delay_minutes?: number | null;
 }): LoadedRule {
   return {
     id: row.id,
@@ -55,6 +59,8 @@ export function asLoadedRule(row: {
     followGateMessage: row.follow_gate_message,
     askEmail: row.ask_email,
     askEmailMessage: row.ask_email_message,
+    followupMessage: row.followup_message ?? null,
+    followupDelayMinutes: row.followup_delay_minutes ?? 10,
   };
 }
 
@@ -135,7 +141,7 @@ export async function sendEmailPrompt(input: {
 export async function bump(
   admin: Admin,
   ruleId: string,
-  field: "run_count" | "sent_count" | "follower_gain_count" | "email_count"
+  field: "run_count" | "sent_count" | "follower_gain_count" | "email_count" | "followup_count"
 ): Promise<void> {
   const { data } = await admin
     .from("instagram_comment_rules")
@@ -157,7 +163,9 @@ export async function bump(
         ? { sent_count: next }
         : field === "follower_gain_count"
           ? { follower_gain_count: next }
-          : { email_count: next };
+          : field === "followup_count"
+            ? { followup_count: next }
+            : { email_count: next };
 
   await admin.from("instagram_comment_rules").update(patch).eq("id", ruleId);
 }
@@ -181,4 +189,45 @@ export async function rememberPending(
     { onConflict: "org_id,ig_user_id,rule_id" }
   );
   if (error) console.error("Could not remember a pending Instagram send", error);
+}
+
+/**
+ * Queues the second message, if the automation has one.
+ *
+ * A row rather than a timer. A send due in ten minutes has to survive a
+ * deploy, and the function that queued it has already returned by then
+ * — a setTimeout in a serverless handler is a message that never
+ * arrives.
+ *
+ * The unique index does the rest: somebody who comments three times on
+ * the same post is owed one follow-up, not three.
+ */
+export async function queueFollowup(
+  admin: Admin,
+  input: {
+    orgId: string;
+    connectionId: string;
+    rule: LoadedRule;
+    igUserId: string;
+  }
+): Promise<void> {
+  const body = input.rule.followupMessage?.trim();
+  if (!body) return;
+
+  const minutes = Math.max(0, input.rule.followupDelayMinutes ?? 10);
+  const dueAt = new Date(Date.now() + minutes * 60_000).toISOString();
+
+  const { error } = await admin.from("instagram_followups").insert({
+    org_id: input.orgId,
+    connection_id: input.connectionId,
+    rule_id: input.rule.id,
+    ig_user_id: input.igUserId,
+    body,
+    due_at: dueAt,
+  });
+
+  // 23505 is the unique index doing its job — one is already owed.
+  if (error && error.code !== "23505") {
+    console.error("Could not queue an Instagram follow-up", error);
+  }
 }

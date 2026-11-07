@@ -35,6 +35,8 @@ export interface RuleInput {
   followGateMessage: string;
   askEmail: boolean;
   askEmailMessage: string;
+  followupMessage: string;
+  followupDelayMinutes: number;
   connectionId: string | null;
 }
 
@@ -95,6 +97,10 @@ export async function saveCommentRule(input: RuleInput): Promise<ActionResult> {
     follow_gate_message: input.followGateMessage.trim() || null,
     ask_email: input.askEmail,
     ask_email_message: input.askEmailMessage.trim() || null,
+    followup_message: input.followupMessage.trim() || null,
+    // Clamped rather than trusted: the field is a number input and a
+    // negative delay would make every follow-up permanently due.
+    followup_delay_minutes: Math.min(10080, Math.max(0, Math.round(input.followupDelayMinutes || 0))),
     connection_id: input.connectionId,
   };
 

@@ -8,7 +8,8 @@ import { Card } from "@/components/ui/primitives";
 import { InstagramGlyph } from "@/components/landing/BrandGlyphs";
 import { instagramEnv, scopedIdFor } from "@/lib/instagram-api";
 import { redirectUri, SCOPES } from "@/lib/instagram";
-import { formatDate, formatDateTime } from "@/types/admin";
+import { formatDate } from "@/types/admin";
+import LocalTime from "@/components/ui/LocalTime";
 import { CheckCircle2, Mail, MousePointerClick, Send, UserPlus } from "lucide-react";
 import Accounts, { type AccountRow } from "./Accounts";
 import Automations from "./Automations";
@@ -51,6 +52,7 @@ const OUTCOMES: Record<string, { label: string; tone: string }> = {
   tap_switched_off: { label: "automation is off", tone: "text-[#FACC15]" },
   tap_not_stored: { label: "could not record the tap", tone: "text-[#F87171]" },
   nothing_to_do: { label: "nothing to act on", tone: "text-white/40" },
+  window_closed: { label: "follow-up skipped — no reply yet", tone: "text-white/40" },
 };
 
 export default async function InstagramPage({
@@ -119,6 +121,8 @@ export default async function InstagramPage({
     ...row,
     keywords: row.keywords ?? [],
     buttons: Array.isArray(row.buttons) ? row.buttons : [],
+    followup_delay_minutes: row.followup_delay_minutes ?? 10,
+    followup_count: row.followup_count ?? 0,
   }));
   const events = eventRows ?? [];
 
@@ -257,9 +261,10 @@ export default async function InstagramPage({
                         <span className="text-white/40"> — {event.comment_text}</span>
                       )}
                     </div>
-                    <div className="text-[11.5px] text-white/30 mt-0.5">
-                      {formatDateTime(event.created_at)}
-                    </div>
+                    <LocalTime
+                      iso={event.created_at}
+                      className="block text-[11.5px] text-white/30 mt-0.5"
+                    />
                     {event.error && (
                       <div className="text-[11.5px] text-[#F87171] mt-1 leading-relaxed">
                         {event.error}

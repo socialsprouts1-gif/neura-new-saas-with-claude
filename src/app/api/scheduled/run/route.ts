@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireOrg } from "@/lib/org";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchScheduledMessages } from "@/lib/scheduled-dispatch";
+import { sweepInstagramFollowups } from "@/lib/instagram-followups";
 import { resumeParkedFlows } from "@/lib/flow-resume";
 
 // Letting the app push its own queue along.
@@ -34,6 +35,10 @@ export async function POST(): Promise<NextResponse> {
   const [result, resumed] = await Promise.all([
     dispatchScheduledMessages(new Date(), ctx.orgId),
     resumeParkedFlows(ctx.orgId),
+    // An Instagram follow-up is due on the minute like anything else
+    // here. Claimed per row, so this racing the webhook's own sweep
+    // costs nothing.
+    sweepInstagramFollowups(),
   ]);
 
   const admin = createAdminClient();

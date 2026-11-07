@@ -6,6 +6,7 @@ import { FOLLOW_BUTTON, ruleFromPayload } from "@/lib/instagram";
 import {
   asLoadedRule,
   bump,
+  queueFollowup,
   RULE_COLUMNS,
   sendEmailPrompt,
   sendRuleMessage,
@@ -197,5 +198,11 @@ export async function handlePostback(
     await bump(admin, ruleId, "follower_gain_count");
   }
 
+  await queueFollowup(admin, {
+    orgId: connection.org_id,
+    connectionId: connection.id,
+    rule,
+    igUserId: input.personId,
+  });
   await sendEmailPrompt({ connection, rule, personId: input.personId, token });
 }

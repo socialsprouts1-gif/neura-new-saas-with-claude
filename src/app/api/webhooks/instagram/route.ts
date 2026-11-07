@@ -6,6 +6,7 @@ import { handleComment } from "@/lib/instagram-comments";
 import { handleDirectMessage } from "@/lib/instagram-dm";
 import { parseDirectMessage, parsePostbacks } from "@/lib/instagram";
 import { handlePostback } from "@/lib/instagram-postback";
+import { sweepInstagramFollowups } from "@/lib/instagram-followups";
 
 // Where Instagram delivers comments and direct messages.
 //
@@ -79,6 +80,14 @@ export async function POST(request: NextRequest) {
       await dispatch(payload);
     } catch (error) {
       console.error("Instagram webhook handling failed", error);
+    }
+    // Any follow-ups now due. An account receiving comments drains its
+    // own queue, which is the difference between a ten-minute delay
+    // and "whenever the nightly job runs".
+    try {
+      await sweepInstagramFollowups();
+    } catch (error) {
+      console.error("Instagram follow-up sweep failed", error);
     }
   });
 

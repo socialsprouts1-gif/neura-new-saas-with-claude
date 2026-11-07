@@ -8,6 +8,7 @@ import {
   bump,
   rememberPending,
   RULE_COLUMNS,
+  queueFollowup,
   sendEmailPrompt,
   sendFollowGate,
   sendRuleMessage,
@@ -177,6 +178,12 @@ export async function handleComment(
       if (outcome.ok) {
         sent = true;
         if (comment.fromId) {
+          await queueFollowup(admin, {
+            orgId: connection.org_id,
+            connectionId: connection.id,
+            rule: loaded,
+            igUserId: comment.fromId,
+          });
           await sendEmailPrompt({ connection, rule: loaded, personId: comment.fromId, token });
         }
       } else {

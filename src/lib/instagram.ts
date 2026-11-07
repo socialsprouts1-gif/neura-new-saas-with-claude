@@ -461,3 +461,7 @@ export function parsePostbacks(entry: {
   }
   return out;
 }
+
+/** What the second message says when nobody has written their own. */
+export const DEFAULT_FOLLOWUP =
+  "Just checking you got everything you needed — anything I can help with?";
