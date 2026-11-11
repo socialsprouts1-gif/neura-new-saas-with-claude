@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { Pause, Play, Plus, Trash2, UserPlus } from "lucide-react";
 import DripBuilder, {
   emptyDraft,
+  type AppointmentTypeChoice,
   type DripDraft,
   type NumberChoice,
   type TemplateChoice,
@@ -21,9 +22,11 @@ import Modal from "@/components/ui/Modal";
 export function NewDripButton({
   templates,
   numbers,
+  appointmentTypes,
 }: {
   templates: TemplateChoice[];
   numbers: NumberChoice[];
+  appointmentTypes: AppointmentTypeChoice[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -38,6 +41,7 @@ export function NewDripButton({
           draft={emptyDraft()}
           templates={templates}
           numbers={numbers}
+          appointmentTypes={appointmentTypes}
           onClose={() => setOpen(false)}
         />
       )}
@@ -49,10 +53,12 @@ export function EditDripButton({
   draft,
   templates,
   numbers,
+  appointmentTypes,
 }: {
   draft: DripDraft;
   templates: TemplateChoice[];
   numbers: NumberChoice[];
+  appointmentTypes: AppointmentTypeChoice[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -70,6 +76,7 @@ export function EditDripButton({
           draft={draft}
           templates={templates}
           numbers={numbers}
+          appointmentTypes={appointmentTypes}
           onClose={() => setOpen(false)}
         />
       )}

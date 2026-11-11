@@ -8,6 +8,7 @@ import { enrol } from "@/lib/drip-engine";
 import { normaliseWaNumber } from "@/lib/whatsapp-link";
 import {
   DEFAULT_SETTINGS,
+  isAppointmentEvent,
   isTrigger,
   normaliseKeywords,
   sequenceProblem,
@@ -47,6 +48,12 @@ function cleanSettings(raw: DripSettings): DripSettings {
   const trigger: TriggerType = isTrigger(raw?.trigger) ? raw.trigger : "manual";
   return {
     trigger,
+    // Only meaningful for the appointment trigger; dropped otherwise so a
+    // sequence switched back to keyword does not keep firing on bookings.
+    triggerEvent:
+      trigger === "appointment" && isAppointmentEvent(raw?.triggerEvent) ? raw.triggerEvent : null,
+    triggerAppointmentTypeId:
+      trigger === "appointment" ? (raw?.triggerAppointmentTypeId || null) : null,
     triggerKeywords: normaliseKeywords(raw?.triggerKeywords),
     exitOnKeyword: raw?.exitOnKeyword === true,
     exitKeywords: normaliseKeywords(raw?.exitKeywords),
@@ -90,6 +97,8 @@ export async function saveDrip(input: DripInput): Promise<ActionResult> {
     description: (input?.description ?? "").trim() || null,
     status: input?.activate ? ("active" as const) : ("draft" as const),
     trigger_type: settings.trigger,
+    trigger_event: settings.triggerEvent,
+    trigger_appointment_type_id: settings.triggerAppointmentTypeId,
     trigger_keywords: settings.triggerKeywords,
     exit_on_keyword: settings.exitOnKeyword,
     exit_keywords: settings.exitKeywords,

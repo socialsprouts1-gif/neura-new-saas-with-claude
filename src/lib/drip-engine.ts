@@ -181,7 +181,7 @@ async function loadCampaign(supabase: Admin, id: string): Promise<LoadedCampaign
   const { data: campaign } = await supabase
     .from("drip_campaigns")
     .select(
-      "id, org_id, name, status, connection_id, trigger_type, trigger_keywords, exit_on_keyword, exit_keywords, exit_on_reply, skip_missed_steps, time_zone"
+      "id, org_id, name, status, connection_id, trigger_type, trigger_event, trigger_appointment_type_id, trigger_keywords, exit_on_keyword, exit_keywords, exit_on_reply, skip_missed_steps, time_zone"
     )
     .eq("id", id)
     .maybeSingle();
@@ -202,6 +202,8 @@ async function loadCampaign(supabase: Admin, id: string): Promise<LoadedCampaign
     connectionId: campaign.connection_id,
     settings: {
       trigger: campaign.trigger_type,
+      triggerEvent: campaign.trigger_event,
+      triggerAppointmentTypeId: campaign.trigger_appointment_type_id,
       triggerKeywords: campaign.trigger_keywords ?? [],
       exitOnKeyword: campaign.exit_on_keyword,
       exitKeywords: campaign.exit_keywords ?? [],
@@ -320,7 +322,8 @@ export async function enrol(
   supabase: Admin,
   campaignId: string,
   people: Array<{ waId: string; contactId?: string | null }>,
-  via: "manual" | "keyword" | "api" | "import" = "manual"
+  via: "manual" | "keyword" | "api" | "import" | "appointment" = "manual",
+  options: { restart?: boolean } = {}
 ): Promise<EnrolResult> {
   const { data: campaign } = await supabase
     .from("drip_campaigns")
@@ -360,8 +363,42 @@ export async function enrol(
 
   if (error) return { enrolled: 0, skipped: 0, error: error.message };
 
-  const enrolled = data?.length ?? 0;
-  return { enrolled, skipped: people.length - enrolled };
+  let enrolled = data?.length ?? 0;
+
+  // Somebody who has been through it before.
+  //
+  // The upsert above leaves them alone, which is right for a keyword — you
+  // do not want the same welcome twice — and wrong for an appointment:
+  // a customer who comes back in six months should get the aftercare
+  // again, and if nothing restarts their row they get silence instead.
+  //
+  // Only finished rows are restarted. Somebody halfway through the
+  // sequence stays halfway through it, because throwing them back to step
+  // one would re-send messages they have already had.
+  if (options.restart) {
+    const { data: restarted } = await supabase
+      .from("drip_enrollments")
+      .update({
+        status: "active" as const,
+        next_step_index: 1,
+        next_send_at: new Date().toISOString(),
+        last_error: null,
+        exited_reason: null,
+        enrolled_via: via,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("campaign_id", campaignId)
+      .in(
+        "wa_id",
+        rows.map((row) => row.wa_id)
+      )
+      .in("status", ["completed", "exited", "failed"])
+      .select("id");
+
+    enrolled += restarted?.length ?? 0;
+  }
+
+  return { enrolled, skipped: Math.max(0, people.length - enrolled) };
 }
 
 /**

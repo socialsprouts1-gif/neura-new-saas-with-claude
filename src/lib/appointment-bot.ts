@@ -26,6 +26,7 @@ import {
   upsertCalendarEvent,
   type CalendarEvent,
 } from "@/lib/google-calendar";
+import { startAppointmentJourneys } from "@/lib/appointment-journeys";
 
 // The booking conversation, sending half.
 //
@@ -283,6 +284,16 @@ async function book(
   }
 
   await clearSession(context);
+
+  // The booking sequence, if the workspace has one. A customer who books
+  // on WhatsApp is the common case rather than the exception, so this has
+  // to fire here and not only on the manual form — a confirmation sequence
+  // wired to the form alone would never reach anybody.
+  await startAppointmentJourneys({
+    orgId: context.orgId,
+    meetingId: meeting.id,
+    event: "booked",
+  });
 
   // Into the business's calendar, if one is connected. After the meeting is
   // written and never before: a calendar that is unreachable must not cost

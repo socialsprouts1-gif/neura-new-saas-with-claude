@@ -7,6 +7,8 @@ import { LEAD_STAGES, type LeadStage } from "@/types/portal";
 import type { ActionResult } from "./actions";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
 import { readPlatform, checkLink, confirmationMessage } from "@/lib/meeting-platform";
+import { startAppointmentJourneys, describeJourneys } from "@/lib/appointment-journeys";
+import { isAppointmentEvent } from "@/lib/drip";
 
 // Leads, meetings and customer transactions. All three read from data the
 // inbox already writes — moving a lead here is the same column the inbox's
@@ -105,6 +107,8 @@ export async function saveMeeting(formData: FormData): Promise<ActionResult> {
     .single();
 
   if (error || !meeting) return { ok: false, error: error?.message ?? "Could not save the meeting." };
+
+  await startAppointmentJourneys({ orgId, meetingId: meeting.id, event: "booked" });
 
   revalidatePath("/meetings");
 
@@ -254,8 +258,19 @@ export async function setMeetingStatus(
     .eq("org_id", orgId);
 
   if (error) return { ok: false, error: error.message };
+
+  // The same follow-up trigger as the Appointments screen. Both screens
+  // write the same table, so a sequence wired to one of them has to fire
+  // from the other as well or it depends on which screen somebody used.
+  const journeys = isAppointmentEvent(status)
+    ? await startAppointmentJourneys({ orgId, meetingId: id, event: status })
+    : { started: 0 };
+
   revalidatePath("/meetings");
-  return { ok: true };
+  revalidatePath("/drip");
+
+  const note = describeJourneys(journeys);
+  return note ? { ok: true, message: note } : { ok: true };
 }
 
 export async function deleteMeeting(formData: FormData): Promise<ActionResult> {

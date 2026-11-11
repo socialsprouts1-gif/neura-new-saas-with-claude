@@ -15,6 +15,8 @@ import {
   type Window,
 } from "@/lib/appointments";
 import { dispatchDueReminders } from "@/lib/appointment-reminders";
+import { startAppointmentJourneys, describeJourneys } from "@/lib/appointment-journeys";
+import { isAppointmentEvent } from "@/lib/drip";
 import {
   deleteCalendarEvent,
   loadGoogleCalendar,
@@ -390,9 +392,22 @@ export async function setBookingStatus(formData: FormData): Promise<ActionResult
   // something somebody is expected to attend.
   await syncBookingToCalendar(supabase, ctx.orgId, id);
 
+  // And this is where the follow-up starts. Marking somebody done is the
+  // moment the aftercare, the check-in and the review request are owed —
+  // the one event everything after a visit hangs off.
+  //
+  // Putting a booking back to "scheduled" starts nothing: that is somebody
+  // undoing a mis-click, not a new booking.
+  const journeys = isAppointmentEvent(status)
+    ? await startAppointmentJourneys({ orgId: ctx.orgId, meetingId: id, event: status })
+    : { started: 0 };
+
   revalidatePath("/appointments");
   revalidatePath("/meetings");
-  return { ok: true, message: "Updated." };
+  revalidatePath("/drip");
+
+  const note = describeJourneys(journeys);
+  return { ok: true, message: note ? `Updated. ${note}` : "Updated." };
 }
 
 /**
@@ -583,9 +598,21 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
 
   await syncBookingToCalendar(supabase, ctx.orgId, meeting.id);
 
+  const journeys = await startAppointmentJourneys({
+    orgId: ctx.orgId,
+    meetingId: meeting.id,
+    event: "booked",
+  });
+
   revalidatePath("/appointments");
   revalidatePath("/meetings");
-  return { ok: true, message: `Booked for ${date} at ${time}.` };
+  revalidatePath("/drip");
+
+  const note = describeJourneys(journeys);
+  return {
+    ok: true,
+    message: `Booked for ${date} at ${time}.${note ? ` ${note}` : ""}`,
+  };
 }
 
 // --------------------------------------------------------------- calendar

@@ -15,6 +15,7 @@ import {
 import { saveDrip } from "../drip-actions";
 import { ModalShell } from "@/components/ui/Modal";
 import {
+  APPOINTMENT_EVENTS,
   DEFAULT_SETTINGS,
   MAX_STEPS,
   TRIGGERS,
@@ -55,6 +56,12 @@ export interface NumberChoice {
   label: string;
 }
 
+/** The services a workspace takes bookings for, for the appointment trigger. */
+export interface AppointmentTypeChoice {
+  id: string;
+  name: string;
+}
+
 export interface DripDraft {
   id?: string;
   name: string;
@@ -86,11 +93,13 @@ export default function DripBuilder({
   draft: initial,
   templates,
   numbers,
+  appointmentTypes = [],
   onClose,
 }: {
   draft: DripDraft;
   templates: TemplateChoice[];
   numbers: NumberChoice[];
+  appointmentTypes?: AppointmentTypeChoice[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -223,7 +232,7 @@ export default function DripBuilder({
             {/* --- trigger -------------------------------------------- */}
             <div>
               <label className={label}>How people join</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {TRIGGERS.map((trigger) => (
                   <button
                     key={trigger.key}
@@ -251,6 +260,65 @@ export default function DripBuilder({
                 values={draft.settings.triggerKeywords}
                 onChange={(triggerKeywords) => patchSettings({ triggerKeywords })}
               />
+            )}
+
+            {/* The appointment trigger needs to know which moment. Four
+                buttons rather than a dropdown, because each one is a
+                different sequence somebody has in mind before they open
+                this screen, and the hint is the part that tells them so. */}
+            {draft.settings.trigger === "appointment" && (
+              <div className="rounded-2xl border border-white/10 bg-white/3 p-4 space-y-3">
+                <div>
+                  <label className={label}>When does it start?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {APPOINTMENT_EVENTS.map((event) => (
+                      <button
+                        key={event.key}
+                        type="button"
+                        onClick={() => patchSettings({ triggerEvent: event.key })}
+                        className={`rounded-xl border px-3 py-3 text-left transition-all ${
+                          draft.settings.triggerEvent === event.key
+                            ? "border-accent/50 bg-accent/10"
+                            : "border-white/12 bg-white/4 hover:border-white/20"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{event.label}</span>
+                        <span className="block text-[11px] text-white/45 mt-0.5 leading-snug">
+                          {event.hint}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className={label}>Which service?</label>
+                  <select
+                    className={field}
+                    value={draft.settings.triggerAppointmentTypeId ?? ""}
+                    onChange={(e) =>
+                      patchSettings({ triggerAppointmentTypeId: e.target.value || null })
+                    }
+                  >
+                    <option value="">Every appointment</option>
+                    {appointmentTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-white/40 mt-1.5 leading-snug">
+                    Leave it on “every appointment” unless this follow-up only makes sense for
+                    one service.
+                  </p>
+                </div>
+
+                <p className="text-[11px] text-white/45 leading-relaxed">
+                  Step one goes out the moment the booking changes, and the rest follow on the
+                  gaps you set below. Somebody who books again months later goes through it
+                  again.
+                </p>
+              </div>
             )}
 
             {/* --- exits ---------------------------------------------- */}

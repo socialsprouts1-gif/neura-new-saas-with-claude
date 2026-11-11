@@ -12,7 +12,7 @@ import {
 import { Droplets, Users, Send, CheckCircle2 } from "lucide-react";
 import { resolveTemplateShape } from "@/lib/template-unpack";
 import { variableCount } from "@/lib/template-variables";
-import { describeWait, type DripSettings, type DripStep } from "@/lib/drip";
+import { APPOINTMENT_EVENTS, describeWait, type DripSettings, type DripStep } from "@/lib/drip";
 import {
   NewDripButton,
   EditDripButton,
@@ -21,6 +21,7 @@ import {
   EnrolButton,
 } from "./DripToolbar";
 import type { TemplateChoice } from "./DripBuilder";
+import JourneyStarters from "./JourneyStarters";
 
 // Drip campaigns.
 //
@@ -32,6 +33,32 @@ import type { TemplateChoice } from "./DripBuilder";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * What starts this sequence, in words.
+ *
+ * "joins by appointment" says nothing — the whole question is which
+ * moment, and for which service.
+ */
+function triggerLabel(
+  campaign: {
+    trigger_type: string;
+    trigger_event: string | null;
+    trigger_appointment_type_id: string | null;
+  },
+  serviceName: Map<string, string>
+): string {
+  if (campaign.trigger_type !== "appointment") return `joins by ${campaign.trigger_type}`;
+
+  const event =
+    APPOINTMENT_EVENTS.find((entry) => entry.key === campaign.trigger_event)?.label ??
+    "an appointment event";
+  const service = campaign.trigger_appointment_type_id
+    ? (serviceName.get(campaign.trigger_appointment_type_id) ?? "a removed service")
+    : null;
+
+  return service ? `${event.toLowerCase()} — ${service}` : event.toLowerCase();
+}
+
 export default async function DripPage() {
   const { orgId } = await requireFeature("drip");
   const supabase = await createClient();
@@ -41,12 +68,18 @@ export default async function DripPage() {
     label: optionLabel(connection),
   }));
 
-  const [{ data: campaigns }, { data: templates }, { data: steps }, { data: enrolments }] =
+  const [
+    { data: campaigns },
+    { data: templates },
+    { data: steps },
+    { data: enrolments },
+    { data: appointmentTypes },
+  ] =
     await Promise.all([
       supabase
         .from("drip_campaigns")
         .select(
-          "id, name, description, status, trigger_type, trigger_keywords, exit_on_keyword, exit_keywords, exit_on_reply, skip_missed_steps, time_zone, connection_id, created_at"
+          "id, name, description, status, trigger_type, trigger_event, trigger_appointment_type_id, trigger_keywords, exit_on_keyword, exit_keywords, exit_on_reply, skip_missed_steps, time_zone, connection_id, created_at"
         )
         .eq("org_id", orgId)
         .order("created_at", { ascending: false })
@@ -67,6 +100,12 @@ export default async function DripPage() {
         .select("campaign_id, status")
         .eq("org_id", orgId)
         .limit(5000),
+      supabase
+        .from("appointment_types")
+        .select("id, name")
+        .eq("org_id", orgId)
+        .eq("is_active", true)
+        .order("sort_order"),
     ]);
 
   const templateChoices: TemplateChoice[] = (templates ?? []).map((row) => ({
@@ -81,6 +120,8 @@ export default async function DripPage() {
   }));
 
   const templateName = new Map(templateChoices.map((row) => [row.id, row.name]));
+  const services = (appointmentTypes ?? []).map((row) => ({ id: row.id, name: row.name }));
+  const serviceName = new Map(services.map((row) => [row.id, row.name]));
 
   const stepsByCampaign = new Map<string, DripStep[]>();
   for (const step of steps ?? []) {
@@ -115,7 +156,13 @@ export default async function DripPage() {
       <PageHeader
         title="Drip Campaigns"
         subtitle="Follow-up sequences people join one at a time and walk through on their own clock."
-        action={<NewDripButton templates={templateChoices} numbers={numbers} />}
+        action={
+          <NewDripButton
+            templates={templateChoices}
+            numbers={numbers}
+            appointmentTypes={services}
+          />
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -135,10 +182,12 @@ export default async function DripPage() {
         </Card>
       )}
 
+      <JourneyStarters numbers={numbers} appointmentTypes={services} />
+
       {(campaigns ?? []).length === 0 ? (
         <EmptyState
           title="No sequences yet"
-          description="A drip is a series of follow-ups. Somebody joins — by messaging a keyword, by you adding them, or through the API — and the messages go out one at a time from there, on their clock rather than yours."
+          description="A drip is a series of follow-ups. Somebody joins — by finishing an appointment, by messaging a keyword, by you adding them, or through the API — and the messages go out one at a time from there, on their clock rather than yours. Pick a ready-made one above to see it working, or build your own."
         />
       ) : (
         <div className="space-y-4">
@@ -147,6 +196,8 @@ export default async function DripPage() {
             const tally = counts.get(campaign.id) ?? { active: 0, completed: 0, exited: 0 };
             const settings: DripSettings = {
               trigger: campaign.trigger_type,
+              triggerEvent: campaign.trigger_event,
+              triggerAppointmentTypeId: campaign.trigger_appointment_type_id,
               triggerKeywords: campaign.trigger_keywords ?? [],
               exitOnKeyword: campaign.exit_on_keyword,
               exitKeywords: campaign.exit_keywords ?? [],
@@ -163,7 +214,7 @@ export default async function DripPage() {
                       <h3 className="font-semibold">{campaign.name}</h3>
                       <Badge tone={statusTone(campaign.status)}>{campaign.status}</Badge>
                       <span className="text-[11px] text-white/40">
-                        joins by {campaign.trigger_type}
+                        {triggerLabel(campaign, serviceName)}
                       </span>
                     </div>
                     {campaign.description && (
@@ -186,6 +237,7 @@ export default async function DripPage() {
                       }}
                       templates={templateChoices}
                       numbers={numbers}
+                      appointmentTypes={services}
                     />
                     <DripStatusButton id={campaign.id} status={campaign.status} />
                     <DeleteDripButton id={campaign.id} name={campaign.name} />

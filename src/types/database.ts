@@ -1124,7 +1124,10 @@ export interface Database {
           name: string;
           description: string | null;
           status: "draft" | "active" | "paused" | "archived";
-          trigger_type: "manual" | "keyword" | "api";
+          trigger_type: "manual" | "keyword" | "api" | "appointment";
+          trigger_event: "booked" | "completed" | "cancelled" | "no_show" | null;
+          /** Null for every appointment type, which is the common case. */
+          trigger_appointment_type_id: string | null;
           trigger_keywords: string[];
           exit_on_keyword: boolean;
           exit_keywords: string[];
@@ -1179,7 +1182,7 @@ export interface Database {
           last_sent_at: string | null;
           last_error: string | null;
           exited_reason: string | null;
-          enrolled_via: "manual" | "keyword" | "api" | "import";
+          enrolled_via: "manual" | "keyword" | "api" | "import" | "appointment";
           created_at: string;
           updated_at: string;
         };

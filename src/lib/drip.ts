@@ -38,7 +38,49 @@ export const TRIGGERS = [
     label: "API",
     hint: "Your website or CRM enrols people by calling the endpoint.",
   },
+  {
+    key: "appointment",
+    label: "After an appointment",
+    hint: "Starts on its own when a booking is made, finished, cancelled or missed.",
+  },
 ] as const;
+
+/**
+ * Which appointment event starts the sequence.
+ *
+ * Named for what happened rather than for a trade. Everything after a
+ * visit has the same shape everywhere — care instructions, a check-in,
+ * a request for a review, a nudge months later — and only the words
+ * change between a dentist, a salon, a gym and a tutor.
+ */
+export const APPOINTMENT_EVENTS = [
+  {
+    key: "completed",
+    label: "After it is finished",
+    hint: "Aftercare, a check-in a few days later, a review request, a reminder months on.",
+  },
+  {
+    key: "booked",
+    label: "When it is booked",
+    hint: "Confirmation, what to bring, how to find you.",
+  },
+  {
+    key: "no_show",
+    label: "When somebody does not turn up",
+    hint: "A gentle nudge to rebook, instead of the slot being lost.",
+  },
+  {
+    key: "cancelled",
+    label: "When it is cancelled",
+    hint: "An offer of another time, while they still want it.",
+  },
+] as const;
+
+export type AppointmentEvent = (typeof APPOINTMENT_EVENTS)[number]["key"];
+
+export function isAppointmentEvent(value: unknown): value is AppointmentEvent {
+  return APPOINTMENT_EVENTS.some((event) => event.key === value);
+}
 
 export type TriggerType = (typeof TRIGGERS)[number]["key"];
 
@@ -70,6 +112,16 @@ export interface DripStep {
 
 export interface DripSettings {
   trigger: TriggerType;
+  /** Which booking event starts it. Only read by the appointment trigger. */
+  triggerEvent: AppointmentEvent | null;
+  /**
+   * Narrow the appointment trigger to one kind of visit.
+   *
+   * Null means every type. A six-month cleaning recall is wrong for
+   * somebody who came in for an emergency, and "how is the colour
+   * holding?" is wrong for somebody who came for a trim.
+   */
+  triggerAppointmentTypeId: string | null;
   /** Lower-cased, for the keyword trigger. */
   triggerKeywords: string[];
   exitOnKeyword: boolean;
@@ -97,6 +149,8 @@ export interface DripSettings {
 
 export const DEFAULT_SETTINGS: DripSettings = {
   trigger: "manual",
+  triggerEvent: null,
+  triggerAppointmentTypeId: null,
   triggerKeywords: [],
   exitOnKeyword: false,
   exitKeywords: [],
@@ -387,6 +441,9 @@ export function sequenceProblem(steps: DripStep[]): string | null {
 
 /** Why the sequence cannot be switched on, or null when it can. */
 export function settingsProblem(settings: DripSettings): string | null {
+  if (settings.trigger === "appointment" && !isAppointmentEvent(settings.triggerEvent)) {
+    return "Choose which appointment event starts this sequence.";
+  }
   if (settings.trigger === "keyword" && normaliseKeywords(settings.triggerKeywords).length === 0) {
     return "A keyword trigger needs at least one word for people to send.";
   }
