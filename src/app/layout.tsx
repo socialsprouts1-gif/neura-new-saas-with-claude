@@ -7,6 +7,7 @@ import MotionFallback, { MOTION_FALLBACK_SCRIPT } from "@/components/MotionFallb
 import { Suspense } from "react";
 import Track from "@/components/analytics/Track";
 import ServiceWorker from "@/components/ServiceWorker";
+import Toasts from "@/components/ui/Toasts";
 
 // Meta's domain verification token. Public by design — it proves control of
 // the domain to Meta and nothing else. Meta fetches the home page and reads
@@ -152,6 +153,10 @@ export default function RootLayout({
         {/* Registers the worker that makes this installable. Renders
             nothing and never blocks the page. */}
         <ServiceWorker />
+        {/* Without this, every toast.success and toast.error in the app
+            renders nothing at all — which is what made a failing button
+            look like a button with no function behind it. */}
+        <Toasts />
         {children}
         {/* Renders nothing. Here rather than on the landing page because
             the sign-up pages are the half of the funnel worth measuring,

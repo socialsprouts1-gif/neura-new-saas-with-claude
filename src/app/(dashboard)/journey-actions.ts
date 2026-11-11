@@ -33,6 +33,41 @@ export interface StarterResult extends ActionResult {
   pending?: number;
   /** Templates that already existed and were reused as they are. */
   reused?: number;
+  /**
+   * Meta refused the account rather than the template.
+   *
+   * A different thing from a bad template, and it needs a different
+   * answer: nothing about the words will fix it, and the way through is
+   * to create them in WhatsApp Manager instead.
+   */
+  blockedByAccount?: boolean;
+  /** Meta's trace id, which is the one value WhatsApp support can act on. */
+  trace?: string;
+  /**
+   * Every message of the journey, ready to be created by hand.
+   *
+   * Returned alongside a failure rather than instead of it. When the API
+   * route is shut, the words are still good and retyping them from a
+   * video is not a thing anybody should have to do.
+   */
+  manual?: Array<{
+    name: string;
+    category: "UTILITY" | "MARKETING";
+    body: string;
+    footer: string;
+    samples: string[];
+  }>;
+}
+
+/** The whole journey as something somebody can paste into WhatsApp Manager. */
+function manualSpec(starter: JourneyStarter): NonNullable<StarterResult["manual"]> {
+  return starter.steps.map((step) => ({
+    name: templateNameFor(starter, step),
+    category: step.category,
+    body: step.body,
+    footer: step.footer ?? "",
+    samples: step.samples ?? [],
+  }));
 }
 
 export async function buildJourneyFromStarter(formData: FormData): Promise<StarterResult> {
@@ -68,9 +103,16 @@ export async function buildJourneyFromStarter(formData: FormData): Promise<Start
     const name = templateNameFor(starter, step);
     const already = known.get(name);
 
-    // A rejected template is worse than a missing one: wired into a
-    // sequence it looks finished and can never send. Submit it again.
-    if (already && already.status !== "rejected") {
+    // Only a template Meta actually holds may be reused.
+    //
+    // "approved" and "pending" are the two states that mean Meta has it.
+    // A row left as "draft" is one that was written here and then refused
+    // — submitTemplate saves the row before it calls Meta and marks it
+    // draft when the call fails — and a "rejected" one Meta looked at and
+    // turned down. Reusing either wires the sequence to a template that
+    // does not exist at the other end: it would look finished on this
+    // screen and fail for every single customer. Submit those again.
+    if (already && (already.status === "approved" || already.status === "pending")) {
       steps.push(toStep(index, starter, already.id));
       reused += 1;
       continue;
@@ -93,11 +135,18 @@ export async function buildJourneyFromStarter(formData: FormData): Promise<Start
       // Stopped here rather than carried on. A sequence missing its third
       // message is a sequence that goes quiet half way through for
       // everybody in it, and that is harder to notice than a refusal.
+      //
+      // The words go back with the refusal. When Meta will not take them
+      // through the API, they are still the journey — and the way through
+      // is WhatsApp Manager, not retyping four messages from memory.
       return {
         ok: false,
-        error: `Message ${index + 1} of this journey could not be created: ${
+        error: `Message ${index + 1} of ${starter.steps.length} could not be created. ${
           result.error ?? "Meta refused it."
         }`,
+        blockedByAccount: result.blockedByAccount,
+        trace: result.trace,
+        manual: manualSpec(starter),
       };
     }
 
@@ -133,7 +182,20 @@ export async function buildJourneyFromStarter(formData: FormData): Promise<Start
     activate: false,
   });
 
-  if (!saved.ok) return { ok: false, error: saved.error };
+  if (!saved.ok) {
+    // The columns this trigger needs arrive with a database update, and
+    // somebody who has not run it yet gets a message from Postgres about
+    // a column rather than anything they can act on. Say what to do.
+    const missingColumn = /column|schema cache/i.test(saved.error ?? "");
+    return {
+      ok: false,
+      error: missingColumn
+        ? `${saved.error} — this is the database update for appointment journeys. Run supabase/updates/run-me-latest.sql in the Supabase SQL editor, then try again. The ${
+            pending + reused
+          } WhatsApp templates are already created, so nothing is lost.`
+        : saved.error,
+    };
+  }
 
   return {
     ok: true,

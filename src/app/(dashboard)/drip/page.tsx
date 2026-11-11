@@ -182,7 +182,11 @@ export default async function DripPage() {
         </Card>
       )}
 
-      <JourneyStarters numbers={numbers} appointmentTypes={services} />
+      <JourneyStarters
+        numbers={numbers}
+        appointmentTypes={services}
+        templates={templateChoices}
+      />
 
       {(campaigns ?? []).length === 0 ? (
         <EmptyState
