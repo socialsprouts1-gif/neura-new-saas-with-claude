@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/org";
-import { loadSiteContent } from "@/lib/site-content-server";
+import { loadSiteContentRaw } from "@/lib/site-content-server";
 import { PageHeader, Card } from "@/components/ui/primitives";
 import BrandEditor from "./BrandEditor";
 import HeroEditor from "./HeroEditor";
 
 export default async function AdminLandingPage() {
   await requirePlatformAdmin();
-  const content = await loadSiteContent();
+  const content = await loadSiteContentRaw();
 
   return (
     <div className="p-6 md:p-8 max-w-4xl">

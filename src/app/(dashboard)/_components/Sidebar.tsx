@@ -30,6 +30,7 @@ import {
   Shield,
   ShoppingBag,
   Sparkles,
+  Store,
   Truck,
   Users,
   Wallet,
@@ -150,11 +151,14 @@ const MAIN: NavItem[] = [
  */
 export function SidebarNav({
   isPlatformAdmin = false,
+  ownsBrand = false,
   features = {},
   courierConnected = false,
   onNavigate,
 }: {
   isPlatformAdmin?: boolean;
+  /** Whether this person resells the product under their own brand. */
+  ownsBrand?: boolean;
   /** Feature key → allowed. A key that is absent counts as allowed. */
   features?: Record<string, boolean>;
   /** Whether a courier account is connected, for the entries that need one. */
@@ -199,6 +203,23 @@ export function SidebarNav({
           ))}
         </div>
       </nav>
+
+      {/* An agency reselling under their own name. Their clients and their
+          branding live on a screen of their own, because none of it is a
+          thing a workspace has — and without a link to it they would have
+          to be told the URL, once, and remember it. */}
+      {ownsBrand && (
+        <div className="border-t border-white/8 p-3 flex-shrink-0">
+          <Link
+            href="/agency"
+            onClick={onNavigate}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-accent-ink hover:bg-accent/10 transition-all"
+          >
+            <Store className="w-4 h-4 flex-shrink-0" />
+            Agency panel
+          </Link>
+        </div>
+      )}
 
       {/* Only rendered for platform staff. Hiding it is a convenience, not the
           control — /admin re-checks server-side and RLS enforces the rest. */}
@@ -255,11 +276,13 @@ export function SidebarBrand({ brand }: { brand?: AppBrand }) {
  */
 export default function Sidebar({
   isPlatformAdmin = false,
+  ownsBrand = false,
   features = {},
   courierConnected = false,
   brand,
 }: {
   isPlatformAdmin?: boolean;
+  ownsBrand?: boolean;
   features?: Record<string, boolean>;
   courierConnected?: boolean;
   brand?: AppBrand;
@@ -269,6 +292,7 @@ export default function Sidebar({
       <SidebarBrand brand={brand} />
       <SidebarNav
         isPlatformAdmin={isPlatformAdmin}
+        ownsBrand={ownsBrand}
         features={features}
         courierConnected={courierConnected}
       />

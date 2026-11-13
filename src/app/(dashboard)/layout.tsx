@@ -10,12 +10,17 @@ import PaywallGate from "./_components/PaywallGate";
 import SuspendedBanner from "./_components/SuspendedBanner";
 import ReminderWatcher from "./_components/ReminderWatcher";
 import ScheduleTicker from "./_components/ScheduleTicker";
+import { brandsIOwn } from "@/lib/brand-access";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // requireOrg redirects to /setup when Supabase isn't configured and to
   // /auth/login when there's no session, so both cases are handled before
   // anything here renders.
   const { orgId, orgName, user, isPlatformAdmin, features, suspended } = await requireOrg();
+
+  // Whether this person also resells the product under their own name.
+  // Empty for everybody who does not, which is almost everybody.
+  const ownsBrand = (await brandsIOwn()).length > 0;
 
   // Read once here rather than in each of the three components that draw
   // it: the sidebar and the mobile drawer are client components, so every
@@ -42,6 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-dvh bg-[var(--app-bg)] overflow-hidden">
       <Sidebar
         isPlatformAdmin={isPlatformAdmin}
+        ownsBrand={ownsBrand}
         features={features}
         courierConnected={courierConnected}
         brand={brand}
@@ -51,6 +57,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           orgName={orgName}
           userEmail={user.email ?? ""}
           isPlatformAdmin={isPlatformAdmin}
+          ownsBrand={ownsBrand}
           features={features}
           courierConnected={courierConnected}
           brand={brand}

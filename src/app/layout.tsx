@@ -8,6 +8,8 @@ import { Suspense } from "react";
 import Track from "@/components/analytics/Track";
 import ServiceWorker from "@/components/ServiceWorker";
 import Toasts from "@/components/ui/Toasts";
+import { currentBrand } from "@/lib/brand-server";
+import { brandThemeCss } from "@/lib/brand";
 
 // Meta's domain verification token. Public by design — it proves control of
 // the domain to Meta and nothing else. Meta fetches the home page and reads
@@ -131,11 +133,17 @@ const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The agency's colour, if this request came in through their door.
+  // Null on the platform's own domain, which is the common case and costs
+  // one cached lookup.
+  const brand = await currentBrand();
+  const themeCss = brand?.accentHex ? brandThemeCss(brand.accentHex) : "";
+
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
@@ -147,6 +155,11 @@ export default function RootLayout({
             — is what the server sends; one script error and the visitor
             gets a white page. See MotionFallback. */}
         <script dangerouslySetInnerHTML={{ __html: MOTION_FALLBACK_SCRIPT }} />
+        {/* The agency's accent, after globals.css so it wins. Derived
+            rather than used raw: the colour somebody picks for a logo is
+            usually unreadable as text on one of the two themes, and
+            buttons you cannot read are worse than the wrong green. */}
+        {themeCss && <style dangerouslySetInnerHTML={{ __html: themeCss }} />}
       </head>
       <body className="antialiased bg-[var(--app-bg)] text-[var(--color-white)]">
         <MotionFallback />

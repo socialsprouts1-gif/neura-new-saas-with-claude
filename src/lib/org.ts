@@ -8,6 +8,7 @@ import { featureForPath, resolveFeatures } from "@/lib/features";
 import { sendEmail } from "@/lib/email";
 import { readTrialDays } from "@/lib/trial";
 import { welcomeEmail } from "@/lib/email-templates";
+import { currentBrand } from "@/lib/brand-server";
 import type { OrgRole } from "@/types/database";
 
 export interface OrgContext {
@@ -16,6 +17,8 @@ export interface OrgContext {
   orgName: string;
   role: OrgRole;
   isPlatformAdmin: boolean;
+  /** Which agency front door this workspace signed up through, if any. */
+  brandId: string | null;
   /** Every feature key mapped to whether this workspace may use it. */
   features: Record<string, boolean>;
   /** Set when platform staff have suspended the workspace. */
@@ -73,7 +76,7 @@ export async function requireOrg(): Promise<OrgContext> {
     supabase
       .from("organizations")
       .select(
-        "name, created_at, feature_overrides, suspended_at, suspended_reason, subscriptions(plans(feature_keys))"
+        "name, created_at, brand_id, feature_overrides, suspended_at, suspended_reason, subscriptions(plans(feature_keys))"
       )
       .eq("id", resolved.org_id)
       .maybeSingle(),
@@ -111,10 +114,14 @@ export async function requireOrg(): Promise<OrgContext> {
   // never. Nobody got one.
   await welcomeIfNew(user.email ?? "", resolved.org_id, org?.created_at ?? null);
 
+  // Which front door this workspace came in through, recorded once.
+  await claimBrandIfNew(resolved.org_id, org?.brand_id ?? null, org?.created_at ?? null);
+
   return {
     user,
     orgId: resolved.org_id,
     orgName: org?.name ?? "Neura Chat",
+    brandId: org?.brand_id ?? null,
     role: resolved.role,
     isPlatformAdmin: Boolean(adminRow),
     features,
@@ -183,6 +190,52 @@ async function provisionOrgForUser(user: User): Promise<{ org_id: string; role: 
   } catch (error) {
     console.error("Organization provisioning failed", error);
     return null;
+  }
+}
+
+/**
+ * Stamps a brand-new workspace with the brand whose domain it signed up on.
+ *
+ * Here rather than at signup because the workspace is not created by the
+ * signup action — a database trigger makes it, and the action has nothing
+ * to stamp yet when it returns. This runs on the first page the new
+ * customer loads, which is always on the domain they signed up through.
+ *
+ * Three guards, because the cost of getting this wrong is an existing
+ * customer being silently handed to an agency:
+ *
+ *   * only when the workspace has no brand yet,
+ *   * only inside the same short window the welcome email uses, and
+ *   * only when the request is actually on a brand's domain.
+ *
+ * Outside those it does nothing at all, so an established customer who
+ * follows an agency's link keeps belonging to whoever they belong to.
+ */
+const BRAND_CLAIM_WINDOW_MS = 30 * 60 * 1000;
+
+async function claimBrandIfNew(
+  orgId: string,
+  existing: string | null,
+  createdAt: string | null
+): Promise<void> {
+  if (existing || !createdAt) return;
+
+  const age = Date.now() - new Date(createdAt).getTime();
+  if (!Number.isFinite(age) || age < 0 || age > BRAND_CLAIM_WINDOW_MS) return;
+
+  try {
+    const brand = await currentBrand();
+    if (!brand) return;
+
+    await createAdminClient()
+      .from("organizations")
+      .update({ brand_id: brand.id })
+      .eq("id", orgId)
+      .is("brand_id", null);
+  } catch (error) {
+    // A workspace that stays unbranded is a workspace the platform owner
+    // can reassign by hand. A page that will not load is not.
+    console.error("Could not record which brand this workspace signed up through", error);
   }
 }
 

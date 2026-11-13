@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Store,
 } from "lucide-react";
 
 // Every configurable thing gets its own entry.
@@ -47,6 +48,7 @@ const SECTIONS = [
     items: [
       { icon: Users, label: "Users", href: "/admin/users" },
       { icon: Building2, label: "Organizations", href: "/admin/organizations" },
+      { icon: Store, label: "White-label brands", href: "/admin/brands" },
     ],
   },
   {

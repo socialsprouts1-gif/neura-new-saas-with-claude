@@ -87,11 +87,44 @@ export type CampaignRecipientStatus = "pending" | "sent" | "delivered" | "read" 
 export interface Database {
   public: {
     Tables: {
+      brands: {
+        Row: {
+          id: string;
+          slug: string;
+          domain: string | null;
+          name: string;
+          name_accent: string;
+          logo_url: string;
+          favicon_url: string;
+          accent_hex: string;
+          site_title: string;
+          site_description: string;
+          support_email: string;
+          support_whatsapp: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["brands"]["Row"]> & {
+          slug: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["brands"]["Row"]>;
+        Relationships: [];
+      };
+      brand_owners: {
+        Row: { brand_id: string; user_id: string; created_at: string };
+        Insert: { brand_id: string; user_id: string; created_at?: string };
+        Update: Partial<{ brand_id: string; user_id: string; created_at: string }>;
+        Relationships: [];
+      };
       organizations: {
         Row: {
           id: string;
           name: string;
           created_at: string;
+          /** Which agency front door this workspace came in through. */
+          brand_id: string | null;
           /** Per-workspace feature on/off. Wins over the plan. */
           feature_overrides: Record<string, boolean>;
           suspended_at: string | null;
@@ -100,11 +133,12 @@ export interface Database {
           wallet_balance_micros: number;
           wallet_currency: string;
         };
-        Insert: { id?: string; name: string; created_at?: string };
+        Insert: { id?: string; name: string; created_at?: string; brand_id?: string | null };
         Update: {
           id?: string;
           name?: string;
           created_at?: string;
+          brand_id?: string | null;
           feature_overrides?: Record<string, boolean>;
           suspended_at?: string | null;
           suspended_reason?: string | null;

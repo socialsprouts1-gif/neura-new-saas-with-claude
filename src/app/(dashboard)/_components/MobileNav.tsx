@@ -20,11 +20,13 @@ import type { AppBrand } from "@/lib/app-brand";
  */
 export default function MobileNav({
   isPlatformAdmin = false,
+  ownsBrand = false,
   features = {},
   courierConnected = false,
   brand,
 }: {
   isPlatformAdmin?: boolean;
+  ownsBrand?: boolean;
   features?: Record<string, boolean>;
   courierConnected?: boolean;
   brand?: AppBrand;
@@ -104,6 +106,7 @@ export default function MobileNav({
 
             <SidebarNav
               isPlatformAdmin={isPlatformAdmin}
+              ownsBrand={ownsBrand}
               features={features}
               courierConnected={courierConnected}
               onNavigate={() => setOpenedAt(null)}
