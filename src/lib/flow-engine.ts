@@ -2,6 +2,9 @@ import type { FlowEdge, FlowGraph, FlowNode, ListSection, ReplyButton } from "@/
 // Relative, with the extension: the test runner strips types but does not
 // resolve the "@/" alias, and this module has to be importable by a test.
 import { normalise, containsKeyword } from "./reply-matcher.ts";
+// Same reason, same shape: a value import, so it needs the relative path
+// and the extension. types/flow.ts imports nothing, so the chain ends here.
+import { nodeDef } from "../types/flow.ts";
 
 // The decision half of the flow runtime: given a graph, where we are in it,
 // and what the customer just said, work out which node runs next and what it
@@ -210,7 +213,11 @@ export function handleIdsOf(node: FlowNode): { id: string; label: string }[] {
         { id: "false", label: "No" },
       ];
     default:
-      return [];
+      // Outlets declared on the node's own definition — "Found" and "Not
+      // found", "Sent" and "Could not send". Read from there rather than
+      // listed again here, so a node that returns a handle at runtime
+      // cannot end up with nowhere to draw the edge from.
+      return nodeDef(node.kind)?.handles ?? [];
   }
 }
 

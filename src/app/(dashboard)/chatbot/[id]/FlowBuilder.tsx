@@ -63,6 +63,7 @@ import {
   X,
   Zap,
   type LucideIcon,
+  Forward,
 } from "lucide-react";
 import {
   NODE_DEFS,
@@ -109,6 +110,8 @@ const NODE_ICONS: Record<FlowNodeKind, LucideIcon> = {
   update_tag: Tag,
   update_field: UserCog,
   fetch_contact: Database,
+  find_contact: Search,
+  notify_number: Forward,
   http: Globe,
   ai_agent: Bot,
   handoff: Headset,

@@ -35,6 +35,8 @@ export type FlowNodeKind =
   | "update_tag"
   | "update_field"
   | "fetch_contact"
+  | "find_contact"
+  | "notify_number"
   | "http"
   // control
   | "ai_agent"
@@ -503,6 +505,87 @@ export const NODE_DEFS: NodeDef[] = [
     ],
     accent: "#00FF87",
     defaults: { prefix: "contact" },
+  },
+  {
+    kind: "find_contact",
+    label: "Find Someone Else",
+    group: "Data",
+    description:
+      "Looks up a different contact — a student, a customer — and loads their details into variables.",
+    runtime: "ready",
+    handles: [
+      { id: "found", label: "Found" },
+      { id: "not_found", label: "Not found" },
+    ],
+    fields: [
+      {
+        name: "search",
+        label: "What to look for",
+        kind: "text",
+        placeholder: "{{answer}}",
+        hint: "Usually the answer to the question just asked.",
+      },
+      {
+        name: "searchIn",
+        label: "Look in",
+        kind: "select",
+        options: [
+          { value: "name", label: "Name" },
+          { value: "wa_id", label: "Phone number" },
+          { value: "field", label: "A saved detail" },
+        ],
+      },
+      {
+        name: "fieldName",
+        label: "Which saved detail",
+        kind: "text",
+        placeholder: "roll_no",
+        hint: "Only used when looking in a saved detail.",
+      },
+      {
+        name: "prefix",
+        label: "Variable prefix",
+        kind: "variable",
+        placeholder: "found",
+        hint: "Their details become {{found.name}}, {{found.wa_id}}, and every saved detail.",
+      },
+    ],
+    accent: "#00FF87",
+    defaults: { search: "{{answer}}", searchIn: "name", fieldName: "", prefix: "found" },
+  },
+  {
+    kind: "notify_number",
+    label: "Message Someone Else",
+    group: "Send",
+    description:
+      "Sends an approved template to a different number — a parent, a manager, anybody who did not write in.",
+    runtime: "ready",
+    runtimeNote:
+      "Always a template, because the person being messaged has not written to you and free text is refused outside the 24-hour window.",
+    handles: [
+      { id: "sent", label: "Sent" },
+      { id: "failed", label: "Could not send" },
+    ],
+    fields: [
+      {
+        name: "to",
+        label: "Send to",
+        kind: "text",
+        placeholder: "{{found.parent_wa}}",
+        hint: "A number, or a variable holding one.",
+      },
+      { name: "templateName", label: "Template name", kind: "text", placeholder: "student_absent" },
+      { name: "language", label: "Language code", kind: "text", placeholder: "en_US" },
+      {
+        name: "variables",
+        label: "Fill the template's blanks",
+        kind: "text",
+        placeholder: "{{found.name}}, {{sender.name}}",
+        hint: "One value per blank, in order, separated by commas.",
+      },
+    ],
+    accent: "#00D4FF",
+    defaults: { to: "", templateName: "", language: "en_US", variables: "" },
   },
   {
     kind: "http",

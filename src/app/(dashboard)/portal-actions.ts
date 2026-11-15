@@ -1658,6 +1658,151 @@ export async function createStarterFlow(): Promise<ActionResult & { id?: string 
 }
 
 /**
+ * The relay: somebody on your team reports a person, that person's
+ * contact gets the message.
+ *
+ * Built because it is the shape of a whole class of real work that the
+ * builder could not express at all until "Find Someone Else" and "Message
+ * Someone Else" existed. A teacher writes in that a student has not
+ * joined; the parent needs telling, and today a human reads the teacher's
+ * message and retypes it. Same shape as a driver reporting a failed
+ * delivery to the customer, or a technician reporting a missed visit.
+ *
+ * The confirm step is deliberate and stays. The flow is about to message
+ * somebody's parent, and a mistyped name should cost a "no" rather than a
+ * phone call to the wrong family.
+ */
+export async function createRelayFlow(): Promise<ActionResult & { id?: string }> {
+  const ctx = await requireOrg();
+  const supabase = await createClient();
+
+  const stamp = Date.now().toString(36);
+  const trigger = `on_message_${stamp}`;
+  const ask = `ask_question_${stamp}`;
+  const find = `find_contact_${stamp}`;
+  const confirm = `send_buttons_${stamp}`;
+  const notify = `notify_number_${stamp}`;
+  const done = `send_text_done_${stamp}`;
+  const failed = `send_text_failed_${stamp}`;
+  const missing = `send_text_missing_${stamp}`;
+  const cancelled = `send_text_cancel_${stamp}`;
+
+  const buttons = [
+    { id: `btn_yes_${stamp}`, title: "Yes, send it" },
+    { id: `btn_no_${stamp}`, title: "No, cancel" },
+  ];
+
+  const nodes: FlowNode[] = [
+    {
+      id: trigger,
+      kind: "on_message",
+      position: { x: 60, y: 260 },
+      data: { keywords: ["absent", "not joined", "missing"], fuzzy: true, sensitivity: 80 },
+    },
+    {
+      id: ask,
+      kind: "ask_question",
+      position: { x: 360, y: 260 },
+      data: {
+        body: "Which student? Send their full name or roll number.",
+        variable: "student",
+        retry: "Sorry — send the student's full name or roll number.",
+      },
+    },
+    {
+      id: find,
+      kind: "find_contact",
+      position: { x: 680, y: 260 },
+      data: { search: "{{student}}", searchIn: "name", fieldName: "", prefix: "found" },
+    },
+    {
+      id: missing,
+      kind: "send_text",
+      position: { x: 1000, y: 460 },
+      data: { body: "{{found.problem}}\n\nCheck the name and send ABSENT again." },
+    },
+    {
+      id: confirm,
+      kind: "send_buttons",
+      position: { x: 1000, y: 200 },
+      data: {
+        body:
+          "Found {{found.name}}. Message their parent on {{found.parent_wa}} to say they have not joined the class?",
+        footer: "",
+        buttons,
+      },
+    },
+    {
+      id: notify,
+      kind: "notify_number",
+      position: { x: 1360, y: 120 },
+      data: {
+        to: "{{found.parent_wa}}",
+        templateName: "student_absent",
+        language: "en_US",
+        variables: "{{found.name}}, {{sender.name}}",
+      },
+    },
+    {
+      id: done,
+      kind: "send_text",
+      position: { x: 1700, y: 40 },
+      data: { body: "Done — {{found.name}}'s parent has been messaged." },
+    },
+    {
+      id: failed,
+      kind: "send_text",
+      position: { x: 1700, y: 220 },
+      data: { body: "That did not go through: {{notify.problem}}" },
+    },
+    {
+      id: cancelled,
+      kind: "send_text",
+      position: { x: 1360, y: 340 },
+      data: { body: "Cancelled — nothing was sent." },
+    },
+  ];
+
+  const edges: FlowEdge[] = [
+    { id: `e_t_${stamp}`, source: trigger, target: ask, sourceHandle: null },
+    { id: `e_a_${stamp}`, source: ask, target: find, sourceHandle: null },
+    { id: `e_found_${stamp}`, source: find, target: confirm, sourceHandle: "found" },
+    { id: `e_miss_${stamp}`, source: find, target: missing, sourceHandle: "not_found" },
+    { id: `e_yes_${stamp}`, source: confirm, target: notify, sourceHandle: buttons[0].id },
+    { id: `e_no_${stamp}`, source: confirm, target: cancelled, sourceHandle: buttons[1].id },
+    { id: `e_sent_${stamp}`, source: notify, target: done, sourceHandle: "sent" },
+    { id: `e_fail_${stamp}`, source: notify, target: failed, sourceHandle: "failed" },
+  ];
+
+  const { data, error } = await supabase
+    .from("chatbot_flows")
+    .insert({
+      org_id: ctx.orgId,
+      name: "Report an absent student",
+      trigger_type: "keyword",
+      nodes,
+      edges,
+      entry_node_id: trigger,
+      // A draft, always. It messages parents, and two things have to be
+      // true before it should: the student contacts need a parent number
+      // saved, and the template has to exist and be approved.
+      is_active: false,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/chatbot");
+  return {
+    ok: true,
+    id: data.id,
+    message:
+      "Created as a draft. Two things before you switch it on: save each student's parent number as the detail parent_wa, and have a template named student_absent approved.",
+  };
+}
+
+/**
  * Recreates a flow from the JSON that the row menu exports.
  *
  * Deliberately strict about shape but forgiving about extras: a file from a

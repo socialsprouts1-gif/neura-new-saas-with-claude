@@ -2,8 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, Plus, Upload } from "lucide-react";
-import { createFlow, createStarterFlow, importFlow } from "../portal-actions";
+import { Forward, LayoutGrid, Plus, Upload } from "lucide-react";
+import { createFlow, createRelayFlow, createStarterFlow, importFlow } from "../portal-actions";
 import BuildWithAi from "./BuildWithAi";
 
 // Four ways to get a bot, in ascending order of how much you have to do:
@@ -72,6 +72,17 @@ export default function BotToolbar() {
       >
         <LayoutGrid className="w-4 h-4" />
         Example Bot
+      </button>
+
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => run(createRelayFlow)}
+        className="btn-secondary text-sm justify-center disabled:opacity-50"
+        title="Your team reports somebody by name; that person's contact gets messaged automatically"
+      >
+        <Forward className="w-4 h-4" />
+        Relay Bot
       </button>
 
       <button

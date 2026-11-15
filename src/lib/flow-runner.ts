@@ -35,6 +35,8 @@ import {
 import { generateAssistantReply } from "@/lib/ai-assistant";
 import { coordsFromMapsUrl, locationProblem, mediaProblem } from "@/lib/media-kinds";
 import { FORM_SEND_COLUMNS, sendFormToContact } from "@/lib/form-send";
+import { normaliseWaNumber } from "@/lib/whatsapp-link";
+import { recordOutboundTemplate } from "@/lib/outbound-log";
 import { nodeDef } from "@/types/flow";
 import type { OrgConnection, RunnerClient } from "@/lib/whatsapp-send";
 
@@ -167,7 +169,18 @@ export async function runFlow(
     resumeAt: null,
   };
 
-  let variables = { ...initialVariables };
+  // Who is writing, and what they wrote, available to every node without
+  // a Fetch Contact in front of it.
+  //
+  // It matters most where the flow is about somebody else: a message to a
+  // parent that says which teacher reported it is a message the parent can
+  // reply to sensibly, and the teacher's name is only knowable here.
+  let variables: FlowVariables = {
+    message: context.inboundText ?? "",
+    "sender.name": context.contactName ?? "",
+    "sender.wa_id": context.contactWaId ?? "",
+    ...initialVariables,
+  };
   let current: FlowNode | null = start;
   let steps = 0;
 
@@ -540,6 +553,163 @@ async function executeNode(
       };
     }
 
+    case "find_contact": {
+      // Looking up somebody who is not the person messaging.
+      //
+      // The whole point of the node: a teacher writes in about a student,
+      // and the student — and their parent's number — is a different row
+      // from the teacher. Until this existed a flow could only ever read
+      // and write the contact it was already talking to.
+      const prefix = String(node.data.prefix ?? "found");
+      const needle = text("search").trim();
+      const searchIn = String(node.data.searchIn ?? "name");
+      const fieldName = String(node.data.fieldName ?? "").trim();
+
+      const miss = (problem: string) => ({
+        variables: { ...variables, [`${prefix}.problem`]: problem },
+        nextHandle: "not_found",
+        reply: null,
+      });
+
+      if (!needle) return miss("Nothing was given to search for.");
+      if (searchIn === "field" && !fieldName) {
+        return miss("No saved detail was chosen to search in.");
+      }
+
+      let query = context.supabase
+        .from("contacts")
+        .select("id, name, wa_id, tags, custom_fields, opted_out")
+        .eq("org_id", context.orgId);
+
+      if (searchIn === "wa_id") {
+        const number = normaliseWaNumber(needle);
+        if (!number) return miss("That is not a phone number.");
+        query = query.eq("wa_id", number);
+      } else if (searchIn === "field") {
+        query = query.eq(`custom_fields->>${fieldName}`, needle);
+      } else {
+        // Name is what a person actually types, so it matches loosely —
+        // but only loosely enough to forgive a missing surname, never
+        // enough to pick between two people (see below).
+        query = query.ilike("name", `%${needle}%`);
+      }
+
+      // Three rather than one. The count is the safety rule: messaging the
+      // wrong student's parent is far worse than messaging nobody, so two
+      // matches is a refusal with a reason rather than a guess at the
+      // first row.
+      const { data: matches } = await query.limit(3);
+
+      if (!matches || matches.length === 0) return miss(`Nobody found matching “${needle}”.`);
+      if (matches.length > 1) {
+        return miss(
+          `More than one match for “${needle}” — ${matches
+            .map((row) => row.name || row.wa_id)
+            .join(", ")}. Be more specific.`
+        );
+      }
+
+      const match = matches[0];
+      const found: FlowVariables = {
+        ...variables,
+        [`${prefix}.id`]: match.id,
+        [`${prefix}.name`]: match.name ?? "",
+        [`${prefix}.wa_id`]: match.wa_id ?? "",
+        [`${prefix}.tags`]: (match.tags ?? []).join(", "),
+        [`${prefix}.problem`]: "",
+      };
+
+      // Every saved detail, under the same prefix, so a parent's number
+      // kept as "parent_wa" reads as {{found.parent_wa}}.
+      for (const [key, value] of Object.entries(match.custom_fields ?? {})) {
+        found[`${prefix}.${key}`] = String(value ?? "");
+      }
+
+      return { variables: found, nextHandle: "found" };
+    }
+
+    case "notify_number": {
+      // Messaging somebody who never wrote to us.
+      //
+      // Always a template. The person on the other end has not messaged
+      // this number, so free text is refused by WhatsApp outside the
+      // 24-hour window — and for a parent being told their child is not in
+      // class, that window has never been open.
+      const to = normaliseWaNumber(text("to"));
+      const name = text("templateName").trim();
+      const language = String(node.data.language ?? "en_US").trim() || "en_US";
+
+      const fail = (problem: string) => ({
+        variables: { ...variables, "notify.problem": problem },
+        nextHandle: "failed",
+        reply: null,
+      });
+
+      if (!to) return fail("No number to send to.");
+      if (!to.match(/^\d{8,15}$/)) return fail(`“${to}” is not a usable phone number.`);
+      if (!name) return fail("No template was chosen.");
+
+      // Somebody who asked not to be messaged is not messaged, whoever
+      // asked for it and however good the reason.
+      const { data: target } = await context.supabase
+        .from("contacts")
+        .select("name, opted_out")
+        .eq("org_id", context.orgId)
+        .eq("wa_id", to)
+        .maybeSingle();
+
+      if (target?.opted_out) return fail(`${target.name || to} has opted out of messages.`);
+
+      const values = splitValues(text("variables"));
+      const components = values.length
+        ? [
+            {
+              type: "body" as const,
+              parameters: values.map((value) => ({ type: "text", text: value })),
+            },
+          ]
+        : [];
+
+      try {
+        const result = await sendTemplateMessage(
+          connection.phoneNumberId,
+          to,
+          name,
+          language,
+          components,
+          connection.accessToken
+        );
+
+        // Into the other person's own thread, not this one. Without it the
+        // inbox shows a conversation with the teacher and no trace of the
+        // message that actually went to the parent.
+        await recordOutboundTemplate(context.supabase, {
+          orgId: context.orgId,
+          connectionId: connection.id,
+          waId: to,
+          contactName: target?.name ?? null,
+          templateName: name,
+          language,
+          body: values.join(" · "),
+          source: "Automation",
+          waMessageId: result.messages[0]?.id ?? null,
+        });
+
+        return {
+          variables: { ...variables, "notify.problem": "", "notify.to": to },
+          nextHandle: "sent",
+        };
+      } catch (error) {
+        return fail(
+          error instanceof MetaApiError
+            ? describeMetaError(error.status, error.body)
+            : error instanceof Error
+              ? error.message
+              : "The message could not be sent."
+        );
+      }
+    }
+
     case "http": {
       const url = text("url");
       if (!url) return { variables };
@@ -692,4 +862,19 @@ export { findNode, graphOf };
 /** "Send Text Message" reads better in an error than "send_text". */
 function nodeLabel(kind: FlowNode["kind"]): string {
   return nodeDef(kind)?.label ?? kind;
+}
+
+/**
+ * "Rahul, Mrs Sharma" as the values for {{1}} and {{2}}.
+ *
+ * Commas, because that is how somebody writing a list in a text box
+ * separates things. A value that genuinely contains a comma is not worth
+ * a quoting syntax nobody would discover — the blanks in these templates
+ * are names, times and class titles.
+ */
+function splitValues(raw: string): string[] {
+  return String(raw ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
