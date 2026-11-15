@@ -176,7 +176,7 @@ export const NODE_DEFS: NodeDef[] = [
     fields: [
       { name: "body", label: "Message", kind: "textarea", maxLength: WA_TEXT_LIMIT, placeholder: "Type your message…" },
     ],
-    accent: "#00D4FF",
+    accent: "#25D366",
     defaults: { body: "" },
   },
   {
@@ -207,7 +207,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "footer", label: "Footer (optional)", kind: "text", maxLength: 60 },
       { name: "sections", label: "Sections and rows", kind: "sections", max: 10 },
     ],
-    accent: "#00D4FF",
+    accent: "#818CF8",
     defaults: { body: "", buttonText: "View options", footer: "", sections: [] },
   },
   {
@@ -245,7 +245,7 @@ export const NODE_DEFS: NodeDef[] = [
       },
       { name: "filename", label: "Filename (documents only)", kind: "text", placeholder: "invoice.pdf" },
     ],
-    accent: "#00D4FF",
+    accent: "#F472B6",
     defaults: { mediaType: "image", url: "", caption: "", filename: "" },
   },
   {
@@ -258,7 +258,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "templateName", label: "Template name", kind: "text", placeholder: "order_update" },
       { name: "language", label: "Language code", kind: "text", placeholder: "en_US" },
     ],
-    accent: "#00D4FF",
+    accent: "#34D399",
     defaults: { templateName: "", language: "en_US" },
   },
   {
@@ -273,7 +273,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "url", label: "URL", kind: "text", placeholder: "https://…" },
       { name: "footer", label: "Footer (optional)", kind: "text", maxLength: 60 },
     ],
-    accent: "#00D4FF",
+    accent: "#FB923C",
     defaults: { body: "", buttonText: "", url: "", footer: "" },
   },
   {
@@ -288,7 +288,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "buttonText", label: "Button label", kind: "text", maxLength: 20, placeholder: "Open form" },
       { name: "footer", label: "Footer (optional)", kind: "text", maxLength: 60 },
     ],
-    accent: "#25D366",
+    accent: "#2DD4BF",
     defaults: { formId: "", body: "", buttonText: "Open form", footer: "" },
   },
   {
@@ -334,7 +334,7 @@ export const NODE_DEFS: NodeDef[] = [
       },
       { name: "address", label: "Address", kind: "text", placeholder: "FC Road, Pune 411005" },
     ],
-    accent: "#00D4FF",
+    accent: "#EF4444",
     defaults: { mapsUrl: "", latitude: "", longitude: "", name: "", address: "" },
   },
   {
@@ -355,7 +355,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "organisation", label: "Company (optional)", kind: "text", placeholder: "Neura Chat" },
       { name: "email", label: "Email (optional)", kind: "text", placeholder: "hello@example.com" },
     ],
-    accent: "#00D4FF",
+    accent: "#60A5FA",
     defaults: { name: "", phone: "", organisation: "", email: "" },
   },
   {
@@ -393,7 +393,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "body", label: "Message", kind: "textarea", maxLength: 1024, placeholder: "Please share your delivery location." },
       { name: "variable", label: "Save location as", kind: "variable", placeholder: "location" },
     ],
-    accent: "#FACC15",
+    accent: "#FB7185",
     defaults: { body: "", variable: "location" },
   },
 
@@ -450,7 +450,7 @@ export const NODE_DEFS: NodeDef[] = [
         ],
       },
     ],
-    accent: "#A855F7",
+    accent: "#94A3B8",
     defaults: { value: 5, unit: "seconds" },
   },
 
@@ -491,7 +491,7 @@ export const NODE_DEFS: NodeDef[] = [
       },
       { name: "value", label: "Value", kind: "text", hint: "Use {{variable}} to insert an answer." },
     ],
-    accent: "#00FF87",
+    accent: "#E879F9",
     defaults: { field: "name", value: "" },
   },
   {
@@ -503,7 +503,7 @@ export const NODE_DEFS: NodeDef[] = [
     fields: [
       { name: "prefix", label: "Variable prefix", kind: "variable", placeholder: "contact" },
     ],
-    accent: "#00FF87",
+    accent: "#2DD4BF",
     defaults: { prefix: "contact" },
   },
   {
@@ -550,7 +550,7 @@ export const NODE_DEFS: NodeDef[] = [
         hint: "Their details become {{found.name}}, {{found.wa_id}}, and every saved detail.",
       },
     ],
-    accent: "#00FF87",
+    accent: "#38BDF8",
     defaults: { search: "{{answer}}", searchIn: "name", fieldName: "", prefix: "found" },
   },
   {
@@ -584,7 +584,7 @@ export const NODE_DEFS: NodeDef[] = [
         hint: "One value per blank, in order, separated by commas.",
       },
     ],
-    accent: "#00D4FF",
+    accent: "#F59E0B",
     defaults: { to: "", templateName: "", language: "en_US", variables: "" },
   },
   {
@@ -608,7 +608,7 @@ export const NODE_DEFS: NodeDef[] = [
       { name: "body", label: "JSON body", kind: "textarea", hint: "Use {{variable}} to insert answers." },
       { name: "variable", label: "Save response as", kind: "variable", placeholder: "response" },
     ],
-    accent: "#00FF87",
+    accent: "#818CF8",
     defaults: { method: "POST", url: "", body: "", variable: "response" },
   },
 
@@ -628,7 +628,7 @@ export const NODE_DEFS: NodeDef[] = [
       },
       { name: "instructions", label: "Extra instructions (optional)", kind: "textarea", hint: "Added on top of the assistant's own system prompt." },
     ],
-    accent: "#A855F7",
+    accent: "#C084FC",
     defaults: { assistant_id: "", instructions: "" },
   },
   {
@@ -640,7 +640,7 @@ export const NODE_DEFS: NodeDef[] = [
     fields: [
       { name: "body", label: "Message to send (optional)", kind: "textarea", placeholder: "Connecting you to a team member…" },
     ],
-    accent: "#F87171",
+    accent: "#FB923C",
     defaults: { body: "" },
   },
   {
@@ -650,7 +650,7 @@ export const NODE_DEFS: NodeDef[] = [
     description: "Ends the flow. The next message is matched from scratch.",
     runtime: "ready",
     fields: [],
-    accent: "#F87171",
+    accent: "#EF4444",
     defaults: {},
   },
 ];

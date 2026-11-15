@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type DragEvent,
 } from "react";
 import {
@@ -35,35 +36,22 @@ import "@xyflow/react/dist/style.css";
 import {
   Bot,
   Check,
-  ClipboardList,
-  Contact,
   Clock,
   Copy,
   Database,
-  FileText,
   GitBranch,
   Globe,
   Headset,
-  HelpCircle,
-  Image as ImageIcon,
-  Link2,
-  List,
-  MapPin,
-  MessageSquare,
-  MousePointerClick,
-  Navigation,
+  LocateFixed,
   Plus,
   Save,
   Search,
-  ShoppingCart,
   StopCircle,
   Tag,
   Trash2,
   UserCog,
   X,
   Zap,
-  type LucideIcon,
-  Forward,
 } from "lucide-react";
 import {
   NODE_DEFS,
@@ -79,6 +67,21 @@ import {
 import { saveFlowGraph } from "../../portal-actions";
 import { useTheme } from "@/components/ThemeToggle";
 import { assistantsOnNumbers, formsOnNumbers } from "@/lib/flow-routing";
+import {
+  AskGlyph,
+  ButtonMessageGlyph,
+  ContactCardGlyph,
+  CtaMessageGlyph,
+  FindPersonGlyph,
+  FormMessageGlyph,
+  ListMessageGlyph,
+  LocationPinGlyph,
+  MediaMessageGlyph,
+  ProductGlyph,
+  RelayGlyph,
+  TemplateGlyph,
+  TextMessageGlyph,
+} from "@/components/flow/NodeGlyphs";
 
 // The visual builder. Nodes carry their own configuration form rather than
 // opening a side panel: a flow is read by scanning left to right, and having
@@ -91,28 +94,47 @@ import { assistantsOnNumbers, formsOnNumbers } from "@/lib/flow-routing";
 // purpose — that module is plain data imported by server components, and
 // icons are a rendering concern. Total rather than Partial so adding a node
 // kind without an icon fails to compile instead of silently falling back.
-const NODE_ICONS: Record<FlowNodeKind, LucideIcon> = {
+/**
+ * A glyph is anything that draws itself at a size and a weight.
+ *
+ * Wider than LucideIcon because half of these are not Lucide: the
+ * WhatsApp message types are drawn in NodeGlyphs, because Lucide has no
+ * icon for "a bubble with reply buttons under it" and the nearest it
+ * offers — a mouse cursor — is an abstraction of the verb that says
+ * nothing at 16px.
+ */
+type NodeGlyph = ComponentType<{ className?: string; strokeWidth?: number }>;
+
+const NODE_ICONS: Record<FlowNodeKind, NodeGlyph> = {
   on_message: Zap,
-  send_text: MessageSquare,
-  send_buttons: MousePointerClick,
-  send_list: List,
-  send_media: ImageIcon,
-  send_template: FileText,
-  send_cta: Link2,
-  send_form: ClipboardList,
-  send_product: ShoppingCart,
-  send_location: Navigation,
-  send_contact: Contact,
-  ask_question: HelpCircle,
-  ask_location: MapPin,
+
+  // The ten message types, drawn as what they look like on a phone.
+  send_text: TextMessageGlyph,
+  send_buttons: ButtonMessageGlyph,
+  send_list: ListMessageGlyph,
+  send_media: MediaMessageGlyph,
+  send_template: TemplateGlyph,
+  send_cta: CtaMessageGlyph,
+  send_form: FormMessageGlyph,
+  send_product: ProductGlyph,
+  send_location: LocationPinGlyph,
+  send_contact: ContactCardGlyph,
+  notify_number: RelayGlyph,
+
+  ask_question: AskGlyph,
+  // Asking where somebody is, rather than telling them where to go — so
+  // the crosshair, and the dropped pin stays with Send Location.
+  ask_location: LocateFixed,
+
   condition: GitBranch,
   delay: Clock,
+
   update_tag: Tag,
   update_field: UserCog,
   fetch_contact: Database,
-  find_contact: Search,
-  notify_number: Forward,
+  find_contact: FindPersonGlyph,
   http: Globe,
+
   ai_agent: Bot,
   handoff: Headset,
   stop_bot: StopCircle,
