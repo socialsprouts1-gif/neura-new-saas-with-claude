@@ -228,7 +228,7 @@ export function RegisterNumberButton({ id }: { id: string }) {
 }
 
 const TONE_STYLE: Record<string, { dot: string; text: string }> = {
-  ok: { dot: "bg-[#00FF87]", text: "text-white/55" },
+  ok: { dot: "bg-[#4F9E80]", text: "text-white/55" },
   warn: { dot: "bg-[#FACC15]", text: "text-[#FACC15]" },
   bad: { dot: "bg-[#F87171]", text: "text-[#F87171]" },
   unknown: { dot: "bg-white/25", text: "text-white/40" },

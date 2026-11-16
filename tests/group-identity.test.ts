@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  FALLBACK_COLOUR,
   readRole,
   isGroupRole,
   checkIcon,
@@ -185,18 +186,18 @@ test("sorting leaves the original list alone", () => {
 // --- tile colour -----------------------------------------------------------
 
 test("a six-digit hex keeps its value and gains an alpha pair", () => {
-  assert.equal(withAlpha("#00FF87", 1), "#00FF87ff");
-  assert.equal(withAlpha("#00FF87", 0), "#00FF8700");
-  assert.equal(withAlpha("#00FF87", 0.2), "#00FF8733");
+  assert.equal(withAlpha("#4F9E80", 1), "#4F9E80ff");
+  assert.equal(withAlpha("#4F9E80", 0), "#4F9E8000");
+  assert.equal(withAlpha("#4F9E80", 0.2), "#4F9E8033");
 });
 
 test("anything that is not a hex colour falls back rather than rendering nothing", () => {
-  assert.equal(withAlpha("green", 1), "#00FF87ff");
-  assert.equal(withAlpha("", 1), "#00FF87ff");
-  assert.equal(withAlpha("#fff", 1), "#00FF87ff");
+  assert.equal(withAlpha("green", 1), `${FALLBACK_COLOUR}ff`);
+  assert.equal(withAlpha("", 1), `${FALLBACK_COLOUR}ff`);
+  assert.equal(withAlpha("#fff", 1), `${FALLBACK_COLOUR}ff`);
 });
 
 test("an out-of-range opacity is clamped, not wrapped", () => {
-  assert.equal(withAlpha("#00FF87", 5), "#00FF87ff");
-  assert.equal(withAlpha("#00FF87", -1), "#00FF8700");
+  assert.equal(withAlpha("#4F9E80", 5), "#4F9E80ff");
+  assert.equal(withAlpha("#4F9E80", -1), "#4F9E8000");
 });

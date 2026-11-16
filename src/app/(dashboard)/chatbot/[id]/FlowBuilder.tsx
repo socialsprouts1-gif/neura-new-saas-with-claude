@@ -811,7 +811,7 @@ const edgeTypes = { disconnect: DisconnectEdge };
 const EDGE_STYLE = {
   type: "disconnect" as const,
   animated: true,
-  style: { stroke: "#00D4FF66" },
+  style: { stroke: "#6E93C466" },
 };
 
 // --- the builder -----------------------------------------------------------

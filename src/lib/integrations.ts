@@ -68,7 +68,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       "Push every inbound message, status change and new contact to any HTTPS endpoint, signed with your secret.",
     capability: "live",
     fields: [],
-    brand: "#00FF87",
+    brand: "#4F9E80",
     flows: true,
     note:
       "Every delivery is signed with your secret in the X-Neura-Signature header. Verify it before trusting the payload.",
@@ -81,7 +81,7 @@ export const INTEGRATIONS: IntegrationDef[] = [
       "Send messages and read contacts from your own code using a scoped API key.",
     capability: "live",
     fields: [],
-    brand: "#00D4FF",
+    brand: "#6E93C4",
     flows: true,
   },
 

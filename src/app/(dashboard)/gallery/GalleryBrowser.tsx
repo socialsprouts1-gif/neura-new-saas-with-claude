@@ -37,10 +37,10 @@ const TABS: { id: MediaType | "all"; label: string }[] = [
 const TYPE_ICON = { image: ImageIcon, video: Film, document: FileText, audio: Music };
 
 const TYPE_ACCENT: Record<MediaType, string> = {
-  image: "#00D4FF",
+  image: "#6E93C4",
   video: "#A78BFA",
   document: "#FBBF24",
-  audio: "#00FF87",
+  audio: "#4F9E80",
 };
 
 // WhatsApp's own per-type ceilings. Refusing here beats Meta refusing later,

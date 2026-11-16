@@ -22,8 +22,8 @@ const DAYS = 14;
 /** How each kind of upcoming thing is drawn. */
 const UPCOMING_LOOK = {
   reminder: { icon: Bell, accent: "#FACC15", label: "Reminder" },
-  scheduled: { icon: Send, accent: "#00FF87", label: "Scheduled message" },
-  appointment: { icon: CalendarCheck, accent: "#00D4FF", label: "Appointment" },
+  scheduled: { icon: Send, accent: "#4F9E80", label: "Scheduled message" },
+  appointment: { icon: CalendarCheck, accent: "#6E93C4", label: "Appointment" },
 } as const;
 
 function startOfDay(offsetDays: number): Date {

@@ -222,17 +222,17 @@ export default async function GroupsPage() {
               <SelectField
                 label="Colour"
                 name="colour"
-                defaultValue="#00FF87"
+                defaultValue="#4F9E80"
                 options={[
-                  { value: "#00FF87", label: "Green" },
-                  { value: "#00D4FF", label: "Cyan" },
+                  { value: "#4F9E80", label: "Green" },
+                  { value: "#6E93C4", label: "Cyan" },
                   { value: "#A855F7", label: "Purple" },
                   { value: "#FACC15", label: "Amber" },
                   { value: "#F87171", label: "Red" },
                 ]}
               />
 
-              <IconPicker colour="#00FF87" groupName="" />
+              <IconPicker colour="#4F9E80" groupName="" />
             </div>
           </ActionForm>
 

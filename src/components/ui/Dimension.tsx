@@ -176,8 +176,8 @@ function SceneDefs({ id }: { id: string }) {
 
       {/* The glow a lit object throws onto the floor around it. */}
       <radialGradient id={`${id}-pool`}>
-        <stop offset="0%" stopColor="#00FF87" stopOpacity="0.4" />
-        <stop offset="100%" stopColor="#00FF87" stopOpacity="0" />
+        <stop offset="0%" stopColor="#4F9E80" stopOpacity="0.4" />
+        <stop offset="100%" stopColor="#4F9E80" stopOpacity="0" />
       </radialGradient>
     </defs>
   );
@@ -272,10 +272,10 @@ function FloatingCard({
 export type SceneName = "console" | "flow" | "agent" | "stack" | "wallet";
 
 const BARS = [
-  { at: -52, h: 30, color: "#00D4FF" },
+  { at: -52, h: 30, color: "#6E93C4" },
   { at: -26, h: 54, color: "#22D3A8" },
-  { at: 0, h: 42, color: "#00FF87" },
-  { at: 26, h: 74, color: "#00FF87" },
+  { at: 0, h: 42, color: "#4F9E80" },
+  { at: 26, h: 74, color: "#4F9E80" },
   { at: 52, h: 60, color: "#A855F7" },
 ];
 
@@ -329,12 +329,12 @@ function Console({ id }: { id: string }) {
       ))}
 
       <FloatingCard id={id} x={-96} y={-26} w={92} h={62} z={104}>
-        <circle cx={-84} cy={-14} r="5.5" fill="#00FF87" />
+        <circle cx={-84} cy={-14} r="5.5" fill="#4F9E80" />
         <rect x={-74} y={-17} width="44" height="5" rx="2.5" fill="currentColor" opacity="0.5" />
         <rect x={-74} y={-8} width="28" height="4" rx="2" fill="currentColor" opacity="0.22" />
         <rect x={-84} y={4} width="66" height="4" rx="2" fill="currentColor" opacity="0.16" />
         <rect x={-84} y={13} width="52" height="4" rx="2" fill="currentColor" opacity="0.16" />
-        <rect x={-84} y={22} width="36" height="7" rx="3.5" fill="#00FF87" opacity="0.85" />
+        <rect x={-84} y={22} width="36" height="7" rx="3.5" fill="#4F9E80" opacity="0.85" />
       </FloatingCard>
     </>
   );
@@ -343,8 +343,8 @@ function Console({ id }: { id: string }) {
 /** Branching: one trigger, two outcomes, wired in three dimensions. */
 function Flow({ id }: { id: string }) {
   const nodes = [
-    { x: -62, y: -10, w: 34, d: 34, z: 20, color: "#00FF87" },
-    { x: 10, y: -60, w: 30, d: 30, z: 34, color: "#00D4FF" },
+    { x: -62, y: -10, w: 34, d: 34, z: 20, color: "#4F9E80" },
+    { x: 10, y: -60, w: 30, d: 30, z: 34, color: "#6E93C4" },
     { x: 14, y: 26, w: 30, d: 30, z: 12, color: "#A855F7" },
   ];
 
@@ -357,11 +357,11 @@ function Flow({ id }: { id: string }) {
       <g transform={ISO} fill="none" strokeWidth="2.4" strokeLinecap="round">
         <path
           d="M-28 7 L-4 7 L-4 -45 L10 -45"
-          stroke="#00D4FF"
+          stroke="#6E93C4"
           strokeOpacity="0.55"
         />
         <path d="M-28 7 L-4 7 L-4 41 L14 41" stroke="#A855F7" strokeOpacity="0.5" />
-        <circle cx={-4} cy={7} r="3.4" fill="#00FF87" stroke="none" />
+        <circle cx={-4} cy={7} r="3.4" fill="#4F9E80" stroke="none" />
       </g>
 
       {nodes.map((node) => (
@@ -380,7 +380,7 @@ function Flow({ id }: { id: string }) {
       <FloatingCard id={id} x={6} y={-74} w={62} h={34} z={96}>
         <rect x={12} y={-66} width="38" height="4.5" rx="2.2" fill="currentColor" opacity="0.45" />
         <rect x={12} y={-57} width="26" height="4" rx="2" fill="currentColor" opacity="0.2" />
-        <rect x={12} y={-48} width="20" height="6" rx="3" fill="#00D4FF" opacity="0.8" />
+        <rect x={12} y={-48} width="20" height="6" rx="3" fill="#6E93C4" opacity="0.8" />
       </FloatingCard>
     </>
   );
@@ -402,8 +402,8 @@ function Agent({ id }: { id: string }) {
       {/* Under the sphere, not behind it. */}
       <g transform={ISO}>
         <ellipse cx="0" cy="0" rx="54" ry="54" fill={`url(#${id}-contact)`} />
-        <circle cx="0" cy="0" r="62" fill="none" stroke="#00FF87" strokeOpacity="0.5" strokeWidth="2" />
-        <circle cx="0" cy="0" r="74" fill="none" stroke="#00D4FF" strokeOpacity="0.2" strokeWidth="1.4" />
+        <circle cx="0" cy="0" r="62" fill="none" stroke="#4F9E80" strokeOpacity="0.5" strokeWidth="2" />
+        <circle cx="0" cy="0" r="74" fill="none" stroke="#6E93C4" strokeOpacity="0.2" strokeWidth="1.4" />
       </g>
 
       <defs>
@@ -422,8 +422,8 @@ function Agent({ id }: { id: string }) {
           <stop offset="100%" stopColor="#fff" stopOpacity="0" />
         </radialGradient>
         <radialGradient id={`${id}-halo`}>
-          <stop offset="55%" stopColor="#00FF87" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#00FF87" stopOpacity="0" />
+          <stop offset="55%" stopColor="#4F9E80" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#4F9E80" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -450,7 +450,7 @@ function Agent({ id }: { id: string }) {
           rx="86"
           ry="27"
           fill="none"
-          stroke="#00D4FF"
+          stroke="#6E93C4"
           strokeOpacity="0.3"
           strokeWidth="1.6"
           transform="rotate(-18)"
@@ -458,14 +458,14 @@ function Agent({ id }: { id: string }) {
         <path
           d="M-81.8 -25.3 A86 27 0 0 0 81.8 25.3"
           fill="none"
-          stroke="#00D4FF"
+          stroke="#6E93C4"
           strokeOpacity="0.75"
           strokeWidth="2"
           transform="rotate(-18)"
         />
-        <circle cx="68" cy="-32" r="5" fill="#00D4FF" />
+        <circle cx="68" cy="-32" r="5" fill="#6E93C4" />
         <circle cx="-74" cy="26" r="3.6" fill="#A855F7" />
-        <circle cx="30" cy="42" r="3" fill="#00FF87" />
+        <circle cx="30" cy="42" r="3" fill="#4F9E80" />
       </g>
     </>
   );
@@ -475,8 +475,8 @@ function Agent({ id }: { id: string }) {
 function Stack({ id }: { id: string }) {
   const cards = [
     { z: 16, x: -46, y: -34, w: 92, h: 68, tint: "#A855F7" },
-    { z: 58, x: -52, y: -40, w: 92, h: 68, tint: "#00D4FF" },
-    { z: 100, x: -58, y: -46, w: 92, h: 68, tint: "#00FF87" },
+    { z: 58, x: -52, y: -40, w: 92, h: 68, tint: "#6E93C4" },
+    { z: 100, x: -58, y: -46, w: 92, h: 68, tint: "#4F9E80" },
   ];
 
   return (
@@ -537,11 +537,11 @@ function Wallet({ id }: { id: string }) {
       </g>
       {coins.map((z, index) => (
         <g key={z} transform={plane(z)}>
-          <ellipse cx="0" cy="0" rx="42" ry="42" fill={shade("#00FF87", -0.52)} />
-          <ellipse cx="0" cy="-2.5" rx="42" ry="42" fill={shade("#00FF87", index === coins.length - 1 ? 0.1 : -0.18)} />
+          <ellipse cx="0" cy="0" rx="42" ry="42" fill={shade("#4F9E80", -0.52)} />
+          <ellipse cx="0" cy="-2.5" rx="42" ry="42" fill={shade("#4F9E80", index === coins.length - 1 ? 0.1 : -0.18)} />
           {index === coins.length - 1 && (
             <>
-              <ellipse cx="0" cy="-2.5" rx="33" ry="33" fill="none" stroke={shade("#00FF87", -0.3)} strokeWidth="2" />
+              <ellipse cx="0" cy="-2.5" rx="33" ry="33" fill="none" stroke={shade("#4F9E80", -0.3)} strokeWidth="2" />
               {/* The app's own face. An SVG <text> with no family falls
                   back to the browser's default serif, and ₹ in a serif at
                   26px came out as an unreadable squiggle. */}
@@ -552,7 +552,7 @@ function Wallet({ id }: { id: string }) {
                 fontSize="30"
                 fontWeight="700"
                 fontFamily="var(--font-sans), system-ui, sans-serif"
-                fill={shade("#00FF87", -0.62)}
+                fill={shade("#4F9E80", -0.62)}
               >
                 ₹
               </text>
@@ -562,7 +562,7 @@ function Wallet({ id }: { id: string }) {
       ))}
       <FloatingCard id={id} x={-84} y={-70} w={70} h={38} z={96}>
         <rect x={-74} y={-60} width="38" height="5" rx="2.5" fill="currentColor" opacity="0.45" />
-        <rect x={-74} y={-50} width="50" height="8" rx="4" fill="#00FF87" opacity="0.85" />
+        <rect x={-74} y={-50} width="50" height="8" rx="4" fill="#4F9E80" opacity="0.85" />
       </FloatingCard>
     </>
   );
@@ -582,7 +582,7 @@ const SCENES: Record<SceneName, (props: { id: string }) => ReactNode> = {
  * currentColor is the whole theming strategy: the floor grid, the card
  * faces and the text bars inherit it, so the illustration follows the
  * light and dark themes without a second copy. Saturated brand colour
- * stays literal, because #00FF87 is #00FF87 in both.
+ * stays literal, because #4F9E80 is #4F9E80 in both.
  */
 export function Scene({
   name,

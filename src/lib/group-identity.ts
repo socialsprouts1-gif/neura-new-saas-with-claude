@@ -182,9 +182,18 @@ export function sortMembers<T extends { role: GroupRole; name: string | null; wa
  * empty string, an old row — produces something that renders rather than
  * an invalid declaration the browser drops, taking the tile with it.
  */
+/**
+ * What an unusable colour becomes.
+ *
+ * Exported so the test asserts the behaviour — anything that is not a
+ * six-digit hex falls back — rather than a literal that has to be edited
+ * every time the brand palette is retuned.
+ */
+export const FALLBACK_COLOUR = "#4F9E80";
+
 export function withAlpha(colour: string, alpha: number): string {
   const hex = colour.trim();
-  const safe = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : "#00FF87";
+  const safe = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : FALLBACK_COLOUR;
   const step = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
     .toString(16)
     .padStart(2, "0");

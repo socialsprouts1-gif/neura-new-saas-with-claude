@@ -69,7 +69,7 @@ export async function saveContactGroup(formData: FormData): Promise<ActionResult
 
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const colour = String(formData.get("colour") ?? "#00FF87");
+  const colour = String(formData.get("colour") ?? "#4F9E80");
 
   if (!name) return { ok: false, error: "Group name is required." };
 
@@ -139,7 +139,7 @@ export async function updateContactGroup(formData: FormData): Promise<ActionResu
     .update({
       name,
       description: String(formData.get("description") ?? "").trim() || null,
-      colour: String(formData.get("colour") ?? "#00FF87"),
+      colour: String(formData.get("colour") ?? "#4F9E80"),
       icon: icon.icon,
       image_url: logo.url,
       connection_id: connectionId || null,

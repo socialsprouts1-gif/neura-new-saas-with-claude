@@ -86,7 +86,7 @@ export default function WebhooksPanel({
                         type="checkbox"
                         name={value}
                         defaultChecked={value === "message.received"}
-                        className="accent-[#00FF87] w-4 h-4"
+                        className="accent-[#4F9E80] w-4 h-4"
                       />
                       {label}
                     </label>

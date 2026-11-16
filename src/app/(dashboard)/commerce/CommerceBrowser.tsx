@@ -373,7 +373,7 @@ function ProductsTab({
                           type="checkbox"
                           checked={picked.includes(product.id)}
                           onChange={() => toggle(product.id)}
-                          className="w-3.5 h-3.5 rounded accent-[#00FF87] cursor-pointer"
+                          className="w-3.5 h-3.5 rounded accent-[#4F9E80] cursor-pointer"
                         />
                         {picked.includes(product.id) ? "picked to send" : "sendable"}
                       </label>
@@ -1114,7 +1114,7 @@ function PaymentsTab({
                 name="auto_request_payment"
                 value="1"
                 defaultChecked={settings.auto_request_payment !== false}
-                className="mt-0.5 w-4 h-4 rounded accent-[#00FF87] cursor-pointer flex-shrink-0"
+                className="mt-0.5 w-4 h-4 rounded accent-[#4F9E80] cursor-pointer flex-shrink-0"
               />
               <span className="min-w-0">
                 <span className="block text-sm font-medium">
