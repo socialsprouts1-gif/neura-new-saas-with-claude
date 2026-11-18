@@ -25,6 +25,7 @@ import {
   MessageCircle,
   Phone,
   Plug,
+  Radio,
   Send,
   Settings,
   Shield,
@@ -124,6 +125,11 @@ const MAIN: NavItem[] = [
     ],
   },
   { icon: Plug, label: "Integrations", href: "/integrations" },
+  // Next to Integrations because that is where somebody looks for it,
+  // and the two answer the same question from opposite ends: that one
+  // connects a service we support, this one lets any system at all tell
+  // us what happened.
+  { icon: Radio, label: "Connections", href: "/connections" },
   { icon: ShoppingBag, label: "Commerce", href: "/commerce" },
   // Only once a courier account is connected. A shipping screen with
   // no courier behind it is a screen where every button fails.
