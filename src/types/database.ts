@@ -1547,6 +1547,72 @@ export interface Database {
         Update: Partial<OrgIntegration>;
         Relationships: [];
       };
+      events: {
+        Row: {
+          id: string;
+          org_id: string;
+          /** "order.placed" — the sender names their own events. */
+          name: string;
+          contact_id: string | null;
+          wa_id: string | null;
+          data: Record<string, unknown>;
+          source: "api" | "test";
+          outcome: "received" | "matched" | "no_match" | "failed" | "ignored";
+          matched: number;
+          error: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["events"]["Row"]> & {
+          org_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["events"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "events_contact_id_fkey";
+            columns: ["contact_id"];
+            isOneToOne: false;
+            referencedRelation: "contacts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      event_automations: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          event_name: string;
+          is_active: boolean;
+          match_field: string | null;
+          match_operator:
+            | "equals"
+            | "not_equals"
+            | "contains"
+            | "gt"
+            | "lt"
+            | "exists"
+            | null;
+          match_value: string | null;
+          action: "send_template" | "start_sequence" | "add_tag";
+          template_id: string | null;
+          template_language: string;
+          /** One per blank, in order. May hold {{data.x}} tokens. */
+          variables: string[];
+          campaign_id: string | null;
+          tag: string | null;
+          connection_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["event_automations"]["Row"]> & {
+          org_id: string;
+          name: string;
+          event_name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["event_automations"]["Row"]>;
+        Relationships: [];
+      };
       api_keys: {
         Row: ApiKey;
         Insert: Partial<ApiKey> & {
