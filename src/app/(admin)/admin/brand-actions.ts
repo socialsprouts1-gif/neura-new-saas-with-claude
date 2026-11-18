@@ -5,6 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/org";
 import { mayEditBrand } from "@/lib/brand-access";
 import { domainProblem, hostKey, slugProblem, parseHex } from "@/lib/brand";
+import { customDomainProblem, type DnsInstruction, type DomainState } from "@/lib/custom-domain";
+import { attachDomain, detachDomain, domainStatus } from "@/lib/vercel-domains";
 import type { ActionResult } from "@/app/(dashboard)/actions";
 
 // Creating and editing agency front doors.
@@ -177,4 +179,129 @@ function friendly(message: string): string {
     return "The short name can only use lowercase letters, numbers and hyphens.";
   }
   return message;
+}
+
+
+// --- the agency's own domain ----------------------------------------------
+//
+// The three-step dance this replaces: the agency points DNS, somebody at
+// the platform opens the hosting dashboard and adds the domain, then
+// somebody at the platform pastes it into the brand. The middle step is
+// the one that fails — every agency waits on one person being at a
+// computer, and it is the step that gets forgotten for a week.
+
+export interface DomainActionResult extends ActionResult {
+  state?: DomainState;
+  instruction?: DnsInstruction;
+  domain?: string;
+}
+
+/** The platform's own address, which no agency may claim. */
+const PLATFORM_DOMAIN = process.env.PLATFORM_ROOT_DOMAIN ?? "";
+
+/**
+ * Claims a domain for a brand and attaches it to the hosting project.
+ *
+ * Written to the brand first and attached second. The other order would
+ * mean a domain live on the hosting project that no brand answers for —
+ * which serves the platform's own site on the agency's address, under
+ * the platform's name, to the agency's customers.
+ */
+export async function claimDomain(formData: FormData): Promise<DomainActionResult> {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No brand selected." };
+  if (!(await mayEditBrand(id))) return { ok: false, error: "That is not your brand to edit." };
+
+  const raw = String(formData.get("domain") ?? "").trim();
+  const bad = customDomainProblem(raw, PLATFORM_DOMAIN);
+  if (bad) return { ok: false, error: bad };
+
+  const domain = hostKey(raw);
+  const admin = createAdminClient();
+
+  // Taken by somebody else is a refusal, not a race. The unique index
+  // would catch it anyway; saying which is kinder than a constraint name.
+  const { data: taken } = await admin
+    .from("brands")
+    .select("id")
+    .eq("domain", domain)
+    .neq("id", id)
+    .maybeSingle();
+
+  if (taken) return { ok: false, error: "Another brand is already using that domain." };
+
+  const { error } = await admin.from("brands").update({ domain }).eq("id", id);
+  if (error) return { ok: false, error: friendly(error.message) };
+
+  const result = await attachDomain(domain);
+
+  revalidatePath("/agency");
+  revalidatePath("/admin/brands");
+
+  return {
+    ok: true,
+    domain,
+    state: result.state,
+    instruction: result.instruction,
+    message: result.problem
+      ? `Saved. ${result.problem}`
+      : result.state === "live"
+        ? `${domain} is live.`
+        : `Saved. Add the record below at your domain provider, then press Check again.`,
+  };
+}
+
+/** Where the domain has got to, for the Check again button. */
+export async function checkDomain(formData: FormData): Promise<DomainActionResult> {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No brand selected." };
+  if (!(await mayEditBrand(id))) return { ok: false, error: "That is not your brand to check." };
+
+  const { data: brand } = await createAdminClient()
+    .from("brands")
+    .select("domain")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!brand?.domain) return { ok: false, error: "No domain set up yet." };
+
+  const result = await domainStatus(brand.domain);
+  revalidatePath("/agency");
+
+  return {
+    ok: true,
+    domain: brand.domain,
+    state: result.state,
+    instruction: result.instruction,
+    message:
+      result.problem ??
+      (result.state === "live"
+        ? `${brand.domain} is live. Send your customers there.`
+        : "Not pointing here yet. DNS changes can take a few hours — this is normal."),
+  };
+}
+
+/** Lets go of a domain, for a typo or a move. */
+export async function releaseDomain(formData: FormData): Promise<ActionResult> {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { ok: false, error: "No brand selected." };
+  if (!(await mayEditBrand(id))) return { ok: false, error: "That is not your brand to edit." };
+
+  const admin = createAdminClient();
+  const { data: brand } = await admin.from("brands").select("domain").eq("id", id).maybeSingle();
+  if (!brand?.domain) return { ok: true, message: "Nothing to remove." };
+
+  // Off the brand first, for the same reason as above: between the two
+  // writes the domain must never resolve to the platform's own site.
+  const { error } = await admin.from("brands").update({ domain: null }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  const removed = await detachDomain(brand.domain);
+
+  revalidatePath("/agency");
+  revalidatePath("/admin/brands");
+
+  return removed.ok
+    ? { ok: true, message: `${brand.domain} removed.` }
+    : { ok: true, message: `Removed from your brand. ${removed.problem}` };
 }

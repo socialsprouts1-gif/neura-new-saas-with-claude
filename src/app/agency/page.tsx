@@ -4,6 +4,8 @@ import { saveBrandLook } from "@/app/(admin)/admin/brand-actions";
 import ActionForm, { Field } from "@/components/ui/ActionForm";
 import { PageHeader, Card, Badge, Table, Td, EmptyState } from "@/components/ui/primitives";
 import LocalTime from "@/components/ui/LocalTime";
+import DomainCard from "./DomainCard";
+import { domainStatus, selfServeDomains } from "@/lib/vercel-domains";
 
 // What an agency sees: their front door, and who came through it.
 //
@@ -33,6 +35,11 @@ export default async function AgencyPage() {
   const rows = clients ?? [];
   const live = rows.filter((row) => !row.suspended_at).length;
   const address = brand.domain ?? `${brand.slug}.${ROOT_DOMAIN || "your-domain.com"}`;
+
+  // Whether the agency's own domain actually resolves here yet. Asked of
+  // the hosting service rather than assumed from the row being filled in:
+  // a domain can sit on a brand for a week with nobody having touched DNS.
+  const domainLive = brand.domain ? (await domainStatus(brand.domain)).state === "live" : false;
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -68,6 +75,13 @@ export default async function AgencyPage() {
           <p className="text-2xl font-semibold tabular-nums">{live}</p>
         </Card>
       </div>
+
+      <DomainCard
+        brandId={brand.id}
+        domain={brand.domain}
+        live={domainLive}
+        selfServe={selfServeDomains()}
+      />
 
       <div className="grid lg:grid-cols-[1fr_380px] gap-6 items-start">
         <div className="order-2 lg:order-1">
