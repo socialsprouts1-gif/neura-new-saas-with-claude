@@ -4,7 +4,7 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleComment } from "@/lib/instagram-comments";
 import { handleDirectMessage } from "@/lib/instagram-dm";
-import { parseDirectMessage, parsePostbacks } from "@/lib/instagram";
+import { isAccountId, parseDirectMessage, parsePostbacks } from "@/lib/instagram";
 import { handlePostback } from "@/lib/instagram-postback";
 import { sweepInstagramFollowups } from "@/lib/instagram-followups";
 
@@ -197,7 +197,23 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
       // Someone else's conversation, delivered on this entry. Instagram
       // puts the business on one side of every messaging event; if it is
       // not the recipient, this is an echo of something it sent.
-      if (message.toId !== connection.ig_user_id) continue;
+      //
+      // Either id counts. This compared against the professional account
+      // id alone, and a messaging webhook carries the app-scoped one — so
+      // on every account where the two differ, which is most of them,
+      // each inbound DM hit this line and was dropped. Silently: no
+      // reply, no event, nothing in any log, and an automation that
+      // looked broken with no way at all to find out why.
+      if (!isAccountId(connection, message.toId)) {
+        await admin.from("instagram_comment_events").insert({
+          org_id: connection.org_id,
+          connection_id: connection.id,
+          kind: "delivery",
+          outcome: "nothing_to_do",
+          comment_text: `A message addressed to ${message.toId} arrived on this account. It was not answered because that is neither of this account's ids.`,
+        });
+        continue;
+      }
       await handleDirectMessage(connection, message);
     }
 

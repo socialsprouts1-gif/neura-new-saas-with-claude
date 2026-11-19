@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { sendDirectMessage } from "@/lib/instagram-api";
 import {
+  isAccountId,
   emailIn,
   FOLLOW_BUTTON,
   followPayload,
@@ -48,6 +49,8 @@ export async function handleDirectMessage(
     id: string;
     org_id: string;
     ig_user_id: string;
+    /** The app-scoped id, which is the one a messaging webhook carries. */
+    ig_scoped_id?: string | null;
     access_token_encrypted: string;
   },
   message: DirectMessage
@@ -55,7 +58,11 @@ export async function handleDirectMessage(
   // The account's own outgoing message, echoed back. Parsing drops these,
   // but a sender id equal to the account is the same thing by another
   // route and answering it is a conversation with yourself.
-  if (message.fromId === connection.ig_user_id) return;
+  //
+  // Either id, because a messaging webhook carries the app-scoped one.
+  // Checking only the professional id let the account's own echo through
+  // on most accounts, and the bot replied to itself.
+  if (isAccountId(connection, message.fromId)) return;
 
   const admin = createAdminClient();
   const orgId = connection.org_id;

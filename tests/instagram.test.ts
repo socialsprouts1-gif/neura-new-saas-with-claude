@@ -531,3 +531,48 @@ test("the boundary between quiet and urgent is where it was meant to be", async 
   assert.ok(describeExpiry(inDays(7)).urgent, "seven days should still warn");
   assert.ok(!describeExpiry(inDays(8)).urgent, "eight days should not");
 });
+
+// --- the account's two ids -------------------------------------------------
+//
+// Instagram calls the same account by two numbers and which one arrives
+// depends on the kind of event. A comment webhook carries the
+// professional account id; a messaging webhook carries the app-scoped
+// one. Two checks compared against the professional id alone, so on any
+// account where they differ — which is most — every inbound DM was
+// dropped before it reached an automation, with nothing written down.
+
+test("either of an account's ids identifies it", async () => {
+  const { isAccountId } = await import("../src/lib/instagram.ts");
+  const account = { ig_user_id: "17841400000000000", ig_scoped_id: "9876543210" };
+
+  assert.ok(isAccountId(account, "17841400000000000"), "the professional id is this account");
+  assert.ok(isAccountId(account, "9876543210"), "the app-scoped id is also this account");
+  assert.ok(!isAccountId(account, "1111111111"), "a stranger's id is not");
+});
+
+test("a missing or blank id is never this account", async () => {
+  const { isAccountId } = await import("../src/lib/instagram.ts");
+  const account = { ig_user_id: "17841400000000000", ig_scoped_id: null };
+
+  assert.ok(!isAccountId(account, null));
+  assert.ok(!isAccountId(account, undefined));
+  assert.ok(!isAccountId(account, ""));
+  assert.ok(!isAccountId(account, "   "));
+});
+
+test("an account with no scoped id recorded still matches its own", async () => {
+  const { isAccountId } = await import("../src/lib/instagram.ts");
+  // Connections made before the second id was stored have only one. They
+  // must keep working rather than start refusing everything.
+  const old = { ig_user_id: "17841400000000000" };
+  assert.ok(isAccountId(old, "17841400000000000"));
+  assert.ok(!isAccountId(old, "9876543210"));
+});
+
+test("a blank stored id never matches a blank incoming one", async () => {
+  const { isAccountId } = await import("../src/lib/instagram.ts");
+  // The trap in writing this with ?? "": two empties comparing equal
+  // would make every stray delivery look like this account's own.
+  assert.ok(!isAccountId({ ig_user_id: "", ig_scoped_id: "" }, ""));
+  assert.ok(!isAccountId({ ig_user_id: null, ig_scoped_id: null }, ""));
+});

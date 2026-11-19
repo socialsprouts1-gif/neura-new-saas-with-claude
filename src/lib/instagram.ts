@@ -499,3 +499,28 @@ export function describeExpiry(expiresAt: string | null): {
   }
   return { days, label: `Access good for ${days} more days`, urgent: false };
 }
+
+// --- which of the two ids is this account? ---------------------------------
+//
+// Instagram calls the same account by two numbers, and which one arrives
+// depends on the kind of event. `ig_user_id` is the professional account
+// id and is what a comment webhook carries; `ig_scoped_id` is the
+// app-scoped id and is what a messaging webhook carries.
+//
+// Everywhere that asks "is this us?" has to accept either, and two
+// places did not. One compared a direct message's recipient against the
+// professional id alone — so on any account where the two differ, which
+// is most of them, every single inbound DM was silently dropped and the
+// automation looked broken with nothing written down anywhere. The other
+// checked the sender the same way, which fails the opposite direction:
+// the account's own outgoing message is not recognised as its own and
+// the bot answers itself.
+
+export function isAccountId(
+  account: { ig_user_id?: string | null; ig_scoped_id?: string | null },
+  id: string | null | undefined
+): boolean {
+  const value = String(id ?? "").trim();
+  if (!value) return false;
+  return value === (account.ig_user_id ?? "") || value === (account.ig_scoped_id ?? "");
+}
