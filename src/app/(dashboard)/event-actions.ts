@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -227,4 +228,47 @@ export async function addEventStarters(formData: FormData): Promise<ActionResult
     ok: true,
     message: `${toAdd.length} rules added as drafts. Open each one, choose what it sends, then switch it on.`,
   };
+}
+
+
+// --- staff links ----------------------------------------------------------
+//
+// The answer to "how do I trigger it" for a business that has no software
+// of its own, which is most of them. One web address, no login, big
+// buttons. A waiter opens it on their phone and keeps it open.
+
+export async function createStaffLink(formData: FormData): Promise<ActionResult> {
+  const { orgId, user } = await requireOrg();
+
+  const name = String(formData.get("name") ?? "").trim() || "Staff link";
+
+  // Twenty-four random bytes, the same as every other public token here.
+  // It is the only thing standing between the URL and the automations,
+  // so it is not derived from anything guessable.
+  const token = randomBytes(24).toString("base64url");
+
+  const { error } = await createAdminClient()
+    .from("staff_links")
+    .insert({ org_id: orgId, name, token, created_by: user.id });
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/connections");
+  return { ok: true, message: "Link ready. Send it to whoever is on the floor." };
+}
+
+export async function revokeStaffLink(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+  const id = String(formData.get("id") ?? "").trim();
+
+  const { error } = await (await createClient())
+    .from("staff_links")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/connections");
+  return { ok: true, message: "That link stops working now." };
 }

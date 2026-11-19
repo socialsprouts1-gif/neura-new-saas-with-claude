@@ -1613,6 +1613,25 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["event_automations"]["Row"]>;
         Relationships: [];
       };
+      staff_links: {
+        Row: {
+          id: string;
+          org_id: string;
+          name: string;
+          token: string;
+          created_by: string | null;
+          last_used_at: string | null;
+          uses: number;
+          revoked_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["staff_links"]["Row"]> & {
+          org_id: string;
+          token: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["staff_links"]["Row"]>;
+        Relationships: [];
+      };
       api_keys: {
         Row: ApiKey;
         Insert: Partial<ApiKey> & {

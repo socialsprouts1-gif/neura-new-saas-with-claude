@@ -10,6 +10,7 @@ import RuleList from "./RuleList";
 import Starters from "./Starters";
 import TestEvent from "./TestEvent";
 import Hookup from "./Hookup";
+import StaffLinks from "./StaffLinks";
 
 // Connecting another system.
 //
@@ -48,6 +49,7 @@ export default async function ConnectionsPage() {
     { data: campaigns },
     { data: keys },
     { count: todayCount },
+    { data: staffLinks },
   ] = await Promise.all([
     supabase
       .from("event_automations")
@@ -82,6 +84,12 @@ export default async function ConnectionsPage() {
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId)
       .gte("created_at", since),
+    supabase
+      .from("staff_links")
+      .select("id, name, token, uses, last_used_at")
+      .eq("org_id", orgId)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false }),
   ]);
 
   const numbers = (await listActiveConnections(supabase, orgId)).map((connection) => ({
@@ -133,6 +141,11 @@ export default async function ConnectionsPage() {
           <p className="text-2xl font-semibold tabular-nums mt-1">{todayCount ?? 0}</p>
         </Card>
       </div>
+
+      {/* First, because it is the answer for almost everybody reading
+          this page. The API box below is for the business that already
+          has software of its own. */}
+      <StaffLinks links={staffLinks ?? []} liveRules={live} />
 
       <Hookup hasKey={hasKey} />
 
