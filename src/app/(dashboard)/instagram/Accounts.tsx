@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { describeExpiry } from "@/lib/instagram";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { CheckCircle2, Plus, RefreshCw, Trash2 } from "lucide-react";
@@ -133,6 +134,29 @@ export default function Accounts({
                   ? ` · access renews by ${formatted[account.id].renews}`
                   : ""}
               </div>
+
+              {/* How long the access has left.
+                  It used to say only "renews by", which was not true of
+                  anything — nothing renewed it, so every account worked
+                  for sixty days and then went quiet with no error that
+                  pointed at a token. A nightly job extends it now, and
+                  this says so, loudly when it is nearly out. */}
+              {(() => {
+                const expiry = describeExpiry(account.token_expires_at);
+                if (!expiry.label) return null;
+                return (
+                  <div
+                    className={`text-[12.5px] mt-1.5 leading-relaxed ${
+                      expiry.urgent ? "text-[#C0A063]" : "text-white/35"
+                    }`}
+                  >
+                    {expiry.label}
+                    {expiry.urgent && (expiry.days ?? 0) < 0 && (
+                      <> — press Reconnect above.</>
+                    )}
+                  </div>
+                );
+              })()}
               {account.last_error && (
                 <div className="text-[12.5px] text-[#F87171] mt-1.5 leading-relaxed">
                   {account.last_error}

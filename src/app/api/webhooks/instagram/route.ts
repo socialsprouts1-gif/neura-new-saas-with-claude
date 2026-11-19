@@ -60,6 +60,15 @@ export async function POST(request: NextRequest) {
   const raw = await request.text();
 
   if (!signatureValid(raw, request.headers.get("x-hub-signature-256"))) {
+    // Said out loud, because this is the one failure with no other
+    // trace at all. A delivery that cannot be verified is dropped before
+    // it reaches any workspace, so nothing appears in any activity log,
+    // and the only symptom is Instagram going quiet. In practice it
+    // means one thing: INSTAGRAM_APP_SECRET and Meta no longer agree,
+    // usually because the secret was reset and Vercel was not redeployed.
+    console.error(
+      "Instagram delivery refused: the signature does not match INSTAGRAM_APP_SECRET. Reset the secret in Meta, put it in Vercel, and redeploy."
+    );
     return new NextResponse("Invalid signature", { status: 403 });
   }
 

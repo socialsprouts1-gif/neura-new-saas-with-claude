@@ -9,6 +9,7 @@ import { sweepBillingEmails } from "@/lib/billing-emails";
 import { dispatchScheduledMessages } from "@/lib/scheduled-dispatch";
 import { dispatchDueDrips } from "@/lib/drip-engine";
 import { sweepInstagramFollowups } from "@/lib/instagram-followups";
+import { refreshInstagramTokens } from "@/lib/instagram-refresh";
 
 // One URL that drives every scheduled job.
 //
@@ -43,6 +44,10 @@ const JOBS: Array<{ name: string; run: (origin: string) => Promise<unknown> }> =
   { name: "drip-campaigns", run: () => dispatchDueDrips() },
   { name: "billing-emails", run: () => sweepBillingEmails() },
   { name: "instagram-followups", run: () => sweepInstagramFollowups() },
+  // Instagram access lasts sixty days and Meta will extend it for the
+  // asking — but only while it is still valid. Nothing was asking, so
+  // every account worked for two months and then quietly stopped.
+  { name: "instagram-token-refresh", run: () => refreshInstagramTokens() },
 ];
 
 export async function GET(request: NextRequest) {

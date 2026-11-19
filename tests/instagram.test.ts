@@ -487,3 +487,47 @@ test("both shapes in one delivery are both read", () => {
   });
   assert.deepEqual(parsed.map((item) => item.messageId), ["m-a", "m-b"]);
 });
+
+// --- how long the access has left ------------------------------------------
+//
+// Instagram access lasts sixty days. Nothing extended it, and nothing
+// said so: the account card read "access renews by" about a renewal that
+// never happened, so every connected account worked for two months and
+// then went quiet with no error pointing at a token.
+
+test("expiry reads as a sentence, and shouts when it is nearly out", async () => {
+  const { describeExpiry } = await import("../src/lib/instagram.ts");
+  const inDays = (days: number) =>
+    new Date(Date.now() + days * 86_400_000).toISOString();
+
+  assert.equal(describeExpiry(null).label, "");
+  assert.equal(describeExpiry("not a date").label, "");
+
+  const healthy = describeExpiry(inDays(45));
+  assert.ok(!healthy.urgent);
+  assert.match(healthy.label, /good for \d+ more days/);
+
+  // A week out is the point at which somebody should be told.
+  const soon = describeExpiry(inDays(5));
+  assert.ok(soon.urgent, "five days should be urgent");
+  assert.match(soon.label, /runs out in 5 days/);
+
+  const tomorrow = describeExpiry(inDays(1));
+  assert.ok(tomorrow.urgent);
+  assert.match(tomorrow.label, /1 day\b/);
+
+  const gone = describeExpiry(inDays(-3));
+  assert.ok(gone.urgent);
+  assert.ok((gone.days ?? 0) < 0);
+  assert.match(gone.label, /run out/i);
+});
+
+test("the boundary between quiet and urgent is where it was meant to be", async () => {
+  const { describeExpiry } = await import("../src/lib/instagram.ts");
+  const inDays = (days: number) =>
+    // Half a day on, so flooring does not land on the boundary by accident.
+    new Date(Date.now() + (days + 0.5) * 86_400_000).toISOString();
+
+  assert.ok(describeExpiry(inDays(7)).urgent, "seven days should still warn");
+  assert.ok(!describeExpiry(inDays(8)).urgent, "eight days should not");
+});

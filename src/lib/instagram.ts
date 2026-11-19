@@ -465,3 +465,37 @@ export function parsePostbacks(entry: {
 /** What the second message says when nobody has written their own. */
 export const DEFAULT_FOLLOWUP =
   "Just checking you got everything you needed — anything I can help with?";
+
+// --- how long the access has left ---------------------------------------
+//
+// Instagram access lasts sixty days and is extended by a job that runs
+// nightly. This is what the screen says about it — here rather than
+// beside that job, because the job is server-only and the account card
+// is a client component.
+
+/** How a connection's remaining time reads on screen. */
+export function describeExpiry(expiresAt: string | null): {
+  days: number | null;
+  label: string;
+  urgent: boolean;
+} {
+  if (!expiresAt) return { days: null, label: "", urgent: false };
+
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return { days: null, label: "", urgent: false };
+
+  const days = Math.floor(ms / 86_400_000);
+
+  if (days < 0) {
+    return {
+      days,
+      label: "Access has run out — connect this account again",
+      urgent: true,
+    };
+  }
+  if (days === 0) return { days, label: "Access runs out today", urgent: true };
+  if (days <= 7) {
+    return { days, label: `Access runs out in ${days} day${days === 1 ? "" : "s"}`, urgent: true };
+  }
+  return { days, label: `Access good for ${days} more days`, urgent: false };
+}
