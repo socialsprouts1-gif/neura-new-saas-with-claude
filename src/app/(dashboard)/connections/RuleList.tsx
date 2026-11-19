@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Loader2, Pause, Play, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Pause, Play, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { Card, Badge, EmptyState } from "@/components/ui/primitives";
 import {
@@ -98,10 +98,29 @@ export default function RuleList({
           />
         ) : (
           <div className="space-y-2">
-            {rules.map((rule) => (
+            {rules.map((rule) => {
+              // What this rule is still missing, said on the row rather
+              // than discovered in the log at midnight. A rule from a
+              // ready-made set arrives with nothing chosen, and until
+              // this was here the only sign was a red line under an
+              // event hours later.
+              const missing =
+                rule.action === "send_template" && !rule.template_id
+                  ? "needs a message"
+                  : rule.action === "start_sequence" && !rule.campaign_id
+                    ? "needs a sequence"
+                    : rule.action === "add_tag" && !(rule.tag ?? "").trim()
+                      ? "needs a tag"
+                      : null;
+
+              return (
               <div
                 key={rule.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-3 rounded-xl border border-white/8 bg-white/3"
+                className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-3.5 py-3 rounded-xl border ${
+                  missing
+                    ? "border-[#C0A063]/30 bg-[#C0A063]/5"
+                    : "border-white/8 bg-white/3"
+                }`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -109,6 +128,12 @@ export default function RuleList({
                     <Badge tone={rule.is_active ? "green" : "grey"}>
                       {rule.is_active ? "listening" : "paused"}
                     </Badge>
+                    {missing && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#C0A063]/15 text-[#C0A063]">
+                        <AlertTriangle className="w-3 h-3" />
+                        {missing}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
                     on <code className="text-accent-ink font-mono">{rule.event_name}</code>
@@ -173,7 +198,8 @@ export default function RuleList({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

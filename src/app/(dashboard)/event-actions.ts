@@ -8,6 +8,8 @@ import { requireOrg } from "@/lib/org";
 import { handleEvent } from "@/lib/event-runner";
 import { normaliseEventName, type MatchOperator } from "@/lib/events";
 import { starterFor } from "@/lib/event-starters";
+import { resolveTemplateShape } from "@/lib/template-unpack";
+import { templateVariables } from "@/lib/template-variables";
 import type { ActionResult } from "./actions";
 
 // The rules that listen for events, and the button that proves one works.
@@ -84,6 +86,44 @@ export async function saveEventAutomation(formData: FormData): Promise<ActionRes
     connection_id: String(formData.get("connection_id") ?? "").trim() || null,
   };
 
+  // The template's blanks, counted against the values given.
+  //
+  // Meta refuses a mismatch with "Parameter format does not match format
+  // in the created template", which names neither the template nor the
+  // blank, and arrives once per customer at the worst possible moment.
+  // Counting here turns that into a sentence before anything is saved.
+  if (row.action === "send_template" && row.template_id) {
+    const { data: template } = await supabase
+      .from("message_templates")
+      .select("name, body_text, header_format, header_text, components_json")
+      .eq("id", row.template_id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+
+    if (template) {
+      const shape = resolveTemplateShape(template);
+      const blanks =
+        templateVariables(shape.bodyText ?? "").length +
+        ((shape.headerFormat ?? "NONE").toUpperCase() === "TEXT"
+          ? templateVariables(shape.headerText ?? "").length
+          : 0);
+
+      if (blanks !== row.variables.length) {
+        return {
+          ok: false,
+          error:
+            blanks === 0
+              ? `“${template.name}” has no blanks to fill, but ${row.variables.length} ${
+                  row.variables.length === 1 ? "value was" : "values were"
+                } given. Clear the box and save again.`
+              : `“${template.name}” has ${blanks} blank${blanks === 1 ? "" : "s"} to fill, and ${
+                  row.variables.length
+                } ${row.variables.length === 1 ? "value was" : "values were"} given. Put one value on each line, in order.`,
+        };
+      }
+    }
+  }
+
   const { error } = id
     ? await supabase.from("event_automations").update(row).eq("id", id).eq("org_id", orgId)
     : await supabase.from("event_automations").insert(row);
@@ -96,10 +136,44 @@ export async function saveEventAutomation(formData: FormData): Promise<ActionRes
 
 export async function toggleEventAutomation(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireOrg();
+  const supabase = await createClient();
   const id = String(formData.get("id") ?? "").trim();
   const next = String(formData.get("is_active") ?? "") !== "true";
 
-  const { error } = await (await createClient())
+  // Switching on a rule that cannot possibly run is the trap the
+  // ready-made sets walked people into. They arrive as drafts with no
+  // template chosen — correctly, because nobody can choose one for you —
+  // and the toggle happily switched them on anyway. From then on every
+  // matching event failed, and because two rules can listen for the same
+  // event, this one's failure was often the only thing on the log.
+  if (next) {
+    const { data: rule } = await supabase
+      .from("event_automations")
+      .select("name, action, template_id, campaign_id, tag")
+      .eq("id", id)
+      .eq("org_id", orgId)
+      .maybeSingle();
+
+    if (rule) {
+      const missing =
+        rule.action === "send_template" && !rule.template_id
+          ? "a message to send"
+          : rule.action === "start_sequence" && !rule.campaign_id
+            ? "a sequence to start"
+            : rule.action === "add_tag" && !(rule.tag ?? "").trim()
+              ? "a tag to add"
+              : null;
+
+      if (missing) {
+        return {
+          ok: false,
+          error: `“${rule.name}” has no ${missing} yet. Press Edit, choose one, then switch it on.`,
+        };
+      }
+    }
+  }
+
+  const { error } = await supabase
     .from("event_automations")
     .update({ is_active: next })
     .eq("id", id)

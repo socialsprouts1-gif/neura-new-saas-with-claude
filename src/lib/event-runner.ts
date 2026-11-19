@@ -138,7 +138,7 @@ export async function handleEvent(input: {
     }
 
     let done = 0;
-    let firstProblem: string | null = null;
+    const problems: string[] = [];
 
     for (const rule of listening) {
       const outcome = await runOne(admin, rule, {
@@ -149,18 +149,25 @@ export async function handleEvent(input: {
         contactName: input.contactName,
       });
       if (outcome.ok) done += 1;
-      else firstProblem ??= `${rule.name}: ${outcome.problem ?? "did not run"}`;
+      else problems.push(`${rule.name}: ${outcome.problem ?? "did not run"}`);
     }
 
-    await stamp(
-      admin,
-      eventId,
-      done > 0 ? "matched" : "failed",
-      done,
-      firstProblem
-    );
+    // Every failure, not the first.
+    //
+    // Reporting only the first hid the one that mattered. Two rules
+    // listened for the same event; one was a leftover with no template
+    // and failed instantly, and its message was the only thing on the
+    // log — so the rule the operator had actually set up could fail for
+    // its own reason, every time, and never say why.
+    const problem = problems.length > 0 ? problems.join(" · ") : null;
 
-    return { eventId, matched: done, problem: firstProblem ?? undefined };
+    // Failed only when nothing at all ran. One rule working and another
+    // failing is still a message delivered, and burying that under a red
+    // line would send somebody looking for a problem they do not have —
+    // the line beside it says what is wrong.
+    await stamp(admin, eventId, done > 0 ? "matched" : "failed", done, problem);
+
+    return { eventId, matched: done, problem: problem ?? undefined };
   } catch (error) {
     const problem = error instanceof Error ? error.message : "The automations could not be run.";
     await stamp(admin, eventId, "failed", 0, problem);
