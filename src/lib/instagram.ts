@@ -524,3 +524,38 @@ export function isAccountId(
   if (!value) return false;
   return value === (account.ig_user_id ?? "") || value === (account.ig_scoped_id ?? "");
 }
+
+// --- Meta's refusals, in words somebody can act on -------------------------
+
+/**
+ * "The comment is invalid for a private reply" said usefully.
+ *
+ * Meta returns that one sentence for four unrelated situations, and it
+ * names none of them. On a screen it reads as a bug in this product,
+ * which sent a dozen people looking for one that was not there.
+ *
+ * Anything we do not recognise is passed through unchanged. Meta's own
+ * words are usually better than a guess, and inventing a translation
+ * for an error nobody has seen is how a message ends up lying.
+ */
+export function explainInstagramError(error: string): string {
+  const text = String(error ?? "");
+
+  if (/invalid for a private reply/i.test(text)) {
+    return [
+      "Instagram would not send a private reply to this comment.",
+      "It allows one per comment, only on a top-level comment, only within seven days, and only while the comment still exists.",
+      "The usual cause is that this comment already had one, or that it was a reply to another comment rather than a new one.",
+    ].join(" ");
+  }
+
+  if (/outside of allowed window|24[- ]hour/i.test(text)) {
+    return "Instagram only allows a message within 24 hours of the person writing to you, and that window has closed. They have to message again first.";
+  }
+
+  if (/permission|scope/i.test(text) && /messag/i.test(text)) {
+    return "This account has not granted permission to send messages. Reconnect it and make sure messaging is allowed, and check that “Allow access to messages” is on in the Instagram app.";
+  }
+
+  return text;
+}

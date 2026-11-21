@@ -576,3 +576,41 @@ test("a blank stored id never matches a blank incoming one", async () => {
   assert.ok(!isAccountId({ ig_user_id: "", ig_scoped_id: "" }, ""));
   assert.ok(!isAccountId({ ig_user_id: null, ig_scoped_id: null }, ""));
 });
+
+// --- Meta's refusals, translated ------------------------------------------
+//
+// "The comment is invalid for a private reply" is returned for four
+// unrelated situations and names none of them. On a screen it reads as a
+// bug in this product rather than a rule of Instagram's.
+
+test("the private-reply refusal names the things that actually cause it", async () => {
+  const { explainInstagramError } = await import("../src/lib/instagram.ts");
+  const said = explainInstagramError("The comment is invalid for a private reply");
+
+  assert.match(said, /one per comment/i, "does not mention the one-reply limit");
+  assert.match(said, /top-level/i, "does not mention nested comments");
+  assert.match(said, /seven days/i, "does not mention the window");
+});
+
+test("the 24-hour refusal says whose move it is", async () => {
+  const { explainInstagramError } = await import("../src/lib/instagram.ts");
+  const said = explainInstagramError("Message sent outside of allowed window");
+  assert.match(said, /24 hours/);
+  assert.match(said, /message again/i, "does not say what unblocks it");
+});
+
+test("a permission refusal points at the thing to switch on", async () => {
+  const { explainInstagramError } = await import("../src/lib/instagram.ts");
+  const said = explainInstagramError("(#200) Missing permission to send messages");
+  assert.match(said, /Reconnect/i);
+  assert.match(said, /Allow access to messages/i);
+});
+
+test("an error we do not recognise is passed through untouched", async () => {
+  const { explainInstagramError } = await import("../src/lib/instagram.ts");
+  // Meta's own words beat a guess, and inventing a translation for an
+  // error nobody has seen is how a message ends up lying.
+  const odd = "Some entirely new thing Meta started saying";
+  assert.equal(explainInstagramError(odd), odd);
+  assert.equal(explainInstagramError(""), "");
+});

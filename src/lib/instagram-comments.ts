@@ -2,7 +2,9 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { replyToComment } from "@/lib/instagram-api";
-import { ruleFor, withinReplyWindow, type Comment, type CommentRule } from "@/lib/instagram";
+import {
+  explainInstagramError,
+  isAccountId, ruleFor, withinReplyWindow, type Comment, type CommentRule } from "@/lib/instagram";
 import {
   asLoadedRule,
   bump,
@@ -38,6 +40,8 @@ export interface InboundComment {
   mediaId: string | null;
   text: string;
   fromId: string | null;
+  /** Set when this is a reply to another comment rather than a new one. */
+  parentId?: string | null;
   fromUsername: string | null;
   createdAt: string | null;
 }
@@ -55,7 +59,11 @@ export async function handleComment(
 
   // The account's own reply under its own post. Nothing to do, and
   // answering it is a conversation with yourself.
-  if (comment.fromId && comment.fromId === connection.ig_user_id) return;
+  // Our own comment, echoed back. Either id, because the account is
+  // known by two and which one arrives depends on the kind of event —
+  // comparing against one let the account's own public reply through,
+  // and the automation then tried to privately reply to itself.
+  if (isAccountId(connection, comment.fromId)) return;
 
   // Claim it. Losing this insert means another delivery of the same
   // webhook already has it — which is the correct outcome, not an error.
@@ -152,7 +160,16 @@ export async function handleComment(
     // Checked before sending: Meta's refusal for an expired comment is
     // an error code, and "that comment is more than seven days old" is
     // something somebody can actually act on.
-    if (comment.createdAt && !withinReplyWindow(comment.createdAt)) {
+    if (comment.parentId) {
+      // A reply to a comment, not a comment. Instagram allows a private
+      // reply only to a top-level one and refuses the rest with "the
+      // comment is invalid for a private reply" — true, and no help at
+      // all to somebody reading it on a screen. Said properly here, and
+      // the public reply below still goes out.
+      problems.push(
+        "This was a reply to another comment, and Instagram only allows a private reply to a top-level comment. The public reply was still posted."
+      );
+    } else if (comment.createdAt && !withinReplyWindow(comment.createdAt)) {
       problems.push(
         "The comment is more than seven days old, so Instagram will not deliver a private reply."
       );
@@ -176,7 +193,7 @@ export async function handleComment(
           });
         }
       } else {
-        problems.push(outcome.error);
+        problems.push(explainInstagramError(outcome.error));
       }
     } else {
       const outcome = await sendRuleMessage({
@@ -197,7 +214,7 @@ export async function handleComment(
           await sendEmailPrompt({ connection, rule: loaded, personId: comment.fromId, token });
         }
       } else {
-        problems.push(outcome.error);
+        problems.push(explainInstagramError(outcome.error));
       }
     }
   }
@@ -209,7 +226,7 @@ export async function handleComment(
       token,
     });
     if (outcome.ok) sent = true;
-    else problems.push(outcome.error);
+    else problems.push(explainInstagramError(outcome.error));
   }
 
   if (sent) await bump(admin, rule.id, "sent_count");

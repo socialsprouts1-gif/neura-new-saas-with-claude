@@ -233,6 +233,11 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
         text: asText(value.text) ?? "",
         fromId: asText(from?.id),
         fromUsername: asText(from?.username),
+        // Present when this comment is a reply to another comment.
+        // Instagram refuses a private reply to one of those, so it has
+        // to be known before the send rather than discovered as a
+        // refusal nobody can act on.
+        parentId: asText(value.parent_id),
         // Meta sends seconds; the seven-day check needs milliseconds.
         createdAt: entry.time ? new Date(entry.time * 1000).toISOString() : null,
       });
