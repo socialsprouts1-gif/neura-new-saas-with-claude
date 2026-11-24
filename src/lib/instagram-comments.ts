@@ -226,18 +226,28 @@ export async function handleComment(
   }
 
   if (loaded.publicReply?.trim()) {
-    const outcome = await replyToComment({
-      commentId: comment.commentId,
-      text: loaded.publicReply,
-      token,
-    });
-    // Counted but never capped. Replying publicly to somebody who
-    // commented on your own post is not what gets an account
-    // restricted, and blocking it would break the one part that was
-    // safe all along.
-    await recordSend(connection, "comment_reply");
-    if (outcome.ok) sent = true;
-    else problems.push(explainInstagramError(outcome.error));
+    // Counted, never capped, but still stopped by the master switch.
+    //
+    // "comment_reply" is allowed past the hourly and daily ceilings on
+    // purpose — replying under your own post is not what gets an
+    // account restricted. It is not allowed past a pause. This branch
+    // had no check at all, so pressing Stop everything left public
+    // replies going out: a button that reported having stopped an
+    // account which was still answering in public, which is worse than
+    // no button, because somebody watching it believes they are safe.
+    const allowance = await maySend(connection, "comment_reply");
+    if (!allowance.allowed) {
+      problems.push(allowance.reason ?? "Sending is paused for this account.");
+    } else {
+      const outcome = await replyToComment({
+        commentId: comment.commentId,
+        text: loaded.publicReply,
+        token,
+      });
+      await recordSend(connection, "comment_reply");
+      if (outcome.ok) sent = true;
+      else problems.push(explainInstagramError(outcome.error));
+    }
   }
 
   if (sent) await bump(admin, rule.id, "sent_count");
