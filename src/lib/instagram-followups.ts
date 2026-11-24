@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { sendMessage } from "@/lib/instagram-api";
+import { maySend, recordSend } from "@/lib/instagram-limits";
 import { withinMessagingWindow } from "@/lib/instagram";
 import { bump } from "@/lib/instagram-deliver";
 
@@ -47,7 +48,9 @@ export async function sweepInstagramFollowups(): Promise<{ sent: number; failed:
 
     const { data: connection } = await admin
       .from("instagram_connections")
-      .select("ig_user_id, access_token_encrypted, status")
+      .select(
+        "id, org_id, ig_user_id, access_token_encrypted, status, sends_per_hour, sends_per_day, automation_paused_at, automation_paused_reason"
+      )
       .eq("id", row.connection_id ?? "")
       .maybeSingle();
 
@@ -103,12 +106,24 @@ export async function sweepInstagramFollowups(): Promise<{ sent: number; failed:
       continue;
     }
 
+    // A follow-up is the least urgent message this product sends and the
+    // easiest to drop, so it is held back first when an account is near
+    // its cap rather than competing with a live reply.
+    const allowance = await maySend(connection, "followup");
+    if (!allowance.allowed) continue;
+
     const outcome = await sendMessage({
       igUserId: connection.ig_user_id,
       recipient: { id: row.ig_user_id },
       text: row.body,
       token: decryptToken(connection.access_token_encrypted),
     });
+
+    // Counted on the attempt, not on success. Instagram has already
+    // taken the request by this point; a refusal is not a free send, and
+    // counting only what succeeded is how an account hammers the API
+    // while its own counter reads zero.
+    await recordSend(connection, "followup");
 
     if (outcome.ok) {
       sent += 1;

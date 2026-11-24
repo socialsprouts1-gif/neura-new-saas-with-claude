@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
+import { maySend, recordSend, type LimitedConnection } from "@/lib/instagram-limits";
 import { sendDirectMessage } from "@/lib/instagram-api";
 import {
   isAccountId,
@@ -45,9 +46,7 @@ const HISTORY_LIMIT = 20;
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
 export async function handleDirectMessage(
-  connection: {
-    id: string;
-    org_id: string;
+  connection: LimitedConnection & {
     ig_user_id: string;
     /** The app-scoped id, which is the one a messaging webhook carries. */
     ig_scoped_id?: string | null;
@@ -210,12 +209,33 @@ export async function handleDirectMessage(
   if (!body?.trim()) return;
   const text = body.slice(0, TEXT_LIMIT);
 
+  // The chatbots, the FAQ and the AI assistant all end up here, and
+  // none of them was capped or counted. This is the busiest send in the
+  // product — one reply per inbound message, on every account with a
+  // bot switched on — so "stop everything" that did not cover this
+  // switch would be a button that reports having stopped an account
+  // which carries on messaging. The off switch has to mean it.
+  const allowance = await maySend(connection, "dm");
+  if (!allowance.allowed) {
+    await admin.from("instagram_comment_events").insert({
+      org_id: orgId,
+      connection_id: connection.id,
+      kind: "dm",
+      ig_user_id: message.fromId,
+      outcome: "failed",
+      error: allowance.reason ?? "Sending is paused for this account.",
+    });
+    return;
+  }
+
   const outcome = await sendDirectMessage({
     igUserId: connection.ig_user_id,
     recipientId: message.fromId,
     text,
     token: decryptToken(connection.access_token_encrypted),
   });
+
+  await recordSend(connection, "dm");
 
   await admin.from("messages").insert({
     conversation_id: conversation.id,
@@ -433,7 +453,7 @@ async function loadHistory(
  */
 async function runDirectAutomation(
   admin: ReturnType<typeof createAdminClient>,
-  connection: { id: string; org_id: string; ig_user_id: string; access_token_encrypted: string },
+  connection: LimitedConnection & { ig_user_id: string; access_token_encrypted: string },
   message: DirectMessage,
   orgId: string
 ): Promise<boolean> {
@@ -455,9 +475,28 @@ async function runDirectAutomation(
   const token = decryptToken(connection.access_token_encrypted);
   await bump(admin, rule.id, "run_count");
 
+  // Answering somebody who wrote to us first is the safest kind of send
+  // there is, and it still counts against the cap — the cap exists to
+  // stop an account sending hundreds of messages in an hour, and it does
+  // not matter to Instagram's integrity systems who started it.
+  const allowance = await maySend(connection, "dm");
+  if (!allowance.allowed) {
+    await admin.from("instagram_comment_events").insert({
+      org_id: orgId,
+      connection_id: connection.id,
+      rule_id: rule.id,
+      kind: "dm",
+      ig_user_id: message.fromId,
+      outcome: "failed",
+      error: allowance.reason ?? "Sending is paused for this account.",
+    });
+    return false;
+  }
+
   const outcome = rule.followGate
     ? await sendFollowGate({ connection, rule, recipient: { id: message.fromId }, token })
     : await sendRuleMessage({ connection, rule, recipient: { id: message.fromId }, token });
+
 
   await admin.from("instagram_comment_events").insert({
     org_id: orgId,

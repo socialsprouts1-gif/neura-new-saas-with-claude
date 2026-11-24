@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
+import { maySend, recordSend, type LimitedConnection } from "@/lib/instagram-limits";
 import { replyToComment } from "@/lib/instagram-api";
 import {
   explainInstagramError,
@@ -47,9 +48,7 @@ export interface InboundComment {
 }
 
 export async function handleComment(
-  connection: {
-    id: string;
-    org_id: string;
+  connection: LimitedConnection & {
     ig_user_id: string;
     access_token_encrypted: string;
   },
@@ -157,6 +156,13 @@ export async function handleComment(
   await bump(admin, rule.id, "run_count");
 
   if (loaded.dmMessage?.trim() || loaded.followGate) {
+    // The cap, checked before anything is sent and before the seven-day
+    // and nested-comment checks below — because those explain why one
+    // message cannot go, and this explains why none of them can.
+    const allowance = await maySend(connection, "private_reply");
+    if (!allowance.allowed) {
+      problems.push(allowance.reason ?? "Sending is paused for this account.");
+    } else
     // Checked before sending: Meta's refusal for an expired comment is
     // an error code, and "that comment is more than seven days old" is
     // something somebody can actually act on.
@@ -225,6 +231,11 @@ export async function handleComment(
       text: loaded.publicReply,
       token,
     });
+    // Counted but never capped. Replying publicly to somebody who
+    // commented on your own post is not what gets an account
+    // restricted, and blocking it would break the one part that was
+    // safe all along.
+    await recordSend(connection, "comment_reply");
     if (outcome.ok) sent = true;
     else problems.push(explainInstagramError(outcome.error));
   }

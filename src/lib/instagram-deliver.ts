@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { sendMessage } from "@/lib/instagram-api";
+import { maySend, recordSend, type LimitedConnection, type SendKind } from "@/lib/instagram-limits";
 import {
   DEFAULT_EMAIL_PROMPT,
   DEFAULT_FOLLOW_GATE,
@@ -18,6 +19,45 @@ import {
 // would have drifted apart by the second feature.
 
 type Admin = SupabaseClient<Database>;
+
+/**
+ * A connection as these helpers need it: the account id to send as, and
+ * the limits that say whether it may.
+ */
+type Sender = LimitedConnection & { ig_user_id: string };
+
+/**
+ * Which cap a send counts against, from who it is addressed to.
+ *
+ * A comment id means a private reply, a person id means an ordinary
+ * message. Derived rather than passed in, because every caller that has
+ * to name its own kind is a caller that can name the wrong one.
+ */
+function kindOf(recipient: { id: string } | { comment_id: string }): SendKind {
+  return "comment_id" in recipient ? "private_reply" : "dm";
+}
+
+/**
+ * The cap, applied where the sending happens.
+ *
+ * It used to be applied by the callers, and three of the seven call
+ * sites did not — the email prompt, the automation's message after a
+ * tap, and the "I can't see the follow yet" nudge all went out
+ * uncounted. An account could therefore sail past a 30-an-hour ceiling
+ * while its own counter read 20, which is the failure this whole file
+ * is supposed to prevent. One gate here covers every path, including
+ * the ones added later.
+ */
+async function guard(
+  connection: Sender,
+  recipient: { id: string } | { comment_id: string }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const allowance = await maySend(connection, kindOf(recipient));
+  if (!allowance.allowed) {
+    return { ok: false, error: allowance.reason ?? "Sending is paused for this account." };
+  }
+  return { ok: true };
+}
 
 export interface LoadedRule {
   id: string;
@@ -88,25 +128,34 @@ export function asLoadedRule(row: {
  * account.
  */
 export async function sendFollowGate(input: {
-  connection: { ig_user_id: string };
+  connection: Sender;
   rule: LoadedRule;
   recipient: { id: string } | { comment_id: string };
   token: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  return sendMessage({
+  const allowed = await guard(input.connection, input.recipient);
+  if (!allowed.ok) return allowed;
+
+  const outcome = await sendMessage({
     igUserId: input.connection.ig_user_id,
     recipient: input.recipient,
     text: input.rule.followGateMessage?.trim() || DEFAULT_FOLLOW_GATE,
     buttons: [{ title: FOLLOW_BUTTON, payload: followPayload(input.rule.id) }],
     token: input.token,
   });
+
+  // Counted on the attempt. A refusal still told Meta something about
+  // this account, and an automation that retries refused sends at full
+  // speed is how a bad hour becomes a restriction.
+  await recordSend(input.connection, kindOf(input.recipient));
+  return outcome;
 }
 
 /**
  * The automation's actual message, with its buttons.
  */
 export async function sendRuleMessage(input: {
-  connection: { ig_user_id: string };
+  connection: Sender;
   rule: LoadedRule;
   recipient: { id: string } | { comment_id: string };
   token: string;
@@ -114,13 +163,19 @@ export async function sendRuleMessage(input: {
   const text = input.rule.dmMessage?.trim();
   if (!text) return { ok: false, error: "This automation has no message to send." };
 
-  return sendMessage({
+  const allowed = await guard(input.connection, input.recipient);
+  if (!allowed.ok) return allowed;
+
+  const outcome = await sendMessage({
     igUserId: input.connection.ig_user_id,
     recipient: input.recipient,
     text,
     buttons: input.rule.buttons.map((button) => ({ title: button.label, url: button.url })),
     token: input.token,
   });
+
+  await recordSend(input.connection, kindOf(input.recipient));
+  return outcome;
 }
 
 /**
@@ -130,18 +185,29 @@ export async function sendRuleMessage(input: {
  * and a second private reply to the same comment is refused.
  */
 export async function sendEmailPrompt(input: {
-  connection: { ig_user_id: string };
+  connection: Sender;
   rule: LoadedRule;
   personId: string;
   token: string;
 }): Promise<void> {
   if (!input.rule.askEmail) return;
+
+  // A second message, straight after the first. It is the one that
+  // doubles an account's real volume while looking like a detail, so it
+  // is capped like any other.
+  const allowed = await guard(input.connection, { id: input.personId });
+  if (!allowed.ok) {
+    console.error(`Instagram email prompt not sent: ${allowed.error}`);
+    return;
+  }
+
   const outcome = await sendMessage({
     igUserId: input.connection.ig_user_id,
     recipient: { id: input.personId },
     text: input.rule.askEmailMessage?.trim() || DEFAULT_EMAIL_PROMPT,
     token: input.token,
   });
+  await recordSend(input.connection, "dm");
   if (!outcome.ok) console.error(`Instagram email prompt failed: ${outcome.error}`);
 }
 

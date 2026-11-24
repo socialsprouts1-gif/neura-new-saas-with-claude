@@ -10,6 +10,7 @@ import {
   isSendableUrl,
   linkId,
   mentions,
+  sendVerdict,
   parseDirectMessage,
   parsePostbacks,
   ruleFromPayload,
@@ -613,4 +614,44 @@ test("an error we do not recognise is passed through untouched", async () => {
   const odd = "Some entirely new thing Meta started saying";
   assert.equal(explainInstagramError(odd), odd);
   assert.equal(explainInstagramError(""), "");
+});
+
+// The cap arithmetic. Every one of these is an off-by-one that would
+// let an account send one more than its owner asked for, every hour.
+
+test("sendVerdict allows a send while under both caps", () => {
+  const verdict = sendVerdict({ perHour: 30, perDay: 150, sentHour: 29, sentDay: 149 });
+  assert.equal(verdict.allowed, true);
+  assert.equal(verdict.remainingHour, 1);
+  assert.equal(verdict.remainingDay, 1);
+});
+
+test("sendVerdict stops on the limit, not one past it", () => {
+  // 30 sent against a limit of 30 is spent. Using `>` here would send 31.
+  const verdict = sendVerdict({ perHour: 30, perDay: 150, sentHour: 30, sentDay: 40 });
+  assert.equal(verdict.allowed, false);
+  assert.equal(verdict.remainingHour, 0);
+  assert.match(verdict.reason ?? "", /hourly limit of 30/);
+});
+
+test("sendVerdict reports the day before the hour when both are spent", () => {
+  // Being told to wait an hour when the real wait is tomorrow sends
+  // somebody back to the page in sixty minutes to find it still stopped.
+  const verdict = sendVerdict({ perHour: 30, perDay: 150, sentHour: 30, sentDay: 150 });
+  assert.equal(verdict.allowed, false);
+  assert.match(verdict.reason ?? "", /daily limit of 150/);
+  assert.equal(verdict.remainingDay, 0);
+});
+
+test("sendVerdict treats a limit of zero as zero", () => {
+  const verdict = sendVerdict({ perHour: 0, perDay: 150, sentHour: 0, sentDay: 0 });
+  assert.equal(verdict.allowed, false);
+});
+
+test("sendVerdict never reports a negative remainder", () => {
+  // Lowering a limit below what today already sent must read as none
+  // left, not as a negative number on somebody's screen.
+  const verdict = sendVerdict({ perHour: 5, perDay: 10, sentHour: 40, sentDay: 90 });
+  assert.equal(verdict.remainingHour, 0);
+  assert.equal(verdict.remainingDay, 0);
 });

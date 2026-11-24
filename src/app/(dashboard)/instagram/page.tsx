@@ -13,6 +13,8 @@ import LocalTime from "@/components/ui/LocalTime";
 import { CheckCircle2, Mail, MousePointerClick, Send, UserPlus } from "lucide-react";
 import Accounts, { type AccountRow } from "./Accounts";
 import Automations from "./Automations";
+import SendingControls from "./SendingControls";
+import { countRecentSends } from "@/lib/instagram-limits";
 import type { AutomationRow } from "./AutomationEditor";
 
 // Instagram, as a screen somebody can use.
@@ -74,13 +76,18 @@ export default async function InstagramPage({
 
   const { data: connections, error } = await supabase
     .from("instagram_connections")
-    .select("id, username, account_name, profile_picture_url, ig_user_id, status, created_at, token_expires_at, last_error, ig_scoped_id, access_token_encrypted")
+    .select(
+      "id, username, account_name, profile_picture_url, ig_user_id, status, created_at, token_expires_at, last_error, ig_scoped_id, access_token_encrypted, sends_per_hour, sends_per_day, automation_paused_at, automation_paused_reason"
+    )
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
 
   const needsMigration = error?.code === "42P01";
   const accounts = connections ?? [];
   const live = accounts.find((account) => account.status === "active") ?? null;
+
+  // What each account has actually sent, counted in the database.
+  const { hour: sentHour, day: sentDay } = await countRecentSends(orgId);
 
   // How many more, if any. A platform admin is never held to a plan:
   // locking the operator out of their own tool to enforce a price is
@@ -174,6 +181,24 @@ export default async function InstagramPage({
           )}
         </div>
       </div>
+
+      {/* --- the brake ----------------------------------------------------
+          Above the accounts, because the moment somebody needs it they
+          need it immediately. The alternative, which is what actually
+          happened, is opening each automation in turn and switching it
+          off one at a time while it is still sending. */}
+      <SendingControls
+        accounts={(accounts ?? []).map((account) => ({
+          id: account.id,
+          username: account.username,
+          sends_per_hour: account.sends_per_hour ?? null,
+          sends_per_day: account.sends_per_day ?? null,
+          automation_paused_at: account.automation_paused_at ?? null,
+          automation_paused_reason: account.automation_paused_reason ?? null,
+        }))}
+        sentHour={sentHour}
+        sentDay={sentDay}
+      />
 
       {/* --- the connected accounts -------------------------------------- */}
       {accounts.length > 0 && (

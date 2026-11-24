@@ -284,6 +284,12 @@ export interface Database {
           profile_picture_url: string | null;
           access_token_encrypted: string;
           token_expires_at: string | null;
+          /** How many messages this account may send per hour and per day. */
+          sends_per_hour: number;
+          sends_per_day: number;
+          /** Set means every automation on this account is off. */
+          automation_paused_at: string | null;
+          automation_paused_reason: string | null;
           webhook_verify_token: string;
           status: string;
           is_default: boolean;
@@ -315,6 +321,10 @@ export interface Database {
           token_expires_at?: string | null;
           status?: string;
           is_default?: boolean;
+          sends_per_hour?: number;
+          sends_per_day?: number;
+          automation_paused_at?: string | null;
+          automation_paused_reason?: string | null;
           last_error?: string | null;
           last_error_at?: string | null;
           updated_at?: string;
@@ -1630,6 +1640,21 @@ export interface Database {
           token: string;
         };
         Update: Partial<Database["public"]["Tables"]["staff_links"]["Row"]>;
+        Relationships: [];
+      };
+      instagram_sends: {
+        Row: {
+          id: string;
+          org_id: string;
+          connection_id: string;
+          kind: "dm" | "private_reply" | "comment_reply" | "followup";
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["instagram_sends"]["Row"]> & {
+          org_id: string;
+          connection_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["instagram_sends"]["Row"]>;
         Relationships: [];
       };
       api_keys: {

@@ -275,3 +275,74 @@ export async function disconnectInstagram(id: string): Promise<ActionResult> {
       : "Disconnected. Your automations are kept.",
   };
 }
+
+// --- the master switch ----------------------------------------------------
+//
+// One control that stops every automation on an account at once. It
+// exists because of a real afternoon: an account was restricted by
+// Instagram for sending too much, and the only way to stop the sending
+// was to open each automation and switch it off one at a time, while it
+// was still running.
+
+export async function pauseInstagramAutomation(
+  connectionId: string,
+  paused: boolean
+): Promise<ActionResult> {
+  const { orgId } = await requireFeature("instagram");
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("instagram_connections")
+    .update(
+      paused
+        ? {
+            automation_paused_at: new Date().toISOString(),
+            automation_paused_reason: "Paused by you. Nothing will be sent until you switch it back on.",
+          }
+        : { automation_paused_at: null, automation_paused_reason: null }
+    )
+    .eq("id", connectionId)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/instagram");
+  return {
+    ok: true,
+    message: paused
+      ? "Stopped. Nothing more will be sent from this account."
+      : "Back on. Automations will answer again.",
+  };
+}
+
+/** Changes how much an account may send in an hour and in a day. */
+export async function saveInstagramLimits(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireFeature("instagram");
+  const supabase = await createClient();
+
+  const id = String(formData.get("id") ?? "").trim();
+  const perHour = Math.floor(Number(formData.get("sends_per_hour") ?? 0));
+  const perDay = Math.floor(Number(formData.get("sends_per_day") ?? 0));
+
+  if (!id) return { ok: false, error: "No account selected." };
+  if (!Number.isFinite(perHour) || perHour < 1 || perHour > 500) {
+    return { ok: false, error: "The hourly limit has to be between 1 and 500." };
+  }
+  if (!Number.isFinite(perDay) || perDay < 1 || perDay > 5000) {
+    return { ok: false, error: "The daily limit has to be between 1 and 5000." };
+  }
+  if (perDay < perHour) {
+    return { ok: false, error: "The daily limit cannot be lower than the hourly one." };
+  }
+
+  const { error } = await supabase
+    .from("instagram_connections")
+    .update({ sends_per_hour: perHour, sends_per_day: perDay })
+    .eq("id", id)
+    .eq("org_id", orgId);
+
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/instagram");
+  return { ok: true, message: `Now capped at ${perHour} an hour and ${perDay} a day.` };
+}

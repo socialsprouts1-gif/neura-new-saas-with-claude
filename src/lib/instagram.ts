@@ -559,3 +559,48 @@ export function explainInstagramError(error: string): string {
 
   return text;
 }
+
+/**
+ * Whether a send fits under the caps, given what has already gone out.
+ *
+ * Pure, and here rather than beside the database call, because this is
+ * the arithmetic that must not be off by one: `>=` rather than `>` is
+ * the difference between a 30-an-hour limit sending 30 and sending 31,
+ * every hour, on every account. Tested directly for that reason.
+ *
+ * A limit of zero means zero. It is the only honest reading of what
+ * somebody typed, and it gives "stop sending but keep the automation"
+ * a way to exist.
+ */
+export function sendVerdict(input: {
+  perHour: number;
+  perDay: number;
+  sentHour: number;
+  sentDay: number;
+}): { allowed: boolean; reason?: string; remainingHour: number; remainingDay: number } {
+  const remainingHour = Math.max(0, input.perHour - input.sentHour);
+  const remainingDay = Math.max(0, input.perDay - input.sentDay);
+
+  // The day is checked first. Both can be spent at once, and being told
+  // to wait an hour when the real wait is until tomorrow is worse than
+  // no message at all.
+  if (input.sentDay >= input.perDay) {
+    return {
+      allowed: false,
+      reason: `This account has sent its daily limit of ${input.perDay} messages. Sending starts again tomorrow, or raise the limit on this page.`,
+      remainingHour,
+      remainingDay: 0,
+    };
+  }
+
+  if (input.sentHour >= input.perHour) {
+    return {
+      allowed: false,
+      reason: `This account has sent its hourly limit of ${input.perHour} messages. Sending starts again within the hour, or raise the limit on this page.`,
+      remainingHour: 0,
+      remainingDay,
+    };
+  }
+
+  return { allowed: true, remainingHour, remainingDay };
+}

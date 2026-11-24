@@ -147,7 +147,9 @@ async function dispatch(payload: InstagramWebhook): Promise<void> {
     // it was structurally unable to hear the answer to.
     const { data: matches } = await admin
       .from("instagram_connections")
-      .select("id, org_id, ig_user_id, ig_scoped_id, access_token_encrypted, status")
+      .select(
+        "id, org_id, ig_user_id, ig_scoped_id, access_token_encrypted, status, sends_per_hour, sends_per_day, automation_paused_at, automation_paused_reason"
+      )
       .or(`ig_user_id.eq.${igUserId},ig_scoped_id.eq.${igUserId}`)
       .limit(1);
 

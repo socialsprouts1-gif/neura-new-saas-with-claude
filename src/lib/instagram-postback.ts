@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken } from "@/lib/crypto";
 import { followsAccount, sendMessage } from "@/lib/instagram-api";
+import { maySend, recordSend, type LimitedConnection } from "@/lib/instagram-limits";
 import { FOLLOW_BUTTON, ruleFromPayload } from "@/lib/instagram";
 import {
   asLoadedRule,
@@ -28,12 +29,7 @@ const NOT_YET =
   "I can't see the follow yet — give Instagram a second, then tap the button again 🙏";
 
 export async function handlePostback(
-  connection: {
-    id: string;
-    org_id: string;
-    ig_user_id: string;
-    access_token_encrypted: string;
-  },
+  connection: LimitedConnection & { ig_user_id: string; access_token_encrypted: string },
   input: { personId: string; payload: string; deliveryId?: string | null }
 ): Promise<void> {
   // The tap can reach us twice: once as a postback, and once as a plain
@@ -107,13 +103,20 @@ export async function handlePostback(
 
   if (!follows) {
     await trace("not_following_yet", "Tap arrived, but Instagram says they do not follow yet", ruleId);
-    await sendMessage({
-      igUserId: connection.ig_user_id,
-      recipient: { id: input.personId },
-      text: NOT_YET,
-      buttons: [{ title: FOLLOW_BUTTON, payload: input.payload }],
-      token,
-    });
+    // Capped like any other message. It is the one somebody taps
+    // repeatedly when the follow check lags, so it is the easiest to
+    // send twenty of by accident.
+    const allowance = await maySend(connection, "dm");
+    if (allowance.allowed) {
+      await sendMessage({
+        igUserId: connection.ig_user_id,
+        recipient: { id: input.personId },
+        text: NOT_YET,
+        buttons: [{ title: FOLLOW_BUTTON, payload: input.payload }],
+        token,
+      });
+      await recordSend(connection, "dm");
+    }
     return;
   }
 
