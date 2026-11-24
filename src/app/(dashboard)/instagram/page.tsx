@@ -87,7 +87,7 @@ export default async function InstagramPage({
   const live = accounts.find((account) => account.status === "active") ?? null;
 
   // What each account has actually sent, counted in the database.
-  const { hour: sentHour, day: sentDay } = await countRecentSends(orgId);
+  const { hour: sentHour, day: sentDay, ready: limitsReady } = await countRecentSends(orgId);
 
   // How many more, if any. A platform admin is never held to a plan:
   // locking the operator out of their own tool to enforce a price is
@@ -187,6 +187,30 @@ export default async function InstagramPage({
           need it immediately. The alternative, which is what actually
           happened, is opening each automation in turn and switching it
           off one at a time while it is still sending. */}
+      {/* The database update has not been run. Said here, in red, at the
+          top, because the consequence is invisible everywhere else: the
+          cap cannot be counted, so it fails closed, so every DM and
+          private reply stops while public comment replies carry on. That
+          reads exactly like "Instagram has restricted me", and it is
+          not. */}
+      {accounts.length > 0 && !limitsReady && (
+        <div className="mb-5 rounded-2xl border border-[#EF4444]/40 bg-[#EF4444]/10 p-5">
+          <p className="text-[15px] font-semibold text-[#FCA5A5]">
+            Database update needed — direct messages are not being sent
+          </p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-white/70">
+            The table that counts what each account has sent is missing, so the sending
+            limit cannot be checked. Rather than send blind, the automations hold every
+            direct message and private reply back. Public replies under your posts still
+            go out, which is why the automations look half-broken rather than stopped.
+          </p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-white/70">
+            Run <code className="text-white/90">supabase/updates/run-me-latest.sql</code> in
+            the Supabase SQL editor, then reload this page. Nothing else needs doing.
+          </p>
+        </div>
+      )}
+
       <SendingControls
         accounts={(accounts ?? []).map((account) => ({
           id: account.id,

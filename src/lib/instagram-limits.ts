@@ -198,19 +198,27 @@ function positive(value: number | null | undefined, fallback: number): number {
  */
 export async function countRecentSends(
   orgId: string
-): Promise<{ hour: Record<string, number>; day: Record<string, number> }> {
+): Promise<{ hour: Record<string, number>; day: Record<string, number>; ready: boolean }> {
   const hour: Record<string, number> = {};
   const day: Record<string, number> = {};
+  let ready = true;
 
   try {
     const now = Date.now();
-    const { data: sends } = await createAdminClient()
+    const { data: sends, error } = await createAdminClient()
       .from("instagram_sends")
       .select("connection_id, created_at")
       .eq("org_id", orgId)
       .neq("kind", "comment_reply")
       .gte("created_at", new Date(now - 86_400_000).toISOString())
       .limit(5000);
+
+    // The table is missing until the database update is run, and until
+    // then maySend fails closed — so every DM and private reply stops
+    // while public replies carry on. That is the safe behaviour and the
+    // wrong thing to discover one event row at a time, so it is
+    // reported upwards and said plainly on the page.
+    if (error) ready = false;
 
     const hourAgo = now - 3_600_000;
     for (const send of sends ?? []) {
@@ -220,9 +228,8 @@ export async function countRecentSends(
       }
     }
   } catch {
-    // An unreadable count shows as zero on screen. The gate fails closed
-    // on its own; this is only the display.
+    ready = false;
   }
 
-  return { hour, day };
+  return { hour, day, ready };
 }
