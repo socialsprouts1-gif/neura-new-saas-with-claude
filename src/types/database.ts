@@ -1657,6 +1657,17 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["instagram_sends"]["Row"]>;
         Relationships: [];
       };
+      cron_locks: {
+        Row: {
+          name: string;
+          locked_until: string;
+          locked_at: string | null;
+          released_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["cron_locks"]["Row"]> & { name: string };
+        Update: Partial<Database["public"]["Tables"]["cron_locks"]["Row"]>;
+        Relationships: [];
+      };
       api_keys: {
         Row: ApiKey;
         Insert: Partial<ApiKey> & {

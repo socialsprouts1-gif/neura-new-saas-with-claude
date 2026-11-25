@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isCronAuthorised } from "@/lib/cron-auth";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { withCronLock } from "@/lib/cron-lock";
 import { dispatchDueCampaigns } from "@/lib/campaign-dispatch";
 import { resumeParkedFlows } from "@/lib/flow-resume";
 import { dispatchDueReminders } from "@/lib/appointment-reminders";
@@ -59,21 +60,37 @@ export async function GET(request: NextRequest) {
   }
 
   const origin = request.nextUrl.origin;
-  const results: JobResult[] = [];
 
-  for (const job of JOBS) {
-    try {
-      results.push({ job: job.name, ok: true, detail: await job.run(origin) });
-    } catch (error) {
-      // One job's failure must not abandon the rest. A stuck invoice run
-      // silently costing everybody their trial reminders is exactly the
-      // coupling this loop exists to avoid.
-      results.push({
-        job: job.name,
-        ok: false,
-        error: error instanceof Error ? error.message : "Unknown failure",
-      });
+  // The same lock the minute-by-minute heartbeat takes. This runs the
+  // same queues, so the two overlapping would reintroduce precisely the
+  // double-send the lock exists to prevent — and the daily run is the
+  // one most likely to be long.
+  const results = await withCronLock(async () => {
+    const collected: JobResult[] = [];
+
+    for (const job of JOBS) {
+      try {
+        collected.push({ job: job.name, ok: true, detail: await job.run(origin) });
+      } catch (error) {
+        // One job's failure must not abandon the rest. A stuck invoice run
+        // silently costing everybody their trial reminders is exactly the
+        // coupling this loop exists to avoid.
+        collected.push({
+          job: job.name,
+          ok: false,
+          error: error instanceof Error ? error.message : "Unknown failure",
+        });
+      }
     }
+
+    return collected;
+  });
+
+  if (results === null) {
+    return NextResponse.json({
+      skipped: "a run was already in progress",
+      at: new Date().toISOString(),
+    });
   }
 
   const failed = results.filter((result) => !result.ok).length;
