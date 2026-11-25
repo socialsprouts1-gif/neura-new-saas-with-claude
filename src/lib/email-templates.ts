@@ -300,6 +300,44 @@ export function firstChatbotEmail(brand: EmailBrand, input: { botName: string })
   };
 }
 
+/**
+ * A customer booked themselves in.
+ *
+ * Everything the business needs in the subject line, because this is
+ * read on a phone between two other things and the useful question is
+ * "when, and who" — not "open this to find out".
+ */
+export function newBookingEmail(
+  brand: EmailBrand,
+  input: {
+    customerName: string;
+    customerNumber: string | null;
+    what: string;
+    when: string;
+    location: string | null;
+  }
+): EmailBody {
+  const action = { label: "Open Appointments", href: `${brand.appUrl}/appointments` };
+  const who = input.customerName.trim() || "A customer";
+
+  const lines = [
+    `${escape(who)} booked ${escape(input.what)}.`,
+    `<strong>${escape(input.when)}</strong>`,
+    input.location ? `Where: ${escape(input.location)}` : "",
+    input.customerNumber ? `Their number: ${escape(input.customerNumber)}` : "",
+    "They booked it themselves on WhatsApp, so it is already in your calendar. Nothing to confirm unless you want to move it.",
+  ].filter(Boolean);
+
+  return {
+    subject: `New booking — ${who}, ${input.when}`,
+    html: layout(brand, `${who} booked ${input.when}.`, lines.map(p).join(""), action),
+    text: plain(
+      lines.map((line) => line.replace(/<[^>]+>/g, "")),
+      action
+    ),
+  };
+}
+
 export function paymentReceivedEmail(
   brand: EmailBrand,
   input: { planName: string; amount: string; renewsOn: string; interval: string }

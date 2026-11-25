@@ -33,6 +33,8 @@ export default function BotEditor({
     reminderTemplate: string;
     reminderTemplateLanguage: string;
     reminderMessage: string;
+    notifyOnBooking: boolean;
+    notifyEmail: string;
   };
   canManage: boolean;
   nextSlots: Slot[];
@@ -161,6 +163,45 @@ export default function BotEditor({
                 rows={2}
                 defaultValue={messages.reminderMessage}
                 hint="Used when no template is named. Same placeholders as the confirmation."
+              />
+            </div>
+          </div>
+
+          {/* Telling the business, not the customer.
+              By email rather than WhatsApp: messaging your own number
+              needs an approved template, because you have not written to
+              your own business in the last 24 hours and never will. */}
+          <div className="pt-5 border-t border-white/8">
+            <h3 className="font-semibold mb-1">When a customer books</h3>
+            <p className="text-xs text-white/45 mb-4 leading-relaxed">
+              A booking made by a customer on WhatsApp otherwise appears only on this screen,
+              which somebody has to think to open. This emails you the moment it happens.
+              Bookings you enter yourself are not announced back to you.
+            </p>
+
+            <div className="space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="notify_on_booking"
+                  defaultChecked={messages.notifyOnBooking}
+                  className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/5 accent-[var(--accent)]"
+                />
+                <span className="text-sm text-white/80">
+                  Email me when a customer books on WhatsApp
+                  <span className="block text-xs text-white/45 mt-0.5">
+                    One email per booking, with the time, the service and their number.
+                  </span>
+                </span>
+              </label>
+
+              <Field
+                label="Send alerts to"
+                name="notify_email"
+                type="email"
+                defaultValue={messages.notifyEmail}
+                placeholder="front-desk@yourbusiness.com"
+                hint="Leave blank to use the email you sign in with."
               />
             </div>
           </div>

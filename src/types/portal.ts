@@ -210,6 +210,10 @@ export type AppointmentSettingsRow = {
   reminder_template: string | null;
   reminder_template_language: string;
   reminder_message: string;
+  /** Email the business when a customer books itself in. */
+  notify_on_booking: boolean;
+  /** Where that email goes. Null means the workspace owner's address. */
+  notify_email: string | null;
   created_at: string;
   updated_at: string;
 };

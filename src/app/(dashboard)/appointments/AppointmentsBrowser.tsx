@@ -47,6 +47,8 @@ export default function AppointmentsBrowser({
     reminderTemplate: string;
     reminderTemplateLanguage: string;
     reminderMessage: string;
+    notifyOnBooking: boolean;
+    notifyEmail: string;
   };
   types: AppointmentType[];
   blackouts: AppointmentBlackout[];

@@ -146,6 +146,10 @@ export default async function AppointmentsPage() {
           reminderTemplateLanguage:
             (settingsData?.reminder_template_language as string | undefined) ?? "en",
           reminderMessage: (settingsData?.reminder_message as string | undefined) ?? "",
+          // Defaults to on. A business that has never seen this screen
+          // still wants to know a customer booked.
+          notifyOnBooking: (settingsData?.notify_on_booking as boolean | undefined) ?? true,
+          notifyEmail: (settingsData?.notify_email as string | null) ?? "",
         }}
         types={types}
         blackouts={blackouts}

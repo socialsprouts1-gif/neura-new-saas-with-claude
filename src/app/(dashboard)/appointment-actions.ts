@@ -213,6 +213,11 @@ export async function saveBookingBot(formData: FormData): Promise<ActionResult> 
         "reminder_message",
         "Reminder: your appointment is at {{time}} today. Reply here if you need to change it."
       ),
+      // An unticked checkbox sends nothing at all, so its absence is the
+      // "off" — reading it as a missing value would leave the setting on
+      // for ever and the box would never turn anything off.
+      notify_on_booking: formData.get("notify_on_booking") !== null,
+      notify_email: String(formData.get("notify_email") ?? "").trim() || null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "org_id" }

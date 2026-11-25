@@ -27,6 +27,7 @@ import {
   type CalendarEvent,
 } from "@/lib/google-calendar";
 import { startAppointmentJourneys } from "@/lib/appointment-journeys";
+import { notifyNewBooking } from "@/lib/appointment-notify";
 
 // The booking conversation, sending half.
 //
@@ -294,6 +295,12 @@ async function book(
     meetingId: meeting.id,
     event: "booked",
   });
+
+  // And tell the business. This is the booking nobody at the business
+  // typed, so without this it exists only on a screen somebody has to
+  // think to open — which for a clinic means a customer arriving at a
+  // time nobody prepared for.
+  await notifyNewBooking({ orgId: context.orgId, meetingId: meeting.id });
 
   // Into the business's calendar, if one is connected. After the meeting is
   // written and never before: a calendar that is unreachable must not cost
