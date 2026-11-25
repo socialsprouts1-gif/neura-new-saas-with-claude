@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/org";
 import { loadEntitlement, loadUsage } from "@/lib/entitlement";
 import { checkLimit } from "@/lib/limits";
+import { parseContactsCsv } from "@/lib/csv-contacts";
 import { resolveConnection } from "@/lib/connections";
 import { encryptToken, decryptToken } from "@/lib/crypto";
 import { checkAccessToken } from "@/lib/access-token";
@@ -188,6 +189,154 @@ export async function renameOrganization(formData: FormData): Promise<ActionResu
 
   revalidatePath("/settings");
   return { ok: true, message: "Organization renamed." };
+}
+
+/** How many rows one import may carry. Beyond this it belongs in a job. */
+const IMPORT_ROW_LIMIT = 5000;
+
+/**
+ * Adds a spreadsheet of contacts in one go.
+ *
+ * Takes an uploaded .csv or text pasted straight out of a spreadsheet,
+ * because half the people with a list have a file and the other half
+ * have a column they can copy.
+ *
+ * Upserts rather than inserts: importing the same list twice updates the
+ * names and leaves one row per person, which is what somebody re-running
+ * a corrected export expects. It is also why the plan check counts only
+ * the numbers that are genuinely new.
+ */
+export async function importContacts(formData: FormData): Promise<ActionResult> {
+  const { orgId } = await requireOrg();
+
+  const file = formData.get("file");
+  const pasted = String(formData.get("pasted") ?? "");
+  const countryCode = String(formData.get("country_code") ?? "").replace(/[^\d]/g, "");
+  const importTag = String(formData.get("import_tag") ?? "").trim();
+
+  let text = pasted.trim();
+  if (!text && file instanceof File && file.size > 0) {
+    // 5 MB is far more than a contact list needs and small enough that
+    // reading it into memory cannot hurt anybody.
+    if (file.size > 5_000_000) {
+      return { ok: false, error: "That file is larger than 5 MB. Split it and import in parts." };
+    }
+    text = (await file.text()).trim();
+  }
+
+  if (!text) {
+    return { ok: false, error: "Choose a CSV file, or paste the rows into the box." };
+  }
+
+  const parsed = parseContactsCsv(text, {
+    defaultCountryCode: countryCode || undefined,
+    extraTags: importTag ? [importTag] : [],
+  });
+
+  if (parsed.contacts.length === 0) {
+    const first = parsed.problems[0];
+    return {
+      ok: false,
+      error: first
+        ? `Nothing could be imported. The first problem is on line ${first.line}: ${first.problem}.`
+        : "No contacts were found in that file. The first column should hold the WhatsApp number.",
+    };
+  }
+
+  if (parsed.contacts.length > IMPORT_ROW_LIMIT) {
+    return {
+      ok: false,
+      error: `That file holds ${parsed.contacts.length} contacts. Import up to ${IMPORT_ROW_LIMIT} at a time.`,
+    };
+  }
+
+  const supabase = await createClient();
+
+  // Which of these are already here. Counted before the plan check,
+  // because re-importing a list that is already saved uses no allowance
+  // and refusing it would be nonsense.
+  const numbers = parsed.contacts.map((contact) => contact.waId);
+  const existing = new Set<string>();
+  for (let start = 0; start < numbers.length; start += 500) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("wa_id")
+      .eq("org_id", orgId)
+      .in("wa_id", numbers.slice(start, start + 500));
+    for (const row of data ?? []) existing.add(row.wa_id);
+  }
+
+  const fresh = parsed.contacts.length - existing.size;
+
+  const [entitlement, usage] = await Promise.all([
+    loadEntitlement(supabase, orgId),
+    loadUsage(supabase, orgId),
+  ]);
+  const room = checkLimit("contacts", entitlement.limits.contact_limit, usage.contacts, fresh);
+  if (!room.ok) {
+    return {
+      ok: false,
+      error:
+        room.reason ??
+        `This import would add ${fresh} contacts, which is more than your plan allows.`,
+    };
+  }
+
+  // In batches, so one oversized request cannot fail the whole import.
+  let saved = 0;
+  for (let start = 0; start < parsed.contacts.length; start += 500) {
+    const batch = parsed.contacts.slice(start, start + 500).map((contact) => ({
+      org_id: orgId,
+      wa_id: contact.waId,
+      name: contact.name,
+      tags: contact.tags,
+    }));
+
+    const { error } = await supabase
+      .from("contacts")
+      .upsert(batch, { onConflict: "org_id,wa_id" });
+
+    if (error) {
+      return {
+        ok: false,
+        error:
+          saved > 0
+            ? `${saved} contacts were imported, then it stopped: ${error.message}`
+            : error.message,
+      };
+    }
+    saved += batch.length;
+  }
+
+  revalidatePath("/contacts");
+
+  // The count of what did not arrive matters as much as what did. A
+  // silent "imported 180" against a file of 200 is how a business finds
+  // out months later that twenty customers were never messaged.
+  const notes: string[] = [];
+  if (parsed.duplicates > 0) {
+    notes.push(`${parsed.duplicates} repeated number${parsed.duplicates === 1 ? "" : "s"} skipped`);
+  }
+  if (parsed.problems.length > 0) {
+    const sample = parsed.problems
+      .slice(0, 3)
+      .map((problem) => `line ${problem.line}: ${problem.problem}`)
+      .join("; ");
+    notes.push(
+      `${parsed.problems.length} row${parsed.problems.length === 1 ? "" : "s"} could not be read (${sample}${parsed.problems.length > 3 ? "; …" : ""})`
+    );
+  }
+
+  const added = fresh;
+  const updated = saved - fresh;
+
+  return {
+    ok: true,
+    message:
+      `Imported ${saved} contact${saved === 1 ? "" : "s"} — ${added} new` +
+      (updated > 0 ? `, ${updated} already on file and updated` : "") +
+      (notes.length > 0 ? `. ${notes.join(". ")}.` : "."),
+  };
 }
 
 export async function createContact(formData: FormData): Promise<ActionResult> {
