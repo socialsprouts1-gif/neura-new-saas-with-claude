@@ -124,6 +124,11 @@ export type ScheduledMessage = {
   wa_id: string;
   connection_id: string | null;
   body: string;
+  /** An approved template, for a send outside the 24-hour window. */
+  template_name: string | null;
+  template_language: string;
+  /** Body variables in order: the first fills {{1}}. */
+  template_variables: string[];
   send_at: string;
   status: ScheduledMessageStatus;
   sent_at: string | null;

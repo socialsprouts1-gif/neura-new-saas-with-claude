@@ -3,7 +3,8 @@ import { requireOrg } from "@/lib/org";
 import { listConnections } from "@/lib/connections";
 import { optionLabel } from "@/lib/number-identity";
 import { scheduleMessage, cancelScheduledMessage } from "../portal-actions";
-import ActionForm, { Field, SelectField, TextareaField } from "@/components/ui/ActionForm";
+import ActionForm from "@/components/ui/ActionForm";
+import ScheduleForm from "./ScheduleForm";
 import {
   PageHeader,
   Card,
@@ -38,6 +39,16 @@ export default async function ScheduledPage() {
     supabase.from("contacts").select("id, name, wa_id").eq("org_id", orgId).order("name").limit(300),
     listConnections(supabase, orgId),
   ]);
+
+  // Only templates Meta has actually approved. A pending or rejected one
+  // offered here would be chosen, scheduled, and refused days later at
+  // the moment it mattered.
+  const { data: templates } = await supabase
+    .from("message_templates")
+    .select("name, language, body_text")
+    .eq("org_id", orgId)
+    .eq("status", "approved")
+    .order("name");
 
   const all = rows ?? [];
 
@@ -169,65 +180,23 @@ export default async function ScheduledPage() {
 
         <Card className="order-1 lg:order-2">
           <h2 className="font-semibold mb-1">Schedule a message</h2>
-          <p className="text-xs text-white/45 mb-5 leading-relaxed">
-            It goes out as a plain WhatsApp message, so the contact has to have written to you
-            within the last 24 hours of the send time — that is WhatsApp&apos;s rule, not ours.
-            Outside that window it needs an approved template, which campaigns handle.
-          </p>
 
-          <ActionForm action={scheduleMessage} submitLabel="Schedule it" resetOnSuccess>
-            <SelectField
-              label="Contact"
-              name="contact_id"
-              options={[
-                { value: "", label: "Type a number instead" },
-                ...(contacts ?? []).map((contact) => ({
-                  value: contact.id,
-                  label: contact.name ? `${contact.name} · ${contact.wa_id}` : contact.wa_id,
-                })),
-              ]}
-            />
-
-            <Field
-              label="Or a number"
-              name="wa_id"
-              placeholder="919876543210"
-              hint="Country code first, no + and no spaces. Ignored when a contact is picked above."
-            />
-
-            {active.length > 1 && (
-              <SelectField
-                label="Send from"
-                name="connection_id"
-                options={active.map((connection) => ({
-                  value: connection.id,
-                  label: optionLabel(connection),
-                }))}
-              />
-            )}
-            {active.length > 1 && (
-              <p className="text-[12px] text-white/35 -mt-2 leading-relaxed">
-                Send from the number the customer already knows. One arriving from a number they
-                have never written to reads as a stranger.
-              </p>
-            )}
-
-            <Field
-              label="Send at"
-              name="send_at"
-              type="datetime-local"
-              required
-              hint="At least a minute from now. To send straight away, use the inbox."
-            />
-
-            <TextareaField
-              label="Message"
-              name="body"
-              required
-              rows={5}
-              placeholder="Just following up on the quote I sent — happy to go through it whenever suits."
-            />
-          </ActionForm>
+          <ScheduleForm
+            action={scheduleMessage}
+            contacts={(contacts ?? []).map((contact) => ({
+              id: contact.id,
+              label: contact.name ? `${contact.name} · ${contact.wa_id}` : contact.wa_id,
+            }))}
+            connections={active.map((connection) => ({
+              id: connection.id,
+              label: optionLabel(connection),
+            }))}
+            templates={(templates ?? []).map((template) => ({
+              name: template.name,
+              language: template.language,
+              bodyText: template.body_text ?? "",
+            }))}
+          />
         </Card>
       </div>
     </div>

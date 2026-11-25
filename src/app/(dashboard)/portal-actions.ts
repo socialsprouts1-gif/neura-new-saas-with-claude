@@ -4,6 +4,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { availableStarters } from "@/lib/faq-starters";
 import { checkScheduled } from "@/lib/scheduled-message";
+import { variableCount } from "@/lib/template-variables";
+import { fillVariables } from "@/lib/template-spec";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email";
@@ -1903,9 +1905,56 @@ export async function scheduleMessage(formData: FormData): Promise<ActionResult>
     if (contact?.wa_id) waId = contact.wa_id;
   }
 
+  // A template, when one is named.
+  //
+  // This is the case the screen could not express before, and the one
+  // most people actually want: WhatsApp only delivers plain text within
+  // 24 hours of the customer's own last message, so a follow-up next
+  // week is exactly the message that needs a template.
+  const templateName = String(formData.get("template_name") ?? "").trim();
+  let templateLanguage = "en";
+  const templateVariables: string[] = [];
+  let body = String(formData.get("body") ?? "");
+
+  if (templateName) {
+    const { data: template } = await supabase
+      .from("message_templates")
+      .select("name, language, body_text, status")
+      .eq("org_id", orgId)
+      .eq("name", templateName)
+      .eq("status", "approved")
+      .maybeSingle();
+
+    if (!template) {
+      return {
+        ok: false,
+        error: `"${templateName}" is not an approved template on this workspace. Pick one from the list, or sync your templates first.`,
+      };
+    }
+
+    templateLanguage = template.language || "en";
+
+    const needed = variableCount(template.body_text ?? "");
+    for (let index = 1; index <= needed; index += 1) {
+      templateVariables.push(String(formData.get(`var_${index}`) ?? "").trim());
+    }
+
+    const blank = templateVariables.findIndex((value) => !value);
+    if (blank !== -1) {
+      return {
+        ok: false,
+        error: `This template needs ${needed} value${needed === 1 ? "" : "s"}. Fill in the one for {{${blank + 1}}}.`,
+      };
+    }
+
+    // The readable text, stored so the list on screen and the record in
+    // the inbox say what was sent rather than a template name.
+    body = fillVariables(template.body_text ?? "", templateVariables);
+  }
+
   const checked = checkScheduled({
     waId,
-    body: String(formData.get("body") ?? ""),
+    body,
     sendAt: String(formData.get("send_at") ?? ""),
   });
 
@@ -1917,6 +1966,9 @@ export async function scheduleMessage(formData: FormData): Promise<ActionResult>
     wa_id: checked.waId,
     connection_id: connectionId || null,
     body: checked.body,
+    template_name: templateName || null,
+    template_language: templateLanguage,
+    template_variables: templateVariables,
     send_at: checked.sendAt.toISOString(),
     created_by: user.id,
   });

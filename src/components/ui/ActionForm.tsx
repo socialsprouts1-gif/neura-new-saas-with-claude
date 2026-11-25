@@ -131,18 +131,30 @@ export function SelectField({
   name,
   options,
   defaultValue,
+  // Optional, and only used together: a caller that needs to react to the
+  // choice — showing the right number of inputs for a chosen template,
+  // say — passes both and the select becomes controlled. Everything else
+  // carries on uncontrolled, which is what every other form here wants.
+  value,
+  onChange,
 }: {
   label: string;
   name: string;
   options: Array<{ value: string; label: string }>;
   defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
 }) {
+  const controlled = value !== undefined && onChange !== undefined;
+
   return (
     <label className="block">
       <span className="block text-xs font-medium text-white/70 mb-1.5">{label}</span>
       <select
         name={name}
-        defaultValue={defaultValue}
+        {...(controlled
+          ? { value, onChange: (event) => onChange(event.target.value) }
+          : { defaultValue })}
         className="w-full bg-white/5 border border-white/12 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-all"
       >
         {options.map((o) => (

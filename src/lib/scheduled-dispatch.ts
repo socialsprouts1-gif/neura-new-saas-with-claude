@@ -1,6 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadOrgConnection, sendAndLogText } from "@/lib/whatsapp-send";
+import { sendTemplateMessage, MetaApiError, describeMetaError } from "@/lib/meta-whatsapp";
+import { recordOutboundTemplate } from "@/lib/outbound-log";
 import { dueForSend, isStale } from "@/lib/scheduled-message";
 
 // Delivering the messages somebody wrote earlier.
@@ -38,7 +40,9 @@ export async function dispatchScheduledMessages(
 
   let query = supabase
     .from("scheduled_messages")
-    .select("id, org_id, contact_id, wa_id, connection_id, body, send_at, status")
+    .select(
+      "id, org_id, contact_id, wa_id, connection_id, body, template_name, template_language, template_variables, send_at, status"
+    )
     .eq("status", "pending")
     .lte("send_at", now.toISOString())
     .order("send_at")
@@ -91,6 +95,71 @@ export async function dispatchScheduledMessages(
       if (!connection) {
         await fail(supabase, row.id, "No active WhatsApp number to send from.", now);
         result.failed += 1;
+        continue;
+      }
+
+      // A template goes out whatever the window says, which is the whole
+      // reason to name one. Handled before the conversation lookup
+      // because it does not need a conversation to exist: the point of
+      // scheduling a week out is that nobody has written in the meantime.
+      if (row.template_name) {
+        try {
+          const variables = row.template_variables ?? [];
+          const sent = await sendTemplateMessage(
+            connection.phoneNumberId,
+            row.wa_id,
+            row.template_name,
+            row.template_language || "en",
+            variables.length > 0
+              ? [
+                  {
+                    type: "body",
+                    parameters: variables.map((value) => ({ type: "text", text: value })),
+                  },
+                ]
+              : [],
+            connection.accessToken
+          );
+
+          // Logged under template_name, which is what the inbox reads.
+          // Stored anywhere else it renders as a bare "[template]" —
+          // the same mistake the campaign and reminder paths both made.
+          await recordOutboundTemplate(supabase, {
+            orgId: row.org_id,
+            connectionId: connection.id,
+            waId: row.wa_id,
+            contactName: null,
+            templateName: row.template_name,
+            language: row.template_language || "en",
+            body: row.body,
+            source: "Scheduled message",
+            waMessageId: sent.messages[0]?.id ?? null,
+          });
+
+          await supabase
+            .from("scheduled_messages")
+            .update({
+              status: "sent",
+              sent_at: now.toISOString(),
+              wa_message_id: sent.messages[0]?.id ?? null,
+              error: null,
+              updated_at: now.toISOString(),
+            })
+            .eq("id", row.id);
+          result.sent += 1;
+        } catch (problem) {
+          await fail(
+            supabase,
+            row.id,
+            problem instanceof MetaApiError
+              ? describeMetaError(problem.status, problem.body)
+              : problem instanceof Error
+                ? problem.message
+                : "WhatsApp refused the template.",
+            now
+          );
+          result.failed += 1;
+        }
         continue;
       }
 
