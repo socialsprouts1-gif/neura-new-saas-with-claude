@@ -7,6 +7,8 @@ import {
   isOverdue,
   todayIn,
 } from "@/lib/invoices";
+import { loadPaymentSettings } from "@/lib/commerce";
+import { isPaymentProvider } from "@/lib/provider-meta";
 import type { Invoice, InvoiceItem, InvoiceSettings } from "@/types/portal";
 import PrintButton from "./PrintButton";
 
@@ -45,10 +47,13 @@ export async function generateMetadata({
 
 export default async function PublicInvoicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ pay?: string }>;
 }) {
   const { token } = await params;
+  const { pay } = await searchParams;
   const loaded = await loadInvoice(token);
   if (!loaded) notFound();
 
@@ -58,6 +63,18 @@ export default async function PublicInvoicePage({
   const settled = invoice.status === "paid" || outstanding <= 0;
   const cancelled = invoice.status === "cancelled";
   const overdue = !settled && !cancelled && isOverdue(invoice.due_on, today);
+
+  // Whether to offer paying online at all.
+  //
+  // A link already on the invoice means yes. Otherwise it depends on the
+  // business having chosen a gateway, which is checked here rather than
+  // assumed: a Pay button that leads nowhere is worse than no button,
+  // because the customer stops looking for the bank details underneath.
+  const canPayOnline =
+    !settled &&
+    !cancelled &&
+    outstanding > 0 &&
+    (Boolean(invoice.payment_link_url) || (await gatewayReady(invoice.org_id)));
 
   // Rebuilt from the stored line figures rather than recomputed: the
   // document must not change under the customer if the arithmetic is ever
@@ -102,9 +119,13 @@ export default async function PublicInvoicePage({
 
           <div className="flex items-center gap-2">
             <PrintButton />
-            {!settled && !cancelled && invoice.payment_link_url && (
+            {canPayOnline && (
+              // The link, when the invoice already has one; otherwise the
+              // route that makes one and forwards. Going through the route
+              // either way would cost every customer a redirect for no
+              // reason, and a link already made is the common case.
               <a
-                href={invoice.payment_link_url}
+                href={invoice.payment_link_url ?? `/api/invoices/${encodeURIComponent(token)}/pay`}
                 className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 transition-colors"
               >
                 Pay {money(outstanding)}
@@ -112,6 +133,16 @@ export default async function PublicInvoicePage({
             )}
           </div>
         </div>
+
+        {/* The gateway refused, or none is configured. Said plainly, and
+            pointing at what is still on the page, rather than leaving the
+            customer pressing a button that keeps returning them here. */}
+        {pay === "unavailable" && !settled && !cancelled && (
+          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 print:hidden">
+            Online payment is not available for this invoice right now. The bank details and
+            UPI id below still work, or reply to the business and they will send a fresh link.
+          </div>
+        )}
 
         <article className="bg-white rounded-2xl shadow-sm print:shadow-none print:rounded-none p-8 md:p-10 text-zinc-900">
           <header className="flex flex-wrap items-start justify-between gap-6 pb-6 border-b border-zinc-200">
@@ -445,5 +476,21 @@ async function loadInvoice(token: string): Promise<Loaded | null> {
   } catch (error) {
     console.error("Could not load the public invoice", error);
     return null;
+  }
+}
+
+/**
+ * Has this business chosen a payment gateway?
+ *
+ * Asked so the Pay button is only offered when pressing it can lead
+ * somewhere. Any failure answers no: on a page a customer is reading,
+ * the safe wrong answer is the one that shows them the bank details.
+ */
+async function gatewayReady(orgId: string): Promise<boolean> {
+  try {
+    const settings = await loadPaymentSettings(createAdminClient(), orgId);
+    return isPaymentProvider(settings.link_provider ?? "");
+  } catch {
+    return false;
   }
 }
