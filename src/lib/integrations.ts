@@ -16,6 +16,7 @@ export type IntegrationCapability =
   | "via_webhook"; // works today by consuming our outgoing webhook / API
 
 export type IntegrationCategory =
+  | "AI"
   | "Automation"
   | "E-commerce"
   | "CRM"
@@ -83,6 +84,59 @@ export const INTEGRATIONS: IntegrationDef[] = [
     fields: [],
     brand: "#6E93C4",
     flows: true,
+  },
+
+  // ---------------- The model providers ----------------
+  //
+  // A key saved here is the workspace's key: every AI assistant, the
+  // inbox suggestions and the flow generator fall back to it. Before
+  // this, a key could only be pasted into one assistant at a time, so a
+  // business with three assistants pasted the same key three times and
+  // the inbox had none at all.
+  {
+    slug: "openai",
+    name: "OpenAI",
+    category: "AI",
+    description:
+      "GPT models for the AI assistant, inbox reply suggestions and the chatbot builder.",
+    capability: "live",
+    prerequisite: "Create a key at platform.openai.com → API keys. A project key starting sk- is fine.",
+    fields: [
+      { name: "api_key", label: "OpenAI API key", type: "password", required: true, placeholder: "sk-proj-…" },
+    ],
+    brand: "#10A37F",
+    featured: true,
+    note: "Billing is yours and goes directly to OpenAI. Set a spend limit in their dashboard before you connect.",
+  },
+  {
+    slug: "anthropic",
+    name: "Anthropic",
+    category: "AI",
+    description:
+      "Claude models for the AI assistant. Best at following long, detailed brand instructions.",
+    capability: "live",
+    prerequisite: "Create a key at console.anthropic.com → Settings → API keys.",
+    fields: [
+      { name: "api_key", label: "Anthropic API key", type: "password", required: true, placeholder: "sk-ant-api03-…" },
+    ],
+    brand: "#C8785A",
+    featured: true,
+    note: "Billing is yours and goes directly to Anthropic. Set a spend limit before you connect.",
+  },
+  {
+    slug: "google-gemini",
+    name: "Google Gemini",
+    category: "AI",
+    description:
+      "Gemini models from Google AI Studio, with a free tier that is usually enough to start on.",
+    capability: "live",
+    prerequisite: "Create a key at aistudio.google.com → Get API key.",
+    fields: [
+      { name: "api_key", label: "Google AI API key", type: "password", required: true, placeholder: "AIza…" },
+    ],
+    brand: "#4285F4",
+    featured: true,
+    note: "The free tier is rate-limited. A busy inbox will need a paid key.",
   },
 
   // ---------------- Work today by consuming our webhook / API ----------------

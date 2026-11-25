@@ -1,5 +1,5 @@
 import "server-only";
-import { callProvider, resolveApiKey } from "@/lib/ai-call";
+import { callProvider, hasUsableKey } from "@/lib/ai-call";
 import { isWithinWorkingHours } from "@/lib/working-hours";
 import { formInstructions, readFormOffer } from "@/lib/assistant-forms";
 import type { AiAssistant, AssistantKnowledge } from "@/types/portal";
@@ -49,10 +49,15 @@ export type AssistantReply =
   /** Something broke. The reason names the fix. */
   | { status: "failed"; error: string };
 
-/** Whether this assistant has a key to call its provider with. */
-export function isAssistantConfigured(assistant?: AiAssistant): boolean {
+/**
+ * Whether this assistant has a key to call its provider with.
+ *
+ * Counts the workspace key saved on the Integrations page, which is why
+ * this has to wait on the database.
+ */
+export async function isAssistantConfigured(assistant?: AiAssistant): Promise<boolean> {
   if (!assistant) return Boolean(process.env.ANTHROPIC_API_KEY);
-  return resolveApiKey(assistant) !== null;
+  return hasUsableKey(assistant);
 }
 
 function buildSystemPrompt({

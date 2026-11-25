@@ -119,6 +119,10 @@ export async function generateAssistantInstructions(
   const result = await buildInstructions(
     description,
     role,
+    // Both branches carry the workspace, so the key saved on the
+    // Integrations page is reachable. The fallback branch especially:
+    // it is taken when no assistant has a key of its own, which is
+    // exactly when the workspace key is the only one there is.
     own
       ? {
           ...own,
@@ -126,8 +130,9 @@ export async function generateAssistantInstructions(
           // structure and a little more room.
           temperature: PROMPT_BUILDER_MODEL.temperature,
           max_tokens: PROMPT_BUILDER_MODEL.max_tokens,
+          org_id: orgId,
         }
-      : PROMPT_BUILDER_MODEL
+      : { ...PROMPT_BUILDER_MODEL, org_id: orgId }
   );
 
   if (!result.ok) return { ok: false, error: result.error };
@@ -1501,8 +1506,9 @@ export async function generateFlowFromPrompt(
           // replies; a flow needs structure and room.
           temperature: PLATFORM_FLOW_MODEL.temperature,
           max_tokens: PLATFORM_FLOW_MODEL.max_tokens,
+          org_id: ctx.orgId,
         }
-      : PLATFORM_FLOW_MODEL
+      : { ...PLATFORM_FLOW_MODEL, org_id: ctx.orgId }
   );
 
   if (!result.ok) return { ok: false, error: result.error };

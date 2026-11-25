@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { decryptToken } from "@/lib/crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { providerById, type ProviderId } from "@/lib/ai-providers";
 
 // One call into whichever provider a tenant configured. The AI Assistant
@@ -32,6 +33,13 @@ export interface AiCallConfig {
   api_base_url: string | null;
   temperature: number;
   max_tokens: number;
+  /**
+   * Whose workspace this is, so the key saved on the Integrations page
+   * can be used when this particular assistant has none of its own.
+   * Optional: a caller that cannot supply it still works, it just skips
+   * that step.
+   */
+  org_id?: string | null;
 }
 
 export interface AiTurn {
@@ -48,6 +56,55 @@ export type AiCallResult = { ok: true; text: string } | { ok: false; error: stri
  * Returns null when neither exists, so the caller can say which one to set
  * instead of letting the provider answer with a bare 401.
  */
+/**
+ * The Integrations slug that holds a workspace key for this provider.
+ *
+ * Google's is spelled differently in the two places — "google" is the
+ * model provider, "google-gemini" is what the card is called — so the
+ * mapping is written down rather than assumed. A key saved under a name
+ * nothing looks up is a key that silently does nothing, which is the
+ * failure this whole indirection exists to avoid.
+ */
+const WORKSPACE_KEY_SLUG: Record<string, string> = {
+  openai: "openai",
+  anthropic: "anthropic",
+  google: "google-gemini",
+};
+
+/**
+ * The key saved for the whole workspace on the Integrations page.
+ *
+ * Sits between the assistant's own key and the platform's environment
+ * key: specific beats general, and a business that pasted one key for
+ * the workspace should not have to paste it again into every assistant.
+ */
+async function workspaceKey(config: AiCallConfig): Promise<string | null> {
+  const slug = WORKSPACE_KEY_SLUG[config.provider];
+  if (!slug || !config.org_id) return null;
+
+  try {
+    const { data } = await createAdminClient()
+      .from("org_integrations")
+      .select("credentials_encrypted, status")
+      .eq("org_id", config.org_id)
+      .eq("provider", slug)
+      .maybeSingle();
+
+    if (!data?.credentials_encrypted || data.status !== "connected") return null;
+
+    const parsed = JSON.parse(decryptToken(data.credentials_encrypted)) as {
+      api_key?: string;
+    };
+    return parsed.api_key?.trim() || null;
+  } catch (error) {
+    // A key encrypted under a previous TOKEN_ENCRYPTION_KEY, or a row
+    // that is not the JSON this expects. Fall through to the
+    // environment rather than failing the reply outright.
+    console.error("Could not read the workspace AI key", error);
+    return null;
+  }
+}
+
 export function resolveApiKey(config: AiCallConfig): string | null {
   if (config.api_key_encrypted) {
     try {
@@ -63,6 +120,21 @@ export function resolveApiKey(config: AiCallConfig): string | null {
   const envVar = providerById(config.provider)?.envVar;
   const fromEnv = envVar ? process.env[envVar]?.trim() : undefined;
   return fromEnv || null;
+}
+
+/**
+ * Whether a key can be found at all — the assistant's own, the
+ * workspace's, or the platform's.
+ *
+ * Async because the workspace key lives in the database. The screen that
+ * shows "no API key" used to ask the synchronous question, so after the
+ * Integrations page learned to hold a key it would have gone on
+ * reporting an assistant as unconfigured while it was about to work
+ * perfectly well.
+ */
+export async function hasUsableKey(config: AiCallConfig): Promise<boolean> {
+  if (resolveApiKey(config) !== null) return true;
+  return (await workspaceKey(config)) !== null;
 }
 
 /** Never throws: every failure comes back as a sentence the tenant can act on. */
@@ -81,7 +153,14 @@ export async function callProvider(
     };
   }
 
-  const apiKey = resolveApiKey(config);
+  // Assistant's own key, then the workspace key from Integrations, then
+  // the platform's. resolveApiKey covers the first and the last, so the
+  // middle one is tried before falling back to it entirely.
+  const apiKey =
+    (config.api_key_encrypted ? resolveApiKey(config) : null) ??
+    (await workspaceKey(config)) ??
+    resolveApiKey(config);
+
   if (!apiKey) {
     return {
       ok: false,

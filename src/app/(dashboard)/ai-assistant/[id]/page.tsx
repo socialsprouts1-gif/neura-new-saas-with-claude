@@ -67,7 +67,7 @@ export default async function AssistantEditorPage({
       }))}
       // Resolved here because it needs the decryption key and the env, and
       // neither may cross to the client.
-      hasKey={isAssistantConfigured(assistant as AiAssistant)}
+      hasKey={await isAssistantConfigured(assistant as AiAssistant)}
     />
   );
 }

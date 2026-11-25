@@ -117,6 +117,11 @@ async function loadContext(
       instructions: assistant?.system_prompt ?? undefined,
       knowledge,
     },
+    // org_id on both branches, including the fallback. Without it the
+    // key saved on the Integrations page cannot be found, and the inbox
+    // would report having no key while one sits in the workspace —
+    // which is the state most businesses are actually in, because the
+    // fallback is used precisely when no assistant exists.
     config: assistant
       ? {
           provider: assistant.provider,
@@ -125,8 +130,9 @@ async function loadContext(
           api_base_url: assistant.api_base_url,
           temperature: COPILOT_MODEL.temperature,
           max_tokens: COPILOT_MODEL.max_tokens,
+          org_id: orgId,
         }
-      : COPILOT_MODEL,
+      : { ...COPILOT_MODEL, org_id: orgId },
   };
 }
 
