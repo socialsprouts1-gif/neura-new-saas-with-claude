@@ -44,7 +44,24 @@ const JOBS: Array<{ name: string; run: () => Promise<unknown> }> = [
 
 export async function GET(request: NextRequest) {
   if (!isCronAuthorised(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Which of the three it is.
+    //
+    // A bare "Unauthorized" leaves somebody guessing between a secret
+    // that was never set, one set but not deployed, and one that does
+    // not match what the caller sent — and the only place the answer
+    // shows up is a 401 in a table of http responses. Saying whether
+    // the server has a secret at all discloses nothing: it does not
+    // help anybody in, and it immediately rules out two of the three.
+    const configured = Boolean(process.env.CRON_SECRET);
+    return NextResponse.json(
+      {
+        error: "Unauthorized",
+        detail: configured
+          ? "This deployment has a CRON_SECRET, and the Authorization header did not match it. Check the value in the heartbeat SQL matches Vercel exactly, with no quotes or spaces around it, and that it is sent as: Bearer <secret>."
+          : "This deployment has no CRON_SECRET. Add it in Vercel under Settings, Environment Variables, then redeploy — a new value only reaches the running app on a new deployment.",
+      },
+      { status: 401 }
+    );
   }
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 });

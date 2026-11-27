@@ -68,8 +68,10 @@ select cron.schedule(
 --   order by created desc
 --   limit 5;
 --
--- status 401 means the secret here and the one in Vercel do not match,
--- or Vercel has not been redeployed since you added it.
+-- Read `content` on a 401 — it says which of the three it is: no secret
+-- on the deployment, a secret that does not match what was sent, or a
+-- value added to Vercel without redeploying since. Do not skip the
+-- content column: the status alone cannot tell them apart.
 --
 -- A body saying "a run was already in progress" is not a fault. It
 -- means the previous minute's work was still going and this call stood
