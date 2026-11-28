@@ -251,27 +251,37 @@ export async function recentMedia(
 export async function disconnectInstagram(id: string): Promise<ActionResult> {
   const { orgId } = await requireFeature("instagram");
 
-  const supabase = await createClient();
-  const { data: account } = await supabase
-    .from("instagram_connections")
-    .select("username")
-    .eq("id", id)
-    .eq("org_id", orgId)
-    .maybeSingle();
+  // The service role, because instagram_connections has a read policy and
+  // nothing else — by design, since it holds the access tokens. Through
+  // the caller's own client the delete matched no rows, Postgres called
+  // that a success, and this reported "@name disconnected" every time
+  // while the account stayed connected and kept sending.
+  const admin = createAdminClient();
 
-  const { error } = await supabase
+  const { data: removed, error } = await admin
     .from("instagram_connections")
     .delete()
     .eq("id", id)
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    // Returning the row is what makes the difference between "deleted"
+    // and "matched nothing". Without it the two are the same answer.
+    .select("username");
 
   if (error) return { ok: false, error: error.message };
+
+  if (!removed || removed.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Nothing was disconnected — that account is not in this workspace. Reload the page; if it is still listed, tell support which account it is.",
+    };
+  }
 
   revalidatePath("/instagram");
   return {
     ok: true,
-    message: account?.username
-      ? `@${account.username} disconnected. Your automations are kept.`
+    message: removed[0].username
+      ? `@${removed[0].username} disconnected. Your automations are kept.`
       : "Disconnected. Your automations are kept.",
   };
 }
@@ -289,9 +299,14 @@ export async function pauseInstagramAutomation(
   paused: boolean
 ): Promise<ActionResult> {
   const { orgId } = await requireFeature("instagram");
-  const supabase = await createClient();
 
-  const { error } = await supabase
+  // The service role, for the same reason as the disconnect above. This
+  // one mattered most: the switch said "Stopped. Nothing more will be
+  // sent from this account" while updating no rows at all, on the one
+  // screen somebody opens when their account is already in trouble.
+  const admin = createAdminClient();
+
+  const { data: changed, error } = await admin
     .from("instagram_connections")
     .update(
       paused
@@ -302,9 +317,20 @@ export async function pauseInstagramAutomation(
         : { automation_paused_at: null, automation_paused_reason: null }
     )
     .eq("id", connectionId)
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .select("id");
 
   if (error) return { ok: false, error: error.message };
+
+  // Never report a stop that did not happen. Somebody reading "Stopped"
+  // walks away from the screen.
+  if (!changed || changed.length === 0) {
+    return {
+      ok: false,
+      error:
+        "Nothing changed — that account is not in this workspace. Reload the page and try again.",
+    };
+  }
 
   revalidatePath("/instagram");
   return {
@@ -318,7 +344,6 @@ export async function pauseInstagramAutomation(
 /** Changes how much an account may send in an hour and in a day. */
 export async function saveInstagramLimits(formData: FormData): Promise<ActionResult> {
   const { orgId } = await requireFeature("instagram");
-  const supabase = await createClient();
 
   const id = String(formData.get("id") ?? "").trim();
   const perHour = Math.floor(Number(formData.get("sends_per_hour") ?? 0));
@@ -335,13 +360,24 @@ export async function saveInstagramLimits(formData: FormData): Promise<ActionRes
     return { ok: false, error: "The daily limit cannot be lower than the hourly one." };
   }
 
-  const { error } = await supabase
+  // Service role, and the row count checked: the same silent no-op as
+  // the two above. A limit that reports itself saved and was not is
+  // worse than one that refuses, because the number on screen then
+  // disagrees with the number being enforced.
+  const { data: changed, error } = await createAdminClient()
     .from("instagram_connections")
     .update({ sends_per_hour: perHour, sends_per_day: perDay })
     .eq("id", id)
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .select("id");
 
   if (error) return { ok: false, error: error.message };
+  if (!changed || changed.length === 0) {
+    return {
+      ok: false,
+      error: "Nothing changed — that account is not in this workspace. Reload the page and try again.",
+    };
+  }
 
   revalidatePath("/instagram");
   return { ok: true, message: `Now capped at ${perHour} an hour and ${perDay} a day.` };
